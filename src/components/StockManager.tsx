@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { Plus, Trash2, LayoutGrid, Info, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 const StockManager: React.FC = () => {
     const { stocks, addStock, removeStock } = usePortfolio();
+    const { confirm } = useConfirm();
     const [newStock, setNewStock] = useState('');
     const [selectedSector, setSelectedSector] = useState('Others');
 
@@ -24,8 +26,16 @@ const StockManager: React.FC = () => {
         }
     };
 
-    const handleRemove = (id: string, symbol: string) => {
-        if (window.confirm(`Are you sure you want to remove ${symbol}? Transactions for this stock will still remain but it won't appear in new entry forms.`)) {
+    const handleRemove = async (id: string, symbol: string) => {
+        const isConfirmed = await confirm({
+            title: 'Retire Asset',
+            message: `Are you sure you want to remove ${symbol}? Transactions for this stock will still remain but it won't appear in new entry forms.`,
+            variant: 'danger',
+            confirmText: 'Remove Asset',
+            cancelText: 'Cancel'
+        });
+
+        if (isConfirmed) {
             removeStock(id);
             toast.success(`${symbol} retired from active list.`);
         }

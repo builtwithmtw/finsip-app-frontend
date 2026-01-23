@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { Wallet, Plus, Trash2, Calendar, DollarSign, PiggyBank } from 'lucide-react';
+import { Wallet, Plus, Calendar, DollarSign, PiggyBank, FileText } from 'lucide-react';
 import { formatCurrency, formatMonth } from '../utils/formatters';
 import { toast } from 'sonner';
 
 const CashPage: React.FC = () => {
-    const { cashEntries, addCashEntry, deleteCashEntry } = usePortfolio();
+    const { cashEntries, addCashEntry } = usePortfolio();
     const [formData, setFormData] = useState({
-        date: new Date().toISOString().slice(0, 7),
+        month: new Date().toISOString().slice(0, 7),
         amount: '',
-        description: '',
+        memo: '',
     });
 
     const totalCash = cashEntries.reduce((sum, e) => sum + e.amount, 0);
@@ -19,30 +19,23 @@ const CashPage: React.FC = () => {
         if (!formData.amount) return;
 
         addCashEntry({
-            date: formData.date,
+            month: formData.month,
             amount: Number(formData.amount),
-            description: formData.description || 'Monthly SIP Allocation',
+            memo: formData.memo,
         });
 
-        toast.success(`Allocated ${formatCurrency(Number(formData.amount))} for ${formatMonth(formData.date)}`);
-        setFormData(prev => ({ ...prev, amount: '', description: '' }));
-    };
-
-    const handleDelete = (id: string, date: string) => {
-        if (window.confirm(`Delete cash allocation record for ${formatMonth(date)}?`)) {
-            deleteCashEntry(id);
-            toast.success(`Removed allocation for ${formatMonth(date)}`);
-        }
+        toast.success(`Allocated ${formatCurrency(Number(formData.amount))} for ${formatMonth(formData.month)}`);
+        setFormData(prev => ({ ...prev, amount: '', memo: '' }));
     };
 
     return (
         <div className="space-y-8 max-w-[1400px] mx-auto">
             <div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3 uppercase">
                     <Wallet className="text-blue-600" size={32} />
                     Capital Allocation
                 </h1>
-                <p className="text-slate-500 font-medium mt-1 pl-1">Record your savings and monthly budget transfers.</p>
+                <p className="text-slate-500 font-medium mt-1 pl-1 italic">Record your savings and monthly budget transfers.</p>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
@@ -54,37 +47,37 @@ const CashPage: React.FC = () => {
                             <PiggyBank size={180} />
                         </div>
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Available Budget Pool</span>
-                        <div className="text-4xl font-black text-white tracking-tighter">{formatCurrency(totalCash)}</div>
+                        <div className="text-4xl font-black text-white tracking-tighter uppercase">{formatCurrency(totalCash).split('.')[0]}</div>
                         <p className="text-slate-400 text-xs mt-4 font-bold uppercase tracking-wider">Total cumulative savings recorded</p>
                     </div>
 
                     <div className="bg-white p-8 rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100">
-                        <h2 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2">
+                        <h2 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 uppercase">
                             <Plus size={20} className="text-blue-600" />
                             Provision Funds
                         </h2>
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Target Month</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 px-1">Target Month</label>
                                 <div className="relative font-bold">
                                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
                                     <input
                                         type="month"
                                         required
                                         className="w-full h-12 bg-slate-50 border-0 rounded-xl pl-12 pr-4 text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all cursor-pointer"
-                                        value={formData.date}
-                                        onChange={e => setFormData({ ...formData, date: e.target.value })}
+                                        value={formData.month}
+                                        onChange={e => setFormData({ ...formData, month: e.target.value })}
                                     />
                                 </div>
                             </div>
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Allocation Value (Rs.)</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 px-1">Allocation Value (Rs.)</label>
                                 <div className="relative font-bold">
                                     <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                                     <input
                                         type="number"
                                         required
-                                        placeholder="0.00"
+                                        placeholder="0"
                                         className="w-full h-12 bg-slate-50 border-0 rounded-xl pl-12 pr-4 text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
                                         value={formData.amount}
                                         onChange={e => setFormData({ ...formData, amount: e.target.value })}
@@ -92,18 +85,21 @@ const CashPage: React.FC = () => {
                                 </div>
                             </div>
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Memo / Origin</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. Salary Transfer"
-                                    className="w-full h-12 bg-slate-50 border-0 rounded-xl px-4 text-slate-900 font-bold focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
-                                    value={formData.description}
-                                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                />
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 px-1">Memo / Origin</label>
+                                <div className="relative font-bold">
+                                    <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Monthly Savings"
+                                        className="w-full h-12 bg-slate-50 border-0 rounded-xl pl-12 pr-4 text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
+                                        value={formData.memo}
+                                        onChange={e => setFormData({ ...formData, memo: e.target.value })}
+                                    />
+                                </div>
                             </div>
                             <button
                                 type="submit"
-                                className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all duration-300 font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 active:scale-95"
+                                className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all duration-300 font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 active:scale-95 uppercase"
                             >
                                 <Plus size={20} />
                                 Commit Allocation
@@ -116,7 +112,7 @@ const CashPage: React.FC = () => {
                 <div className="xl:col-span-8">
                     <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
                         <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
-                            <h2 className="text-lg font-black text-slate-900">Provisioning Journal</h2>
+                            <h2 className="text-lg font-black text-slate-900 uppercase">Provisioning Journal</h2>
                             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cashEntries.length} Records</div>
                         </div>
 
@@ -127,33 +123,24 @@ const CashPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50/80">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-[#2563EB] text-white">
                                         <tr>
-                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Applicable Month</th>
-                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Origin/Memo</th>
-                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Credit Value</th>
-                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right w-20">Action</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Applicable Month</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Memo / Origin</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Credit Value</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {[...cashEntries].sort((a, b) => b.date.localeCompare(a.date)).map((entry) => (
+                                    <tbody className="divide-y divide-slate-50 uppercase">
+                                        {[...cashEntries].sort((a, b) => b.month.localeCompare(a.month)).map((entry) => (
                                             <tr key={entry.id} className="hover:bg-blue-50/20 group transition-all duration-300">
                                                 <td className="px-8 py-5">
-                                                    <span className="font-black text-slate-900 uppercase tracking-tight">{formatMonth(entry.date)}</span>
+                                                    <span className="font-black text-slate-900 uppercase tracking-tight">{formatMonth(entry.month)}</span>
                                                 </td>
                                                 <td className="px-8 py-5">
-                                                    <span className="text-slate-500 font-bold text-sm italic">{entry.description}</span>
+                                                    <span className="font-bold text-slate-500 text-xs">{entry.memo || '—'}</span>
                                                 </td>
-                                                <td className="px-8 py-5 text-right font-black text-blue-600 text-lg">{formatCurrency(entry.amount)}</td>
-                                                <td className="px-8 py-5 text-right">
-                                                    <button
-                                                        onClick={() => handleDelete(entry.id, entry.date)}
-                                                        className="text-slate-300 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </td>
+                                                <td className="px-8 py-5 text-right font-black text-blue-600 text-lg tabular-nums">{formatCurrency(entry.amount).split('.')[0]}</td>
                                             </tr>
                                         ))}
                                     </tbody>

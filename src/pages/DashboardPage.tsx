@@ -1,13 +1,63 @@
 import React from 'react';
 import HoldingsTable from '../components/HoldingsTable';
 import MonthlyView from '../components/MonthlyView';
-import SectorAllocationChart from '../components/SectorAllocationChart';
-import { PiggyBank, HandCoins, Wallet, LayoutDashboard } from 'lucide-react';
+import { PiggyBank, HandCoins, Wallet, LayoutDashboard, Activity } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { formatCurrency } from '../utils/formatters';
+import SectorAllocationChart from '../components/SectorAllocationChart';
 
 const DashboardPage: React.FC = () => {
     const { transactions, cashEntries, payouts } = usePortfolio();
+
+    // Total Value Calculation
+    const [stockPrices, setStockPrices] = React.useState<Record<string, number>>({});
+    const [isPricingLive, setIsPricingLive] = React.useState(false);
+
+    React.useEffect(() => {
+        const fetchPrices = async () => {
+            try {
+                const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/KSE100/companies?page=1&limit=500";
+                const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
+                const response = await fetch(proxyUrl);
+                const json = await response.json();
+                const prices: Record<string, number> = {};
+                const dataArray = (json && json.data) ? json.data : (json && json.response && json.response.data ? json.response.data : (Array.isArray(json) ? json : []));
+
+                if (dataArray.length > 0) {
+                    dataArray.forEach((item: any) => {
+                        const symbol = (item.symbol || item.ticker || "").toString().toUpperCase().trim();
+                        const price = Number(item.curr || item.last_price || item.price || 0);
+                        if (symbol && price > 0) prices[symbol] = price;
+                    });
+                    setStockPrices(prices);
+                    setIsPricingLive(true);
+                }
+            } catch (err) {
+                console.error(err);
+                setIsPricingLive(false);
+            }
+        };
+        fetchPrices();
+    }, []);
+
+    const currentBalances = React.useMemo(() => {
+        const map = new Map<string, number>();
+        transactions.forEach(t => {
+            const current = map.get(t.symbol) || 0;
+            const sharesNum = Number(t.shares || 0);
+            if (t.type === 'sell') map.set(t.symbol, current - sharesNum);
+            else map.set(t.symbol, current + sharesNum);
+        });
+        return map;
+    }, [transactions]);
+
+    const totalMarketValue = React.useMemo(() => {
+        let val = 0;
+        currentBalances.forEach((shares, symbol) => {
+            if (shares > 0) val += shares * (stockPrices[symbol] || 0);
+        });
+        return val;
+    }, [currentBalances, stockPrices]);
 
     // Net Investment = Total Buys - Total Sells
     const totalInvested = transactions.reduce((sum, t) => {

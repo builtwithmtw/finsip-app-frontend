@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { TrendingUp, Plus, Trash2, Calendar, DollarSign, WalletCards } from 'lucide-react';
+import { TrendingUp, Plus, WalletCards, Calendar, DollarSign } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'sonner';
 
 const PayoutsPage: React.FC = () => {
-    const { payouts, stocks, addPayout, deletePayout } = usePortfolio();
+    const { payouts, stocks, addPayout } = usePortfolio();
     const [formData, setFormData] = useState({
-        stockSymbol: '',
+        symbol: '',
         date: new Date().toISOString().slice(0, 10),
         amount: '',
     });
@@ -17,24 +17,19 @@ const PayoutsPage: React.FC = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.stockSymbol || !formData.amount) return;
+        if (!formData.symbol || !formData.amount) return;
 
         addPayout({
-            stockSymbol: formData.stockSymbol,
+            symbol: formData.symbol,
             date: formData.date,
             amount: Number(formData.amount),
         });
 
-        toast.success(`Recorded payout of ${formatCurrency(Number(formData.amount))} for ${formData.stockSymbol}`);
+        toast.success(`Recorded payout of ${formatCurrency(Number(formData.amount))} for ${formData.symbol}`);
         setFormData(prev => ({ ...prev, amount: '' }));
     };
 
-    const handleDelete = (id: string, symbol: string, amount: number) => {
-        if (window.confirm(`Delete payout record of ${formatCurrency(amount)} for ${symbol}?`)) {
-            deletePayout(id);
-            toast.success('Payout record deleted');
-        }
-    };
+
 
     return (
         <div className="space-y-8 max-w-[1400px] mx-auto">
@@ -69,7 +64,7 @@ const PayoutsPage: React.FC = () => {
                     {lastPayout ? (
                         <div>
                             <div className="text-2xl font-black text-slate-900">{formatCurrency(lastPayout.amount)}</div>
-                            <div className="text-[10px] text-blue-500 font-black mt-1 uppercase tracking-wider">{lastPayout.stockSymbol} • {new Date(lastPayout.date).toLocaleDateString('en-PK', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                            <div className="text-[10px] text-blue-500 font-black mt-1 uppercase tracking-wider">{lastPayout.symbol} • {new Date(lastPayout.date).toLocaleDateString('en-PK', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                         </div>
                     ) : (
                         <div className="text-sm text-slate-300 font-bold italic">No payouts tracked</div>
@@ -91,8 +86,8 @@ const PayoutsPage: React.FC = () => {
                                 <select
                                     required
                                     className="w-full h-12 bg-slate-50 border-0 rounded-xl px-4 text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all appearance-none cursor-pointer"
-                                    value={formData.stockSymbol}
-                                    onChange={e => setFormData({ ...formData, stockSymbol: e.target.value })}
+                                    value={formData.symbol}
+                                    onChange={e => setFormData({ ...formData, symbol: e.target.value })}
                                 >
                                     <option value="">Select Target...</option>
                                     {stocks.map(s => <option key={s.id} value={s.symbol}>{s.symbol}</option>)}
@@ -157,7 +152,6 @@ const PayoutsPage: React.FC = () => {
                                             <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Transaction At</th>
                                             <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Asset</th>
                                             <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Credit Value</th>
-                                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right w-20">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -167,17 +161,9 @@ const PayoutsPage: React.FC = () => {
                                                     <span className="font-bold text-slate-700">{new Date(payout.date).toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                                                 </td>
                                                 <td className="px-8 py-5">
-                                                    <span className="inline-flex items-center px-3 py-1 bg-slate-100 rounded-lg text-xs font-black text-slate-900 uppercase tracking-wider">{payout.stockSymbol}</span>
+                                                    <span className="inline-flex items-center px-3 py-1 bg-slate-100 rounded-lg text-xs font-black text-slate-900 uppercase tracking-wider">{payout.symbol}</span>
                                                 </td>
                                                 <td className="px-8 py-5 text-right font-black text-emerald-600 text-lg">{formatCurrency(payout.amount)}</td>
-                                                <td className="px-8 py-5 text-right">
-                                                    <button
-                                                        onClick={() => handleDelete(payout.id, payout.stockSymbol, payout.amount)}
-                                                        className="text-slate-300 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>

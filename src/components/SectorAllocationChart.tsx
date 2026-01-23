@@ -113,7 +113,7 @@ const SectorAllocationChart: React.FC = () => {
                                 padding: '12px 16px'
                             }}
                             itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}
-                            formatter={(value: any) => [formatCurrency(Number(value || 0)).split('.')[0], 'Value']}
+                            formatter={(value: any, name: any) => [formatCurrency(Number(value || 0)).split('.')[0], name]}
                         />
                     </PieChart>
                 </ResponsiveContainer>

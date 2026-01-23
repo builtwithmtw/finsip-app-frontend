@@ -1,9 +1,8 @@
 export interface Stock {
   id: string;
   symbol: string;
-  name?: string;
   sector: string;
-  createdAt: number;
+  createdAt: string;
 }
 
 export interface Transaction {
@@ -14,23 +13,23 @@ export interface Transaction {
   pricePerShare: number;
   totalAmount: number;
   type: 'buy' | 'sell';
-  createdAt: number;
+  createdAt: string;
 }
 
 export interface CashEntry {
   id: string;
-  date: string; // YYYY-MM
+  month: string; // YYYY-MM
   amount: number;
-  description: string;
-  createdAt: number;
+  memo?: string;
+  createdAt: string;
 }
 
 export interface Payout {
   id: string;
-  stockSymbol: string;
+  symbol: string; // Stock symbol
   date: string; // YYYY-MM-DD
   amount: number;
-  createdAt: number;
+  createdAt: string;
 }
 
 export interface PortfolioSummary {
@@ -43,7 +42,11 @@ export interface Holding {
   symbol: string;
   totalShares: number;
   avgPrice: number;
+  currentPrice: number;
+  marketValue: number;
   totalInvested: number;
+  profitLoss: number;
+  profitLossPercentage: number;
 }
 
 export interface MonthlySummary {

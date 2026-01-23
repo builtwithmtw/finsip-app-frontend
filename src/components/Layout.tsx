@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Wallet, Calendar, LineChart, List, Menu, X, TrendingUp, FileJson, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Wallet, Calendar, LineChart, List, Menu, X, TrendingUp, FileJson, Sparkles, Landmark, LogOut } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../utils/formatters';
 import clsx from 'clsx';
 
 const Layout: React.FC = () => {
     const { transactions } = usePortfolio();
+    const { logout } = useAuth();
     const location = useLocation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [stockPrices, setStockPrices] = useState<Record<string, number>>({});
@@ -14,6 +16,7 @@ const Layout: React.FC = () => {
 
     const navItems = [
         { path: '/', label: 'Overview', icon: LayoutDashboard },
+        { path: '/live', label: 'Live Portfolio', icon: Landmark },
         { path: '/stocks', label: 'Manage Stocks', icon: List },
         { path: '/entry', label: 'Monthly Entry', icon: Calendar },
         { path: '/cash', label: 'Cash Allocation', icon: Wallet },
@@ -161,6 +164,13 @@ const Layout: React.FC = () => {
                             <span className="tracking-tight">{item.label}</span>
                         </NavLink>
                     ))}
+                    <button
+                        onClick={logout}
+                        className="flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-rose-500 hover:bg-rose-50 transition-all duration-300 w-full text-left"
+                    >
+                        <LogOut size={20} />
+                        <span className="tracking-tight">Lock System</span>
+                    </button>
                 </nav>
 
                 <div className="p-6">

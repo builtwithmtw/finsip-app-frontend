@@ -1,10 +1,12 @@
 import React, { useRef } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { Download, Upload, AlertTriangle, FileJson, ShieldCheck, History, RefreshCcw } from 'lucide-react';
+import { Download, Upload, AlertTriangle, FileJson, ShieldCheck, RefreshCcw, History } from 'lucide-react';
 import { toast } from 'sonner';
+import { useConfirm } from '../context/ConfirmContext';
 
 const DataPage: React.FC = () => {
     const { transactions, stocks, cashEntries, payouts, importAllData } = usePortfolio();
+    const { confirm } = useConfirm();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleExport = () => {
@@ -33,7 +35,7 @@ const DataPage: React.FC = () => {
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            toast.success('Full system backup generated successfully!');
+            toast.success('Backup generated successfully!');
         } catch (err) {
             toast.error('Failed to export data');
         }
@@ -44,23 +46,41 @@ const DataPage: React.FC = () => {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             try {
                 const data = JSON.parse(event.target?.result as string);
 
-                // Validation for all collections
-                if (!data.stocks || !data.transactions || !data.cashEntries || !data.payouts) {
-                    throw new Error('Invalid backup file format. Missing core collections.');
+                const stocks = data.stocks || data.stock_records || data.portfolio || [];
+                const transactions = data.transactions || data.transaction_records || [];
+                const cashEntries = data.cashEntries || data.cash_entries || data.cash || [];
+                const payouts = data.payouts || data.payout_records || data.dividends || [];
+
+                if (stocks.length === 0 && transactions.length === 0 && cashEntries.length === 0 && payouts.length === 0) {
+                    throw new Error('The backup file seems to be empty or in an unrecognized format.');
                 }
 
-                if (window.confirm('CRITICAL: This will wipe all current data and replace it with this backup. Proceed?')) {
-                    importAllData({
-                        transactions: data.transactions,
-                        stocks: data.stocks,
-                        cashEntries: data.cashEntries,
-                        payouts: data.payouts,
-                    });
-                    toast.success('System restored successfully!');
+                const isConfirmed = await confirm({
+                    title: 'System Recovery',
+                    message: 'Wipe all current data and restore from this backup file? This action is immediate and cannot be reversed.',
+                    variant: 'danger',
+                    confirmText: 'Restore Now',
+                    cancelText: 'Cancel'
+                });
+
+                if (isConfirmed) {
+                    toast.promise(
+                        importAllData({
+                            transactions,
+                            stocks,
+                            cashEntries,
+                            payouts,
+                        }),
+                        {
+                            loading: 'Restoring data...',
+                            success: 'System restored successfully!',
+                            error: 'Failed to restore system data.'
+                        }
+                    );
                 }
             } catch (err) {
                 toast.error('Restore Failed: ' + (err instanceof Error ? err.message : 'Invalid file structure'));

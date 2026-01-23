@@ -1,13 +1,19 @@
 import React, { useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import type { Holding } from '../types';
 import { formatCurrency } from '../utils/formatters';
+
+interface HoldingData {
+    symbol: string;
+    totalShares: number;
+    avgPrice: number;
+    totalInvested: number;
+}
 
 const HoldingsTable: React.FC = () => {
     const { transactions } = usePortfolio();
 
     const holdings = useMemo(() => {
-        const map = new Map<string, Holding>();
+        const map = new Map<string, HoldingData>();
 
         transactions
             .filter(t => t.shares > 0 && t.pricePerShare > 0)
@@ -32,7 +38,6 @@ const HoldingsTable: React.FC = () => {
         return Array.from(map.values())
             .map(h => ({
                 ...h,
-                // Avoid division by zero and negative invested if selling at profit
                 avgPrice: h.totalShares > 0 ? Math.max(0, h.totalInvested) / h.totalShares : 0,
             }))
             .filter(h => h.totalShares > 0)

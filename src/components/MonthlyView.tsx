@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { formatCurrency, formatMonth } from '../utils/formatters';
 import { Trash2, MoveHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,6 +8,7 @@ import clsx from 'clsx';
 
 const MonthlyView: React.FC = () => {
     const { transactions, stocks, deleteMonthTransactions } = usePortfolio();
+    const { confirm } = useConfirm();
 
     const filteredTransactions = useMemo(() =>
         transactions.filter(t => t.shares > 0 && t.pricePerShare > 0),
@@ -53,8 +55,16 @@ const MonthlyView: React.FC = () => {
         return { sortedMonths, sortedSymbols, matrix };
     }, [filteredTransactions, stocks]);
 
-    const handleDeleteMonth = (month: string) => {
-        if (window.confirm(`Are you sure you want to delete ALL entries for ${formatMonth(month)}? This cannot be undone.`)) {
+    const handleDeleteMonth = async (month: string) => {
+        const isConfirmed = await confirm({
+            title: 'Wipe Monthly Data',
+            message: `Are you sure you want to delete ALL entries for ${formatMonth(month)}? This action is immediate and cannot be undone.`,
+            variant: 'danger',
+            confirmText: 'Delete All',
+            cancelText: 'Go Back'
+        });
+
+        if (isConfirmed) {
             try {
                 deleteMonthTransactions(month);
                 toast.success(`Successfully deleted entries for ${formatMonth(month)}`);
