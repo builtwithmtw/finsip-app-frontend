@@ -1,7 +1,7 @@
 import React from 'react';
 import HoldingsTable from '../components/HoldingsTable';
 import MonthlyView from '../components/MonthlyView';
-import { PiggyBank, HandCoins, Wallet, LayoutDashboard, Activity } from 'lucide-react';
+import { PiggyBank, HandCoins, Wallet, LayoutDashboard } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { formatCurrency } from '../utils/formatters';
 import SectorAllocationChart from '../components/SectorAllocationChart';
@@ -10,8 +10,8 @@ const DashboardPage: React.FC = () => {
     const { transactions, cashEntries, payouts } = usePortfolio();
 
     // Total Value Calculation
-    const [stockPrices, setStockPrices] = React.useState<Record<string, number>>({});
-    const [isPricingLive, setIsPricingLive] = React.useState(false);
+    const [, setStockPrices] = React.useState<Record<string, number>>({});
+    const [, setIsPricingLive] = React.useState(false);
 
     React.useEffect(() => {
         const fetchPrices = async () => {
@@ -40,24 +40,7 @@ const DashboardPage: React.FC = () => {
         fetchPrices();
     }, []);
 
-    const currentBalances = React.useMemo(() => {
-        const map = new Map<string, number>();
-        transactions.forEach(t => {
-            const current = map.get(t.symbol) || 0;
-            const sharesNum = Number(t.shares || 0);
-            if (t.type === 'sell') map.set(t.symbol, current - sharesNum);
-            else map.set(t.symbol, current + sharesNum);
-        });
-        return map;
-    }, [transactions]);
 
-    const totalMarketValue = React.useMemo(() => {
-        let val = 0;
-        currentBalances.forEach((shares, symbol) => {
-            if (shares > 0) val += shares * (stockPrices[symbol] || 0);
-        });
-        return val;
-    }, [currentBalances, stockPrices]);
 
     // Net Investment = Total Buys - Total Sells
     const totalInvested = transactions.reduce((sum, t) => {
