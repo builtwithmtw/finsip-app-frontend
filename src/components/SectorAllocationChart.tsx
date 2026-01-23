@@ -7,21 +7,37 @@ const SectorAllocationChart: React.FC = () => {
     const { transactions, stocks, cashEntries } = usePortfolio();
 
     const data = useMemo(() => {
-        const symbolInvestedMap = new Map<string, number>();
-        transactions.forEach(t => {
-            const current = symbolInvestedMap.get(t.symbol) || 0;
-            if (t.type === 'sell') {
-                symbolInvestedMap.set(t.symbol, current - t.totalAmount);
-            } else {
-                symbolInvestedMap.set(t.symbol, current + t.totalAmount);
-            }
-        });
+        const symbolData = new Map<string, { totalShares: number; totalCostBasis: number }>();
+
+        // Process transactions chronologically to calculate accurate cost basis per symbol
+        [...transactions]
+            .sort((a, b) => a.month.localeCompare(b.month))
+            .forEach(t => {
+                const current = symbolData.get(t.symbol) || { totalShares: 0, totalCostBasis: 0 };
+                const sharesNum = Number(t.shares || 0);
+                const amountNum = Number(t.totalAmount || 0);
+
+                if (t.type === 'buy') {
+                    current.totalShares += sharesNum;
+                    current.totalCostBasis += amountNum;
+                } else {
+                    const avgPriceBeforeSell = current.totalShares > 0 ? current.totalCostBasis / current.totalShares : 0;
+                    current.totalShares -= sharesNum;
+                    current.totalCostBasis -= sharesNum * avgPriceBeforeSell;
+                }
+
+                if (current.totalShares > 0.001) {
+                    symbolData.set(t.symbol, current);
+                } else {
+                    symbolData.delete(t.symbol);
+                }
+            });
 
         const sectorInvestedMap = new Map<string, number>();
         let totalInvestedValue = 0;
 
-        symbolInvestedMap.forEach((amount, symbol) => {
-            if (amount <= 0) return;
+        symbolData.forEach((data, symbol) => {
+            const amount = data.totalCostBasis;
             const stock = stocks.find(s => s.symbol === symbol);
             const sector = stock?.sector || 'Others';
             sectorInvestedMap.set(sector, (sectorInvestedMap.get(sector) || 0) + amount);

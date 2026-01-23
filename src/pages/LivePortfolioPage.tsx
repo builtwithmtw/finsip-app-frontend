@@ -43,33 +43,42 @@ const LivePortfolioPage: React.FC = () => {
     }, []);
 
     const holdings = useMemo(() => {
-        const map = new Map<string, { totalShares: number; totalCost: number }>();
+        const map = new Map<string, { totalShares: number; totalCostBasis: number }>();
 
-        transactions.forEach((t: Transaction) => {
-            const current = map.get(t.symbol) || { totalShares: 0, totalCost: 0 };
-            const sharesNum = Number(t.shares || 0);
-            const amountNum = Number(t.totalAmount || 0);
+        // Process transactions chronologically and filter invalid entries (matching HoldingsTable)
+        [...transactions]
+            .filter(t => t.shares > 0 && t.pricePerShare > 0)
+            .sort((a, b) => a.month.localeCompare(b.month))
+            .forEach((t: Transaction) => {
+                const current = map.get(t.symbol) || { totalShares: 0, totalCostBasis: 0 };
+                const sharesNum = Number(t.shares || 0);
+                const priceNum = Number(t.pricePerShare || 0);
+                const amountNum = Number(t.totalAmount || (sharesNum * priceNum));
 
-            if (t.type === 'buy') {
-                current.totalShares += sharesNum;
-                current.totalCost += amountNum;
-            } else {
-                current.totalShares -= sharesNum;
-                current.totalCost -= amountNum;
-            }
-            if (current.totalShares > 0) {
-                map.set(t.symbol, current);
-            } else {
-                map.delete(t.symbol);
-            }
-        });
+                if (t.type === 'buy') {
+                    current.totalShares += sharesNum;
+                    current.totalCostBasis += amountNum;
+                } else {
+                    const avgPriceBeforeSell = current.totalShares > 0 ? current.totalCostBasis / current.totalShares : 0;
+                    current.totalShares -= sharesNum;
+                    current.totalCostBasis -= sharesNum * avgPriceBeforeSell;
+                }
+
+                if (current.totalShares > 0.001) {
+                    map.set(t.symbol, current);
+                } else {
+                    map.delete(t.symbol);
+                }
+            });
 
         return Array.from(map.entries()).map(([symbol, data]) => {
             const currentPrice = stockPrices[symbol] || 0;
             const marketValue = data.totalShares * currentPrice;
-            const avgPrice = data.totalCost / data.totalShares;
-            const profitLoss = marketValue - data.totalCost;
-            const profitLossPercentage = data.totalCost > 0 ? (profitLoss / data.totalCost) * 100 : 0;
+            const avgPrice = data.totalShares > 0 ? data.totalCostBasis / data.totalShares : 0;
+
+            // For current holdings, Profit/Loss is purely UNREALIZED
+            const profitLoss = marketValue - data.totalCostBasis;
+            const profitLossPercentage = data.totalCostBasis > 0 ? (profitLoss / data.totalCostBasis) * 100 : 0;
 
             return {
                 symbol,
@@ -77,11 +86,11 @@ const LivePortfolioPage: React.FC = () => {
                 avgPrice,
                 currentPrice,
                 marketValue,
-                totalCost: data.totalCost,
+                totalCost: data.totalCostBasis,
                 profitLoss,
                 profitLossPercentage
             };
-        }).sort((a, b) => b.marketValue - a.marketValue);
+        }).sort((a, b) => b.totalCost - a.totalCost); // Align sort order with Holdings table
     }, [transactions, stockPrices]);
 
     const totals = useMemo(() => {

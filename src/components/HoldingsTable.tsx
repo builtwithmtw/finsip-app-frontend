@@ -2,45 +2,51 @@ import React, { useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { formatCurrency } from '../utils/formatters';
 
-interface HoldingData {
-    symbol: string;
-    totalShares: number;
-    avgPrice: number;
-    totalInvested: number;
-}
+
 
 const HoldingsTable: React.FC = () => {
     const { transactions } = usePortfolio();
 
     const holdings = useMemo(() => {
-        const map = new Map<string, HoldingData>();
+        const map = new Map<string, { symbol: string; totalShares: number; totalCostBasis: number }>();
 
-        transactions
+        // Process transactions chronologically for accurate cost basis
+        [...transactions]
             .filter(t => t.shares > 0 && t.pricePerShare > 0)
+            .sort((a, b) => a.month.localeCompare(b.month))
             .forEach(t => {
                 const existing = map.get(t.symbol) || {
                     symbol: t.symbol,
                     totalShares: 0,
-                    avgPrice: 0,
-                    totalInvested: 0,
+                    totalCostBasis: 0,
                 };
 
-                if (t.type === 'sell') {
-                    existing.totalShares -= t.shares;
-                    existing.totalInvested -= t.totalAmount;
+                const sharesNum = Number(t.shares || 0);
+                const priceNum = Number(t.pricePerShare || 0);
+                const totalAmountNum = Number(t.totalAmount || (sharesNum * priceNum));
+
+                if (t.type === 'buy') {
+                    existing.totalShares += sharesNum;
+                    existing.totalCostBasis += totalAmountNum;
                 } else {
-                    existing.totalShares += t.shares;
-                    existing.totalInvested += t.totalAmount;
+                    const avgPriceBeforeSell = existing.totalShares > 0 ? existing.totalCostBasis / existing.totalShares : 0;
+                    existing.totalShares -= sharesNum;
+                    existing.totalCostBasis -= sharesNum * avgPriceBeforeSell;
                 }
-                map.set(t.symbol, existing);
+
+                if (existing.totalShares > 0.001) {
+                    map.set(t.symbol, existing);
+                } else {
+                    map.delete(t.symbol);
+                }
             });
 
         return Array.from(map.values())
             .map(h => ({
                 ...h,
-                avgPrice: h.totalShares > 0 ? Math.max(0, h.totalInvested) / h.totalShares : 0,
+                avgPrice: h.totalShares > 0 ? h.totalCostBasis / h.totalShares : 0,
+                totalInvested: h.totalCostBasis
             }))
-            .filter(h => h.totalShares > 0)
             .sort((a, b) => b.totalInvested - a.totalInvested);
     }, [transactions]);
 

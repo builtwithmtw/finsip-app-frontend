@@ -77,39 +77,43 @@ const Layout: React.FC = () => {
         document.title = title;
     }, [location.pathname]);
 
-    // Calculate Current Share Balance per Ticker
-    const currentBalances = useMemo(() => {
-        const map = new Map<string, number>();
-        transactions.forEach(t => {
-            const current = map.get(t.symbol) || 0;
-            const sharesNum = Number(t.shares || 0);
-            if (t.type === 'sell') {
-                map.set(t.symbol, current - sharesNum);
-            } else {
-                map.set(t.symbol, current + sharesNum);
-            }
-        });
-        return map;
-    }, [transactions]);
 
-    // Total Live Value vs Aggregate Invested Cost
+
+    // Total Live Value vs Aggregate Invested Cost (of current holdings)
     const { totalMarketValue, totalInvestedCost } = useMemo(() => {
         let marketValue = 0;
-        let cumulativeCost = 0;
+        const map = new Map<string, { totalShares: number; totalCostBasis: number }>();
 
-        currentBalances.forEach((balance, symbol) => {
-            if (balance <= 0) return;
+        [...transactions]
+            .filter(t => t.shares > 0 && t.pricePerShare > 0)
+            .sort((a, b) => a.month.localeCompare(b.month))
+            .forEach(t => {
+                const current = map.get(t.symbol) || { totalShares: 0, totalCostBasis: 0 };
+                const sharesNum = Number(t.shares || 0);
+                const priceNum = Number(t.pricePerShare || 0);
+                const amountNum = Number(t.totalAmount || (sharesNum * priceNum));
+
+                if (t.type === 'buy') {
+                    current.totalShares += sharesNum;
+                    current.totalCostBasis += amountNum;
+                } else {
+                    const avgPriceBeforeSell = current.totalShares > 0 ? current.totalCostBasis / current.totalShares : 0;
+                    current.totalShares -= sharesNum;
+                    current.totalCostBasis -= sharesNum * avgPriceBeforeSell;
+                }
+                if (current.totalShares > 0.001) map.set(t.symbol, current);
+                else map.delete(t.symbol);
+            });
+
+        map.forEach((data, symbol) => {
             const livePrice = stockPrices[symbol] || 0;
-            marketValue += balance * livePrice;
+            marketValue += data.totalShares * livePrice;
         });
 
-        cumulativeCost = transactions.reduce((sum, t) => {
-            const amount = Number(t.totalAmount) || 0;
-            return sum + (t.type === 'sell' ? -amount : amount);
-        }, 0);
+        const invested = Array.from(map.values()).reduce((sum, h) => sum + h.totalCostBasis, 0);
 
-        return { totalMarketValue: marketValue, totalInvestedCost: cumulativeCost };
-    }, [currentBalances, stockPrices, transactions]);
+        return { totalMarketValue: marketValue, totalInvestedCost: invested };
+    }, [stockPrices, transactions]);
 
     const displayWorth = (isPricingLive && totalMarketValue > 0) ? totalMarketValue : totalInvestedCost;
 
@@ -191,7 +195,7 @@ const Layout: React.FC = () => {
                             </div>
                         </div>
                         <div className="text-2xl font-black text-white leading-tight tracking-tighter mb-2">
-                            {formatCurrency(displayWorth)}
+                            {formatCurrency(displayWorth).split('.')[0]}
                         </div>
 
                         {(isPricingLive && totalMarketValue > 0) && (
