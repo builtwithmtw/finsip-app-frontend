@@ -12,16 +12,23 @@ import CashPage from './pages/CashPage';
 import PayoutsPage from './pages/PayoutsPage';
 import DataPage from './pages/DataPage';
 import LivePortfolioPage from './pages/LivePortfolioPage';
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/LoginPage';
 import { Toaster } from 'sonner';
 
 const App: React.FC = () => {
   return (
-    <PortfolioProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <PortfolioProvider>
         <ConfirmProvider>
           <Toaster position="top-right" richColors closeButton />
           <BrowserRouter>
             <Routes>
+              {/* Public Routes */}
+              <Route path="/welcome" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+
+              {/* Protected Routes */}
               <Route
                 path="/"
                 element={
@@ -37,13 +44,15 @@ const App: React.FC = () => {
                 <Route path="payouts" element={<PayoutsPage />} />
                 <Route path="live" element={<LivePortfolioPage />} />
                 <Route path="data" element={<DataPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
               </Route>
+
+              {/* Catch all - redirect to welcome if unknown */}
+              <Route path="*" element={<Navigate to="/welcome" replace />} />
             </Routes>
           </BrowserRouter>
         </ConfirmProvider>
-      </AuthProvider>
-    </PortfolioProvider>
+      </PortfolioProvider>
+    </AuthProvider>
   );
 };
 

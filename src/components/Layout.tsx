@@ -7,12 +7,10 @@ import { formatCurrency } from '../utils/formatters';
 import clsx from 'clsx';
 
 const Layout: React.FC = () => {
-    const { transactions } = usePortfolio();
-    const { logout } = useAuth();
+    const { transactions, livePrices, isMarketLive } = usePortfolio();
+    const { signOut } = useAuth();
     const location = useLocation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [stockPrices, setStockPrices] = useState<Record<string, number>>({});
-    const [isPricingLive, setIsPricingLive] = useState(false);
 
     const navItems = [
         { path: '/', label: 'Overview', icon: LayoutDashboard },
@@ -24,60 +22,11 @@ const Layout: React.FC = () => {
         { path: '/data', label: 'Backup & Restore', icon: FileJson },
     ];
 
-    // Fetch Live Prices from Sarmaaya API
-    useEffect(() => {
-        const fetchPrices = async () => {
-            try {
-                const targetUrl =
-                    "https://beta-restapi.sarmaaya.pk/api/indices/KSE100/companies?page=1&limit=500";
-                const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
-
-                // Logging API results for status check as requested
-                console.log(" API calling:");
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error('Network response was not ok');
-
-                const json = await response.json();
-
-                // Logging API results for status check as requested
-                console.log("Sarmaaya API Response:", json);
-
-                const prices: Record<string, number> = {};
-                const dataArray = (json && json.response.data) ? json.response.data : (Array.isArray(json) ? json : []);
-
-                if (dataArray.length > 0) {
-                    dataArray.forEach((item: any) => {
-                        const symbol = (item.symbol || item.ticker || "").toString().toUpperCase().trim();
-                        // Using 'curr' field for price as requested
-                        const price = Number(item.curr || item.last_price || item.price || 0);
-                        if (symbol && price > 0) {
-                            prices[symbol] = price;
-                        }
-                    });
-
-                    if (Object.keys(prices).length > 0) {
-                        setStockPrices(prices);
-                        setIsPricingLive(true);
-                    }
-                }
-            } catch (error) {
-                console.error("Live pricing fetch error:", error);
-                setIsPricingLive(false);
-            }
-        };
-
-        fetchPrices();
-        const interval = setInterval(fetchPrices, 5000000);
-        return () => clearInterval(interval);
-    }, []);
-
     useEffect(() => {
         const currentNav = navItems.find(item => item.path === location.pathname);
         const title = currentNav ? `${currentNav.label} | SIP Tracker` : 'SIP Tracker';
         document.title = title;
     }, [location.pathname]);
-
-
 
     // Total Live Value vs Aggregate Invested Cost (of current holdings)
     const { totalMarketValue, totalInvestedCost } = useMemo(() => {
@@ -106,16 +55,16 @@ const Layout: React.FC = () => {
             });
 
         map.forEach((data, symbol) => {
-            const livePrice = stockPrices[symbol] || 0;
+            const livePrice = livePrices[symbol] || 0;
             marketValue += data.totalShares * livePrice;
         });
 
         const invested = Array.from(map.values()).reduce((sum, h) => sum + h.totalCostBasis, 0);
 
         return { totalMarketValue: marketValue, totalInvestedCost: invested };
-    }, [stockPrices, transactions]);
+    }, [livePrices, transactions]);
 
-    const displayWorth = (isPricingLive && totalMarketValue > 0) ? totalMarketValue : totalInvestedCost;
+    const displayWorth = (isMarketLive && totalMarketValue > 0) ? totalMarketValue : totalInvestedCost;
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] font-sans flex flex-col md:flex-row">
@@ -169,7 +118,7 @@ const Layout: React.FC = () => {
                         </NavLink>
                     ))}
                     <button
-                        onClick={logout}
+                        onClick={signOut}
                         className="flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-rose-500 hover:bg-rose-50 transition-all duration-300 w-full text-left"
                     >
                         <LogOut size={20} />
@@ -186,11 +135,11 @@ const Layout: React.FC = () => {
                             <div className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">Portfolio Worth</div>
                             <div className={clsx(
                                 "flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-500",
-                                (isPricingLive && totalMarketValue > 0) ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]" : "bg-slate-500/10 border-slate-500/20"
+                                (isMarketLive && totalMarketValue > 0) ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]" : "bg-slate-500/10 border-slate-500/20"
                             )}>
-                                <span className={clsx("w-1.5 h-1.5 rounded-full", (isPricingLive && totalMarketValue > 0) ? "bg-emerald-500 animate-pulse" : "bg-slate-500")} />
-                                <span className={clsx("text-[9px] font-black tracking-widest uppercase", (isPricingLive && totalMarketValue > 0) ? "text-emerald-500" : "text-slate-500")}>
-                                    {(isPricingLive && totalMarketValue > 0) ? 'Live' : 'Static'}
+                                <span className={clsx("w-1.5 h-1.5 rounded-full", (isMarketLive && totalMarketValue > 0) ? "bg-emerald-500 animate-pulse" : "bg-slate-500")} />
+                                <span className={clsx("text-[9px] font-black tracking-widest uppercase", (isMarketLive && totalMarketValue > 0) ? "text-emerald-500" : "text-slate-500")}>
+                                    {(isMarketLive && totalMarketValue > 0) ? 'Live' : 'Static'}
                                 </span>
                             </div>
                         </div>
@@ -198,7 +147,7 @@ const Layout: React.FC = () => {
                             {formatCurrency(displayWorth).split('.')[0]}
                         </div>
 
-                        {(isPricingLive && totalMarketValue > 0) && (
+                        {(isMarketLive && totalMarketValue > 0) && (
                             <div className="flex flex-col gap-1 border-t border-white/5 pt-3">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Net Change</span>
@@ -224,7 +173,7 @@ const Layout: React.FC = () => {
 
                     <div className="mt-6 text-center">
                         <div className="text-[10px] text-slate-300 font-black uppercase tracking-widest bg-slate-50 py-1.5 px-3 rounded-full inline-block border border-slate-100">
-                            Built with love by Mtw
+                            Made with ❤️ by Mtw
                         </div>
                     </div>
                 </div>

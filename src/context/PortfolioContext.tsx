@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, type ReactNode }
 import { supabase } from '../lib/supabase';
 import type { Transaction, Stock, CashEntry, Payout } from '../types';
 import { toast } from 'sonner';
+import { useAuth } from './AuthContext';
 
 interface PortfolioContextType {
     transactions: Transaction[];
@@ -9,6 +10,10 @@ interface PortfolioContextType {
     cashEntries: CashEntry[];
     payouts: Payout[];
     loading: boolean;
+    // Live Market Data
+    livePrices: Record<string, number>;
+    isMarketLive: boolean;
+
     refreshData: () => Promise<void>;
     addTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'totalAmount'>) => Promise<void>;
     deleteTransaction: (id: string) => Promise<void>;
@@ -25,13 +30,68 @@ interface PortfolioContextType {
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
 
 export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const { user } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [cashEntries, setCashEntries] = useState<CashEntry[]>([]);
     const [payouts, setPayouts] = useState<Payout[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+
+    // Centralized Live Market State
+    const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+    const [isMarketLive, setIsMarketLive] = useState(false);
+
+    // Initial Fetch for Live Prices (Optimized: Once every 5 mins)
+    useEffect(() => {
+        const fetchMarketData = async () => {
+            try {
+                // Determine if we need to fetch? Maybe only if stocks exist.
+                // But for now, simple fetch as requested.
+                // NOTE: Ideally we only fetch if we have stocks to track, 
+                // but fetching the full index list is usually one call anyway.
+
+                const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/KSE100/companies?page=1&limit=500";
+                const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
+
+                console.log("[PortfolioContext] Fetching Live Market Data...");
+                const response = await fetch(proxyUrl);
+                if (!response.ok) return; // Silent fail
+
+                const json = await response.json();
+                const prices: Record<string, number> = {};
+
+                const dataArray = (json && json.response?.data) ? json.response.data :
+                    (json?.data) ? json.data :
+                        (Array.isArray(json) ? json : []);
+
+                if (dataArray.length > 0) {
+                    dataArray.forEach((item: any) => {
+                        const symbol = (item.symbol || item.ticker || "").toString().toUpperCase().trim();
+                        const price = Number(item.curr || item.last_price || item.price || 0);
+                        if (symbol && price > 0) {
+                            prices[symbol] = price;
+                        }
+                    });
+
+                    if (Object.keys(prices).length > 0) {
+                        setLivePrices(prices);
+                        setIsMarketLive(true);
+                    }
+                }
+            } catch (err) {
+                console.error("[PortfolioContext] Market Data Fetch Warning:", err);
+                setIsMarketLive(false);
+            }
+        };
+
+        // Fetch immediately then interval
+        fetchMarketData();
+        const interval = setInterval(fetchMarketData, 5 * 60 * 1000); // 5 Minutes
+        return () => clearInterval(interval);
+    }, []);
 
     const fetchData = async () => {
+        if (!user) return;
         setLoading(true);
         try {
             const [
@@ -40,10 +100,10 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                 { data: cashData },
                 { data: payoutsData }
             ] = await Promise.all([
-                supabase.from('stocks').select('*').order('created_at', { ascending: true }),
-                supabase.from('transactions').select('*').order('month', { ascending: false }),
-                supabase.from('cash_entries').select('*').order('month', { ascending: false }),
-                supabase.from('payouts').select('*').order('date', { ascending: false })
+                supabase.from('stocks').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
+                supabase.from('transactions').select('*').eq('user_id', user.id).order('month', { ascending: false }),
+                supabase.from('cash_entries').select('*').eq('user_id', user.id).order('month', { ascending: false }),
+                supabase.from('payouts').select('*').eq('user_id', user.id).order('date', { ascending: false })
             ]);
 
             if (stocksData) {
@@ -53,6 +113,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                     sector: s.sector,
                     createdAt: s.created_at
                 })));
+            } else {
+                setStocks([]);
             }
 
             if (transData) {
@@ -66,6 +128,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                     month: t.month,
                     createdAt: t.created_at
                 })));
+            } else {
+                setTransactions([]);
             }
 
             if (cashData) {
@@ -76,6 +140,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                     memo: c.memo,
                     createdAt: c.created_at
                 })));
+            } else {
+                setCashEntries([]);
             }
 
             if (payoutsData) {
@@ -86,23 +152,38 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                     date: p.date,
                     createdAt: p.created_at
                 })));
+            } else {
+                setPayouts([]);
             }
         } catch (error) {
             console.error('Error fetching data:', error);
-            toast.error('Failed to connect to Supabase');
+            toast.error('Failed to sync with secure backup');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchData();
-    }, []);
+        if (user) {
+            fetchData();
+        } else {
+            // Reset state when not authorized
+            setTransactions([]);
+            setStocks([]);
+            setCashEntries([]);
+            setPayouts([]);
+        }
+    }, [user?.id]); // Only refetch when user ID actually changes
 
     const addStock = async (symbol: string, sector: string) => {
+        if (!user) return;
         const { data, error } = await supabase
             .from('stocks')
-            .insert([{ symbol: symbol.toUpperCase(), sector }])
+            .insert([{
+                symbol: symbol.toUpperCase(),
+                sector,
+                user_id: user.id
+            }])
             .select()
             .single();
 
@@ -129,6 +210,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     };
 
     const addTransaction = async (data: Omit<Transaction, 'id' | 'createdAt' | 'totalAmount'>) => {
+        if (!user) return;
         const totalAmount = data.shares * data.pricePerShare;
         const { data: inserted, error } = await supabase
             .from('transactions')
@@ -138,7 +220,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                 price_per_share: data.pricePerShare,
                 total_amount: totalAmount,
                 type: data.type,
-                month: data.month
+                month: data.month,
+                user_id: user.id
             }])
             .select()
             .single();
@@ -179,9 +262,15 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     };
 
     const addCashEntry = async (data: Omit<CashEntry, 'id' | 'createdAt'>) => {
+        if (!user) return;
         const { data: inserted, error } = await supabase
             .from('cash_entries')
-            .insert([{ amount: data.amount, month: data.month, memo: data.memo }])
+            .insert([{
+                amount: data.amount,
+                month: data.month,
+                memo: data.memo,
+                user_id: user.id
+            }])
             .select()
             .single();
 
@@ -209,9 +298,15 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     };
 
     const addPayout = async (data: Omit<Payout, 'id' | 'createdAt'>) => {
+        if (!user) return;
         const { data: inserted, error } = await supabase
             .from('payouts')
-            .insert([{ symbol: data.symbol, amount: data.amount, date: data.date }])
+            .insert([{
+                symbol: data.symbol,
+                amount: data.amount,
+                date: data.date,
+                user_id: user.id
+            }])
             .select()
             .single();
 
@@ -241,23 +336,23 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const importAllData = async (data: { transactions: Transaction[], stocks: Stock[], cashEntries: CashEntry[], payouts: Payout[] }) => {
         setLoading(true);
         try {
-            // Delete existing data sequentially to avoid foreign key issues (though none currently exist)
-            // and to catch errors early.
-            const { error: delStocksErr } = await supabase.from('stocks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-            const { error: delTransErr } = await supabase.from('transactions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-            const { error: delCashErr } = await supabase.from('cash_entries').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-            const { error: delPayoutsErr } = await supabase.from('payouts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            // Delete existing data for the current user to ensure a clean restore
+            const { error: delStocksErr } = await supabase.from('stocks').delete().eq('user_id', user!.id);
+            const { error: delTransErr } = await supabase.from('transactions').delete().eq('user_id', user!.id);
+            const { error: delCashErr } = await supabase.from('cash_entries').delete().eq('user_id', user!.id);
+            const { error: delPayoutsErr } = await supabase.from('payouts').delete().eq('user_id', user!.id);
 
             if (delStocksErr || delTransErr || delCashErr || delPayoutsErr) {
                 throw new Error('Failed to clear existing database data before restore.');
             }
 
-            // Insert new data
+            // Insert new data with explicit user_id mapping
             if (data.stocks && data.stocks.length > 0) {
                 const { error } = await supabase.from('stocks').insert(
                     data.stocks.map(s => ({
                         symbol: (s.symbol || '').toUpperCase(),
-                        sector: s.sector || 'Others'
+                        sector: s.sector || 'Others',
+                        user_id: user!.id
                     }))
                 );
                 if (error) throw new Error('Stocks sync failed: ' + error.message);
@@ -274,7 +369,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                             price_per_share: price,
                             total_amount: t.totalAmount ?? (t as any).total_amount ?? (shares * price),
                             type: t.type || 'buy',
-                            month: t.month || (t as any).date?.substring(0, 7) || new Date().toISOString().substring(0, 7)
+                            month: t.month || (t as any).date?.substring(0, 7) || new Date().toISOString().substring(0, 7),
+                            user_id: user!.id
                         };
                     })
                 );
@@ -286,7 +382,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                     data.cashEntries.map(c => ({
                         amount: c.amount ?? (c as any).amount ?? 0,
                         month: c.month || (c as any).date || new Date().toISOString().substring(0, 7),
-                        memo: c.memo || (c as any).origin || (c as any).description || ''
+                        memo: c.memo || (c as any).origin || (c as any).description || '',
+                        user_id: user!.id
                     }))
                 );
                 if (error) throw new Error('Cash entries sync failed: ' + error.message);
@@ -297,7 +394,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                     data.payouts.map(p => ({
                         symbol: (p.symbol || (p as any).stockSymbol || '').toUpperCase(),
                         amount: p.amount ?? (p as any).amount ?? 0,
-                        date: p.date || (p as any).month || new Date().toISOString().split('T')[0]
+                        date: p.date || (p as any).month || new Date().toISOString().split('T')[0],
+                        user_id: user!.id
                     }))
                 );
                 if (error) throw new Error('Payouts sync failed: ' + error.message);
@@ -321,6 +419,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             cashEntries,
             payouts,
             loading,
+            livePrices,
+            isMarketLive,
             refreshData: fetchData,
             addTransaction,
             deleteTransaction,

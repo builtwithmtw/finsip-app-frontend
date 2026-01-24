@@ -17,3 +17,11 @@ export const formatMonth = (dateString: string) => {
         return dateString;
     }
 };
+
+export const formatDate = (dateString: string) => {
+    try {
+        return format(parseISO(dateString), 'dd MMM yyyy, hh:mm a');
+    } catch (e) {
+        return dateString;
+    }
+};

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { formatCurrency } from '../utils/formatters';
 import { TrendingUp, TrendingDown, Landmark, Activity, Zap, ArrowUpRight, ArrowDownRight } from 'lucide-react';
@@ -6,41 +6,8 @@ import clsx from 'clsx';
 import type { Transaction } from '../types';
 
 const LivePortfolioPage: React.FC = () => {
-    const { transactions, loading } = usePortfolio();
-    const [stockPrices, setStockPrices] = useState<Record<string, number>>({});
-    const [isLive, setIsLive] = useState(false);
-    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-
-    useEffect(() => {
-        const fetchPrices = async () => {
-            try {
-                const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/KSE100/companies?page=1&limit=500";
-                const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
-                const response = await fetch(proxyUrl);
-                const json = await response.json();
-
-                const prices: Record<string, number> = {};
-                const dataArray = json.response?.data || json;
-                if (Array.isArray(dataArray)) {
-                    dataArray.forEach((item: any) => {
-                        const symbol = (item.symbol || item.ticker || "").toUpperCase();
-                        const price = Number(item.curr || item.last_price || item.current_price || item.price || 0);
-                        if (symbol && price > 0) {
-                            prices[symbol] = price;
-                        }
-                    });
-                    setStockPrices(prices);
-                    setIsLive(true);
-                    setLastUpdated(new Date());
-                }
-            } catch (error) {
-                console.error("Live price fetch failed:", error);
-                setIsLive(false);
-            }
-        };
-
-        fetchPrices();
-    }, []);
+    const { transactions, loading, livePrices, isMarketLive } = usePortfolio();
+    const [lastUpdated] = useState<Date>(new Date());
 
     const holdings = useMemo(() => {
         const map = new Map<string, { totalShares: number; totalCostBasis: number }>();
@@ -71,7 +38,7 @@ const LivePortfolioPage: React.FC = () => {
             });
 
         return Array.from(map.entries()).map(([symbol, data]) => {
-            const currentPrice = stockPrices[symbol] || 0;
+            const currentPrice = livePrices[symbol] || 0;
             const marketValue = data.totalShares * currentPrice;
             const avgPrice = data.totalShares > 0 ? data.totalCostBasis / data.totalShares : 0;
             const profitLoss = marketValue - data.totalCostBasis;
@@ -88,7 +55,7 @@ const LivePortfolioPage: React.FC = () => {
                 profitLossPercentage
             };
         }).sort((a, b) => b.totalCost - a.totalCost);
-    }, [transactions, stockPrices]);
+    }, [transactions, livePrices]);
 
     const totals = useMemo(() => {
         return holdings.reduce((acc, h) => ({
@@ -145,18 +112,18 @@ const LivePortfolioPage: React.FC = () => {
 
                 <div className={clsx(
                     "flex items-center gap-5 px-8 py-4 rounded-[2rem] border shadow-2xl transition-all duration-1000",
-                    isLive ? "bg-white border-white ring-8 ring-emerald-50/50" : "bg-slate-50 border-slate-200"
+                    isMarketLive ? "bg-white border-white ring-8 ring-emerald-50/50" : "bg-slate-50 border-slate-200"
                 )}>
                     <div className="relative">
-                        <div className={clsx("w-4 h-4 rounded-full shadow-[0_0_15px]", isLive ? "bg-emerald-500 shadow-emerald-500/50" : "bg-slate-300 shadow-transparent")} />
-                        {isLive && <div className="absolute inset-0 bg-emerald-500 rounded-full animate-ping opacity-40 scale-150" />}
+                        <div className={clsx("w-4 h-4 rounded-full shadow-[0_0_15px]", isMarketLive ? "bg-emerald-500 shadow-emerald-500/50" : "bg-slate-300 shadow-transparent")} />
+                        {isMarketLive && <div className="absolute inset-0 bg-emerald-500 rounded-full animate-ping opacity-40 scale-150" />}
                     </div>
                     <div className="flex flex-col">
                         <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest mb-0.5">
-                            {isLive ? 'Link Active' : 'Establishing Sync'}
+                            {isMarketLive ? 'Link Active' : 'Establishing Sync'}
                         </span>
                         <div className="flex items-center gap-2 font-bold text-[9px] text-slate-400">
-                            <Zap size={10} className={isLive ? "text-amber-500" : "text-slate-300"} />
+                            <Zap size={10} className={isMarketLive ? "text-amber-500" : "text-slate-300"} />
                             <span>LATENCY: 42MS • {lastUpdated.toLocaleTimeString()}</span>
                         </div>
                     </div>

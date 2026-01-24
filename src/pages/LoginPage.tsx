@@ -1,108 +1,137 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ChevronRight, Calculator, Sparkles } from 'lucide-react';
+import { ChevronRight, Mail, Lock, UserPlus, LogIn, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 
 const LoginPage: React.FC = () => {
-    const [pin, setPin] = useState('');
-    const { login } = useAuth();
-    const [iserror, setIsError] = useState(false);
+    const { signIn, signUp, isAuthenticated } = useAuth();
+    const navigate = useNavigate();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/', { replace: true });
+        }
+    }, [isAuthenticated, navigate]);
+
+    // Auth Form State
+    const [isRegisterMode, setIsRegisterMode] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [username, setUsername] = useState('');
+    const [authLoading, setAuthLoading] = useState(false);
+
+    const signUpPaused = false;
+
+    const handleAuthSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (login(pin)) {
-            toast.success('Access Granted', {
-                description: 'Welcome back to your portfolio tracker.'
-            });
-        } else {
-            setIsError(true);
-            setPin('');
-            toast.error('Invalid PIN', {
-                description: 'Please enter the correct authorization code.'
-            });
-            setTimeout(() => setIsError(false), 500);
+        setAuthLoading(true);
+
+        try {
+            const { error } = isRegisterMode
+                ? await signUp(email, password, username)
+                : await signIn(email, password);
+
+            if (error) {
+                toast.error('Authentication Failed', { description: error.message });
+            } else if (isRegisterMode) {
+                toast.success('Account Created', { description: 'Your secure portfolio is now ready.' });
+            }
+        } catch (err: any) {
+            toast.error('Error', { description: err.message });
+        } finally {
+            setAuthLoading(false);
         }
     };
-
-    const addDigit = (digit: string) => {
-        if (pin.length < 4) {
-            setPin(prev => prev + digit);
-        }
-    };
-
-    const clearPin = () => setPin('');
 
     return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden font-sans">
-            {/* Background elements */}
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden font-sans uppercase">
             <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-blue-600/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-indigo-600/10 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/2" />
 
-            <div className="w-full max-w-md relative animate-in fade-in zoom-in-95 duration-700">
+            <div className="w-full max-w-sm relative animate-in fade-in zoom-in-95 duration-700">
                 <div className="text-center mb-10">
-                    <div className="inline-flex p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2rem] shadow-2xl shadow-blue-500/20 mb-6">
-                        <Calculator className="text-white" size={40} />
+                    <div className="inline-flex p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl shadow-2xl mb-6">
+                        <Activity className="text-white" size={32} />
                     </div>
-                    <h1 className="text-3xl font-black text-white tracking-tighter uppercase mb-2">SIP Tracker</h1>
-                    <div className="flex items-center justify-center gap-1.5 opacity-50">
-                        <Sparkles size={12} className="text-blue-400" />
-                        <span className="text-[10px] text-slate-300 font-black uppercase tracking-[0.2em]">Authorized Access Only</span>
-                    </div>
+                    <h1 className="text-4xl font-black text-white tracking-tighter mb-1">Portfolio Ledger</h1>
+                    <p className="text-[10px] text-slate-500 font-black tracking-[0.2em] uppercase">Enterprise Authentication Gateway</p>
                 </div>
 
-                <div className="bg-slate-800/50 backdrop-blur-xl p-10 rounded-[3rem] border border-white/5 shadow-2xl">
-                    <div className="flex justify-center gap-4 mb-10">
-                        {[...Array(4)].map((_, i) => (
-                            <div
-                                key={i}
-                                className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${pin.length > i
-                                    ? 'bg-blue-500 border-blue-500 scale-110 shadow-[0_0_15px_rgba(59,130,246,0.5)]'
-                                    : 'border-slate-600'
-                                    } ${iserror ? 'animate-bounce border-rose-500 bg-rose-500' : ''}`}
-                            />
-                        ))}
+                <div className="bg-slate-800/40 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                    <div className="flex gap-2 p-1 bg-slate-900/50 rounded-2xl mb-8">
+                        <button
+                            onClick={() => setIsRegisterMode(false)}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${!isRegisterMode ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                        >
+                            <LogIn size={14} /> SIGN IN
+                        </button>
+                        {signUpPaused ? null : <button
+                            onClick={() => setIsRegisterMode(true)}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${isRegisterMode ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                        >
+                            <UserPlus size={14} /> CREATE
+                        </button>}
                     </div>
 
-                    <form onSubmit={handleSubmit}>
-                        <div className="grid grid-cols-3 gap-4">
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                                <button
-                                    key={num}
-                                    type="button"
-                                    onClick={() => addDigit(num.toString())}
-                                    className="h-16 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-xl border border-white/5 transition-all active:scale-90 flex items-center justify-center"
-                                >
-                                    {num}
-                                </button>
-                            ))}
-                            <button
-                                type="button"
-                                onClick={clearPin}
-                                className="h-16 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-black text-sm border border-rose-500/5 transition-all active:scale-90 flex items-center justify-center uppercase tracking-widest"
-                            >
-                                Clear
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => addDigit('0')}
-                                className="h-16 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-xl border border-white/5 transition-all active:scale-90 flex items-center justify-center"
-                            >
-                                0
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={pin.length < 4}
-                                className="h-16 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white font-black text-xl border-0 shadow-lg shadow-blue-900/40 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50 disabled:shadow-none"
-                            >
-                                <ChevronRight />
-                            </button>
+                    <form onSubmit={handleAuthSubmit} className="space-y-4">
+                        {isRegisterMode && (
+                            <div className="relative group animate-in slide-in-from-top-2 duration-300">
+                                <Activity className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="DISPLAY NAME"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold focus:border-blue-500 outline-none transition-all"
+                                    required={isRegisterMode}
+                                />
+                            </div>
+                        )}
+                        <div className="relative group">
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={18} />
+                            <input
+                                type="email"
+                                placeholder="IDENTITY EMAIL"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold focus:border-blue-500 outline-none transition-all"
+                                required
+                            />
                         </div>
+                        <div className="relative group">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={18} />
+                            <input
+                                type="password"
+                                placeholder="ACCESS PASSWORD"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold focus:border-blue-500 outline-none transition-all"
+                                required
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={authLoading}
+                            className="w-full bg-blue-600 hover:bg-blue-500 text-white h-14 rounded-2xl font-black text-xs tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3 shadow-xl shadow-blue-900/20 disabled:opacity-50"
+                        >
+                            {authLoading ? (
+                                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    {isRegisterMode ? 'INITIALIZE ACCOUNT' : 'ESTABLISH LINK'}
+                                    <ChevronRight size={18} />
+                                </>
+                            )}
+                        </button>
                     </form>
                 </div>
 
-                <p className="text-center mt-10 text-slate-500 text-[10px] font-black uppercase tracking-[0.3em]">
-                    Enterprise Security Standard v2.0
-                </p>
+                <div className="text-center mt-10 space-y-2">
+                    <p className="text-slate-600 text-[10px] font-black tracking-[0.2em]">KSE GATEWAY SECURED v3.0</p>
+                    <p className="text-slate-700 text-[8px] font-bold">256-BIT END-TO-END ENCRYPTED</p>
+                </div>
             </div>
         </div>
     );

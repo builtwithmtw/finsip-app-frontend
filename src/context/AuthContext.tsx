@@ -1,38 +1,101 @@
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { supabase } from '../lib/supabase';
+import { type User } from '@supabase/supabase-js';
 
 interface AuthContextType {
+    user: User | null;
     isAuthenticated: boolean;
-    login: (pin: string) => boolean;
-    logout: () => void;
+    loading: boolean;
+    signIn: (email: string, password: string) => Promise<{ error: any }>;
+    signUp: (email: string, password: string, displayName: string) => Promise<{ error: any }>;
+    signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// In a real app, this would be an env variable or hashed
-const APP_PIN = "2026";
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-        return localStorage.getItem('sip_tracker_auth') === 'true';
+    const [user, setUser] = useState<User | null>(null);
+
+    // Quick local storage check for a faster first paint
+    const [loading, setLoading] = useState(() => {
+        const hasSession = Object.keys(localStorage).some(key => key.includes('auth-token'));
+        return hasSession;
     });
 
-    const login = (pin: string) => {
-        if (pin === APP_PIN) {
-            setIsAuthenticated(true);
-            localStorage.setItem('sip_tracker_auth', 'true');
-            return true;
-        }
-        return false;
+    useEffect(() => {
+        let isMounted = true;
+
+        const initializeAuth = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!isMounted) return;
+                const currentUser = session?.user ?? null;
+                setUser(currentUser);
+
+            } catch (err) {
+                console.error("Auth init error:", err);
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        initializeAuth();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (!isMounted) return;
+
+            const currentUser = session?.user ?? null;
+            setUser(currentUser);
+            setLoading(false);
+        });
+
+        return () => {
+            isMounted = false;
+            subscription.unsubscribe();
+        };
+    }, []);
+
+    const signIn = async (email: string, password: string) => {
+        setLoading(true);
+        const res = await supabase.auth.signInWithPassword({ email, password });
+        if (res.error) setLoading(false);
+        return res;
     };
 
-    const logout = () => {
-        setIsAuthenticated(false);
-        localStorage.removeItem('sip_tracker_auth');
+    const signUp = async (email: string, password: string, displayName: string) => {
+        setLoading(true);
+        const res = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    display_name: displayName
+                }
+            }
+        });
+        if (res.error) setLoading(false);
+        return res;
     };
+
+    const signOut = async () => {
+        setUser(null);
+        await supabase.auth.signOut();
+    };
+
+
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
-            {children}
+        <AuthContext.Provider value={{
+            user,
+            isAuthenticated: !!user,
+            loading,
+            signIn,
+            signUp,
+            signOut,
+        }}>
+            {!loading && children}
         </AuthContext.Provider>
     );
 };
