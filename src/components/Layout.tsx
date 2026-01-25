@@ -24,7 +24,7 @@ const Layout: React.FC = () => {
 
     useEffect(() => {
         const currentNav = navItems.find(item => item.path === location.pathname);
-        const title = currentNav ? `${currentNav.label} | SIP Tracker` : 'SIP Tracker';
+        const title = currentNav ? `${currentNav.label} | FINSIP` : 'FINSIP';
         document.title = title;
     }, [location.pathname]);
 
@@ -74,7 +74,7 @@ const Layout: React.FC = () => {
                     <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-2 rounded-xl shadow-lg shadow-blue-500/20">
                         <LineChart className="text-white" size={18} />
                     </div>
-                    <span className="font-black text-slate-900 tracking-tight text-lg">SIP Tracker</span>
+                    <span className="font-black text-slate-900 tracking-tight text-lg">FINSIP</span>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-600 bg-slate-50 rounded-xl">
                     {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -91,10 +91,10 @@ const Layout: React.FC = () => {
                         <LineChart className="text-white" size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-black text-slate-900 leading-none tracking-tighter">SIP TRACKER</h1>
+                        <h1 className="text-xl font-black text-slate-900 leading-none tracking-tighter">FINSIP</h1>
                         <div className="flex items-center gap-1.5 mt-1">
+                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-[0.1em]">SIP Manager</span>
                             <Sparkles size={10} className="text-blue-500" />
-                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-[0.1em]">Premium View</span>
                         </div>
                     </div>
                 </div>

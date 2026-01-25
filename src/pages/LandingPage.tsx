@@ -69,7 +69,7 @@ const LandingPage: React.FC = () => {
                         <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/20">
                             <LineChart className="text-white" size={20} />
                         </div>
-                        <span className="font-black text-xl tracking-tight text-white">SIP TRACKER</span>
+                        <span className="font-black text-xl tracking-tight text-white">FINSIP</span>
                     </div>
                     <button
                         onClick={() => navigate('/login')}
