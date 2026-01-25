@@ -9,7 +9,7 @@ import SectorAllocationChart from '../components/SectorAllocationChart';
 
 const DashboardPage: React.FC = () => {
     const { user } = useAuth();
-    const { transactions, cashEntries, payouts, loading, livePrices, isMarketLive } = usePortfolio();
+    const { transactions, cashEntries, payouts, loading } = usePortfolio();
 
     // Use dummy internal vars just to keep logic structural if needed, 
     // but we can remove the entire useEffect block entirely.

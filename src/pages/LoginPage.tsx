@@ -20,6 +20,7 @@ const LoginPage: React.FC = () => {
     const [password, setPassword] = useState('');
     const [username, setUsername] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
+    const [emailConfirmationSent, setEmailConfirmationSent] = useState(false);
 
     const signUpPaused = false;
 
@@ -28,18 +29,47 @@ const LoginPage: React.FC = () => {
         setAuthLoading(true);
 
         try {
-            const { error } = isRegisterMode
+            const { error, data } = isRegisterMode
                 ? await signUp(email, password, username)
                 : await signIn(email, password);
 
+            console.log('Auth response:', { error, data });
+
             if (error) {
-                toast.error('Authentication Failed', { description: error.message });
+                console.error('Auth error:', error);
+                toast.error(isRegisterMode ? 'Signup Failed' : 'Login Failed', {
+                    description: error.code || 'An unexpected error occurred. Please try again.'
+                });
+                setAuthLoading(false);
             } else if (isRegisterMode) {
-                toast.success('Account Created', { description: 'Your secure portfolio is now ready.' });
+                // Check if email confirmation is required
+                if (data?.user && !data.session) {
+                    console.log('Email confirmation required');
+                    setEmailConfirmationSent(true);
+                    toast.success('Check Your Email', {
+                        description: 'Please confirm your email address to complete registration.',
+                        duration: 10000
+                    });
+                    // Clear form
+                    setEmail('');
+                    setPassword('');
+                    setUsername('');
+                } else {
+                    console.log('Account created with immediate session');
+                    toast.success('Account Created', {
+                        description: 'Your secure portfolio is now ready.'
+                    });
+                }
+                setAuthLoading(false);
+            } else {
+                // Login successful - loading will be handled by auth state change
+                toast.success('Welcome Back!');
             }
         } catch (err: any) {
-            toast.error('Error', { description: err.message });
-        } finally {
+            console.error('Auth exception:', err);
+            toast.error('Error', {
+                description: err?.message || 'An unexpected error occurred. Please try again.'
+            });
             setAuthLoading(false);
         }
     };
@@ -59,15 +89,33 @@ const LoginPage: React.FC = () => {
                 </div>
 
                 <div className="bg-slate-800/40 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
+                    {emailConfirmationSent && (
+                        <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
+                            <div className="flex items-center gap-3">
+                                <Mail className="text-emerald-400" size={20} />
+                                <div>
+                                    <p className="text-sm font-bold text-emerald-400">Email Sent!</p>
+                                    <p className="text-xs text-emerald-300/80 mt-0.5 normal-case">Check your inbox to confirm your account</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex gap-2 p-1 bg-slate-900/50 rounded-2xl mb-8">
                         <button
-                            onClick={() => setIsRegisterMode(false)}
+                            onClick={() => {
+                                setIsRegisterMode(false);
+                                setEmailConfirmationSent(false);
+                            }}
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${!isRegisterMode ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
                         >
                             <LogIn size={14} /> SIGN IN
                         </button>
                         {signUpPaused ? null : <button
-                            onClick={() => setIsRegisterMode(true)}
+                            onClick={() => {
+                                setIsRegisterMode(true);
+                                setEmailConfirmationSent(false);
+                            }}
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${isRegisterMode ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
                         >
                             <UserPlus size={14} /> CREATE

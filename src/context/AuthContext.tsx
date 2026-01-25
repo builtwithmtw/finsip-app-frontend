@@ -6,8 +6,8 @@ interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     loading: boolean;
-    signIn: (email: string, password: string) => Promise<{ error: any }>;
-    signUp: (email: string, password: string, displayName: string) => Promise<{ error: any }>;
+    signIn: (email: string, password: string) => Promise<{ error: any; data?: any }>;
+    signUp: (email: string, password: string, displayName: string) => Promise<{ error: any; data?: any }>;
     signOut: () => Promise<void>;
 }
 
@@ -16,10 +16,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
 
-    // Quick local storage check for a faster first paint
+    // Optimized loading: only show loader if we detect a potential session
     const [loading, setLoading] = useState(() => {
-        const hasSession = Object.keys(localStorage).some(key => key.includes('auth-token'));
-        return hasSession;
+        // Check if there's any indication of an existing session
+        const hasSession = Object.keys(localStorage).some(key =>
+            key.includes('supabase') || key.includes('auth-token')
+        );
+        return hasSession; // Only show loader if session might exist
     });
 
     useEffect(() => {
@@ -72,7 +75,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             options: {
                 data: {
                     display_name: displayName
-                }
+                },
+                emailRedirectTo: `${window.location.origin}/`
             }
         });
         if (res.error) setLoading(false);
@@ -95,7 +99,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             signUp,
             signOut,
         }}>
-            {!loading && children}
+            {loading ? (
+                <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+                    <div className="text-center">
+                        <div className="inline-flex p-6 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl shadow-2xl mb-6 animate-pulse">
+                            <svg
+                                className="text-white"
+                                width="48"
+                                height="48"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                            </svg>
+                        </div>
+                        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Loading Portfolio...</p>
+                    </div>
+                </div>
+            ) : children}
         </AuthContext.Provider>
     );
 };
