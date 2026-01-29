@@ -47,11 +47,11 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             try {
                 // Determine if we need to fetch? Maybe only if stocks exist.
                 // But for now, simple fetch as requested.
-                // NOTE: Ideally we only fetch if we have stocks to track, 
+                // NOTE: Ideally we only fetch if we have stocks to track,
                 // but fetching the full index list is usually one call anyway.
 
                 const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/KSE100/companies?page=1&limit=500";
-                const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
+                const proxyUrl = "https://api.cors.lol/?url=" + encodeURIComponent(targetUrl);
 
                 console.log("[PortfolioContext] Fetching Live Market Data...");
                 const response = await fetch(proxyUrl);

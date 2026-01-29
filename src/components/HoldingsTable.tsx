@@ -25,6 +25,10 @@ const HoldingsTable: React.FC = () => {
                 const priceNum = Number(t.pricePerShare || 0);
                 const totalAmountNum = Number(t.totalAmount || (sharesNum * priceNum));
 
+                if (t.symbol === 'FABL') {
+                    console.log({ sharesNum, priceNum, totalAmountNum });
+                }
+
                 if (t.type === 'buy') {
                     existing.totalShares += sharesNum;
                     existing.totalCostBasis += totalAmountNum;
