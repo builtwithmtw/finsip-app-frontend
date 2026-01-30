@@ -54,3 +54,14 @@ export interface MonthlySummary {
   totalInvested: number;
   transactionCount: number;
 }
+
+export interface RealizedProfit {
+  id: string;
+  symbol: string;
+  quantitySold: number;
+  avgBuyPrice: number;
+  avgSellPrice: number;
+  realizedProfit: number;
+  sellDate: string; // YYYY-MM-DD
+  createdAt: string;
+}

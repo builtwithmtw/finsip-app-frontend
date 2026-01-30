@@ -144,8 +144,8 @@ const MonthlyView: React.FC = () => {
                                         index % 2 === 0 ? "bg-white" : "bg-[#FBFDFE]"
                                     )}>
                                         <div className="flex items-center gap-3">
-                                            <div className="w-1 h-3 bg-blue-500 rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity" />
-                                            {symbol}
+                                            <div className="w-1 h-4 bg-blue-500 rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity" />
+                                            <span className="text-[200x]">{symbol}</span>
                                         </div>
                                     </td>
                                     {sortedMonths.map(month => {
