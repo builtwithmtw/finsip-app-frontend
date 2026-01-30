@@ -97,7 +97,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         } catch (err) {
             console.error("[PortfolioContext] Market Data Fetch Warning:", err);
             setIsMarketLive(false);
-            setShowModal(true);
+            // setShowModal(true);
             toast.error(`Connection failed via ${selectedProxy.name}. Please select another gateway.`);
         }
     }, [selectedProxy, setShowModal]);
