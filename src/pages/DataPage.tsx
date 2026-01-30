@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useConfirm } from '../context/ConfirmContext';
 
 const DataPage: React.FC = () => {
-    const { transactions, stocks, cashEntries, payouts, importAllData } = usePortfolio();
+    const { transactions, stocks, cashEntries, payouts, realizedProfits, importAllData, recalculateRealizedProfits } = usePortfolio();
     const { confirm } = useConfirm();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -16,13 +16,15 @@ const DataPage: React.FC = () => {
                 stocks,
                 cashEntries,
                 payouts,
-                version: '1.0',
+                realizedProfits,
+                version: '1.1',
                 exportedAt: new Date().toISOString(),
                 stats: {
                     assets: stocks.length,
                     transactions: transactions.length,
                     allocations: cashEntries.length,
                     payouts: payouts.length,
+                    realizedProfits: realizedProfits.length,
                 }
             };
 
@@ -54,8 +56,9 @@ const DataPage: React.FC = () => {
                 const transactions = data.transactions || data.transaction_records || [];
                 const cashEntries = data.cashEntries || data.cash_entries || data.cash || [];
                 const payouts = data.payouts || data.payout_records || data.dividends || [];
+                const realizedProfits = data.realizedProfits || data.realized_pnl || [];
 
-                if (stocks.length === 0 && transactions.length === 0 && cashEntries.length === 0 && payouts.length === 0) {
+                if (stocks.length === 0 && transactions.length === 0 && cashEntries.length === 0 && payouts.length === 0 && realizedProfits.length === 0) {
                     throw new Error('The backup file seems to be empty or in an unrecognized format.');
                 }
 
@@ -74,6 +77,7 @@ const DataPage: React.FC = () => {
                             stocks,
                             cashEntries,
                             payouts,
+                            realizedProfits,
                         }),
                         {
                             loading: 'Restoring data...',
@@ -127,7 +131,8 @@ const DataPage: React.FC = () => {
                                 { label: 'Asset Definitions', count: stocks.length },
                                 { label: 'Accumulation Records', count: transactions.length },
                                 { label: 'Budget Provisions', count: cashEntries.length },
-                                { label: 'Dividend Receipts', count: payouts.length }
+                                { label: 'Dividend Receipts', count: payouts.length },
+                                { label: 'Settled P&L Records', count: realizedProfits.length }
                             ].map(stat => (
                                 <div key={stat.label} className="flex items-center justify-between border-b border-slate-50 pb-2">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</span>
@@ -189,17 +194,36 @@ const DataPage: React.FC = () => {
             </div>
 
             {/* Support section */}
-            <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row items-center gap-6 justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white rounded-xl shadow-sm">
-                        <FileJson className="text-blue-500" size={24} />
-                    </div>
-                    <div>
-                        <h4 className="text-sm font-black text-slate-900 uppercase">Universal Portability</h4>
-                        <p className="text-xs text-slate-400 font-medium">Backup files are standard JSON and can be read by any text editor.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row items-center gap-6 justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white rounded-xl shadow-sm">
+                            <FileJson className="text-blue-500" size={24} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black text-slate-900 uppercase">Universal Portability</h4>
+                            <p className="text-xs text-slate-400 font-medium">Backup files are standard JSON format.</p>
+                        </div>
                     </div>
                 </div>
-                <div className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Encrypted Storage: Local Only</div>
+
+                <div className="bg-white p-8 rounded-[2rem] border border-blue-100 flex flex-col md:flex-row items-center gap-6 justify-between shadow-xl shadow-blue-500/5">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-blue-50 rounded-xl">
+                            <RefreshCcw className="text-blue-600" size={24} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black text-slate-900 uppercase">Ledger Reconciliation</h4>
+                            <p className="text-xs text-slate-400 font-medium">Missing profits? Rebuild your P&L history.</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={recalculateRealizedProfits}
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-200"
+                    >
+                        Sync Ledger
+                    </button>
+                </div>
             </div>
         </div>
     );

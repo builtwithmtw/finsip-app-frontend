@@ -1,18 +1,24 @@
 import React, { useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { Wallet, Plus, Calendar, DollarSign, PiggyBank, FileText } from 'lucide-react';
+import { useConfirm } from '../context/ConfirmContext';
+import { Wallet, Plus, Calendar, DollarSign, PiggyBank, FileText, Edit2, Trash2, Check, X } from 'lucide-react';
 import { formatCurrency, formatMonth } from '../utils/formatters';
 import { toast } from 'sonner';
+import type { CashEntry } from '../types';
 
 const CashPage: React.FC = () => {
-    const { cashEntries, addCashEntry } = usePortfolio();
+    const { cashEntries, addCashEntry, updateCashEntry, deleteCashEntry } = usePortfolio();
+    const { confirm } = useConfirm();
     const [formData, setFormData] = useState({
         month: new Date().toISOString().slice(0, 7),
         amount: '',
         memo: '',
     });
 
-    const totalCash = cashEntries.reduce((sum, e) => sum + e.amount, 0);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editData, setEditData] = useState<{ amount: number; memo: string }>({ amount: 0, memo: '' });
+
+    const totalCash = cashEntries.reduce((sum, e) => sum + (e.amount || 0), 0);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -28,30 +34,64 @@ const CashPage: React.FC = () => {
         setFormData(prev => ({ ...prev, amount: '', memo: '' }));
     };
 
+    const handleStartEdit = (entry: CashEntry) => {
+        setEditingId(entry.id);
+        setEditData({ amount: entry.amount, memo: entry.memo || '' });
+    };
+
+    const handleSaveEdit = async (id: string) => {
+        try {
+            await updateCashEntry(id, editData);
+            setEditingId(null);
+            toast.success('Allocation updated');
+        } catch (err) {
+            // Error handled in context
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        const isConfirmed = await confirm({
+            title: 'Remove Allocation',
+            message: 'Are you sure you want to delete this cash entry? This will reduce your available budget pool.',
+            variant: 'danger',
+            confirmText: 'Delete Record',
+            cancelText: 'Cancel'
+        });
+
+        if (isConfirmed) {
+            try {
+                await deleteCashEntry(id);
+                toast.success('Allocation removed');
+            } catch (err) {
+                // Error handled in context
+            }
+        }
+    };
+
     return (
-        <div className="space-y-8 max-w-[1400px] mx-auto">
+        <div className="space-y-8 max-w-[1400px] mx-auto uppercase">
             <div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3 uppercase">
+                <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                     <Wallet className="text-blue-600" size={32} />
                     Capital Allocation
                 </h1>
-                <p className="text-slate-500 font-medium mt-1 pl-1 italic">Record your savings and monthly budget transfers.</p>
+                <p className="text-slate-500 font-bold mt-1 pl-1 tracking-widest text-[10px]">RECORD YOUR SAVINGS AND MONTHLY BUDGET TRANSFERS.</p>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
                 {/* Left side: Summary & Form */}
                 <div className="xl:col-span-4 space-y-8">
                     {/* Total Cash Card */}
-                    <div className="bg-slate-900 p-8 rounded-[2rem] shadow-2xl shadow-blue-900/10 relative overflow-hidden group">
+                    <div className="bg-slate-900 p-8 rounded-[2rem] shadow-2xl relative overflow-hidden group">
                         <div className="absolute -right-6 -bottom-6 text-white/5 group-hover:scale-110 transition-transform duration-500">
                             <PiggyBank size={180} />
                         </div>
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Available Budget Pool</span>
-                        <div className="text-4xl font-black text-white tracking-tighter uppercase">{formatCurrency(totalCash).split('.')[0]}</div>
-                        <p className="text-slate-400 text-xs mt-4 font-bold uppercase tracking-wider">Total cumulative savings recorded</p>
+                        <div className="text-4xl font-black text-white tracking-tighter tabular-nums">{formatCurrency(totalCash).split('.')[0]}</div>
+                        <p className="text-slate-400 text-[10px] mt-4 font-black tracking-widest opacity-60">TOTAL CUMULATIVE SAVINGS RECORDED</p>
                     </div>
 
-                    <div className="bg-white p-8 rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100">
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
                         <h2 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 uppercase">
                             <Plus size={20} className="text-blue-600" />
                             Provision Funds
@@ -90,7 +130,7 @@ const CashPage: React.FC = () => {
                                     <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                                     <input
                                         type="text"
-                                        placeholder="e.g. Monthly Savings"
+                                        placeholder="E.G. MONTHLY SAVINGS"
                                         className="w-full h-12 bg-slate-50 border-0 rounded-xl pl-12 pr-4 text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
                                         value={formData.memo}
                                         onChange={e => setFormData({ ...formData, memo: e.target.value })}
@@ -99,7 +139,7 @@ const CashPage: React.FC = () => {
                             </div>
                             <button
                                 type="submit"
-                                className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all duration-300 font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 active:scale-95 uppercase"
+                                className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all duration-300 font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 active:scale-95 uppercase tracking-widest"
                             >
                                 <Plus size={20} />
                                 Commit Allocation
@@ -110,16 +150,16 @@ const CashPage: React.FC = () => {
 
                 {/* Table area */}
                 <div className="xl:col-span-8">
-                    <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
+                    <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
                         <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
-                            <h2 className="text-lg font-black text-slate-900 uppercase">Provisioning Journal</h2>
+                            <h2 className="text-lg font-black text-slate-900">Provisioning Journal</h2>
                             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cashEntries.length} Records</div>
                         </div>
 
                         {cashEntries.length === 0 ? (
-                            <div className="p-20 text-center flex flex-col items-center">
-                                <Wallet size={48} className="text-slate-100 mb-4" />
-                                <p className="text-slate-300 font-black uppercase tracking-widest text-xs">No allocations recorded</p>
+                            <div className="p-24 text-center flex flex-col items-center">
+                                <Wallet size={64} className="text-slate-100 mb-6" />
+                                <p className="text-slate-300 font-black uppercase tracking-[0.5em] text-[10px]">Matrix Empty • No Allocations Found</p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
@@ -129,18 +169,74 @@ const CashPage: React.FC = () => {
                                             <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Applicable Month</th>
                                             <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Memo / Origin</th>
                                             <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Credit Value</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-50 uppercase">
+                                    <tbody className="divide-y divide-slate-100">
                                         {[...cashEntries].sort((a, b) => b.month.localeCompare(a.month)).map((entry) => (
                                             <tr key={entry.id} className="hover:bg-blue-50/20 group transition-all duration-300">
                                                 <td className="px-8 py-5">
                                                     <span className="font-black text-slate-900 uppercase tracking-tight">{formatMonth(entry.month)}</span>
                                                 </td>
                                                 <td className="px-8 py-5">
-                                                    <span className="font-bold text-slate-500 text-xs">{entry.memo || '—'}</span>
+                                                    {editingId === entry.id ? (
+                                                        <input
+                                                            type="text"
+                                                            value={editData.memo}
+                                                            onChange={e => setEditData({ ...editData, memo: e.target.value })}
+                                                            className="w-full px-3 py-1.5 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-4 ring-blue-500/10 font-bold text-xs"
+                                                        />
+                                                    ) : (
+                                                        <span className="font-bold text-slate-500 text-xs">{entry.memo || '—'}</span>
+                                                    )}
                                                 </td>
-                                                <td className="px-8 py-5 text-right font-black text-blue-600 text-lg tabular-nums">{formatCurrency(entry.amount).split('.')[0]}</td>
+                                                <td className="px-8 py-5 text-right font-black text-blue-600 text-lg tabular-nums">
+                                                    {editingId === entry.id ? (
+                                                        <input
+                                                            type="number"
+                                                            value={editData.amount}
+                                                            onChange={e => setEditData({ ...editData, amount: Number(e.target.value) })}
+                                                            className="w-32 px-3 py-1.5 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-4 ring-blue-500/10 text-right font-black"
+                                                        />
+                                                    ) : (
+                                                        formatCurrency(entry.amount).split('.')[0].replace('Rs', '')
+                                                    )}
+                                                </td>
+                                                <td className="px-8 py-5 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        {editingId === entry.id ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleSaveEdit(entry.id)}
+                                                                    className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+                                                                >
+                                                                    <Check size={14} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingId(null)}
+                                                                    className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleStartEdit(entry)}
+                                                                    className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                                >
+                                                                    <Edit2 size={14} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDelete(entry.id)}
+                                                                    className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>

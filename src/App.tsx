@@ -16,42 +16,50 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import { Toaster } from 'sonner';
 
+import { ProxyProvider } from './context/ProxyContext';
+import ProxyModal from './components/ProxyModal';
+import ChangelogModal from './components/ChangelogModal';
+
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <PortfolioProvider>
-        <ConfirmProvider>
-          <Toaster position="top-right" richColors closeButton />
-          <BrowserRouter>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/welcome" element={<LandingPage />} />
-              <Route path="/login" element={<LoginPage />} />
+      <ProxyProvider>
+        <PortfolioProvider>
+          <ConfirmProvider>
+            <Toaster position="top-right" richColors closeButton />
+            <ProxyModal />
+            <ChangelogModal />
+            <BrowserRouter>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/welcome" element={<LandingPage />} />
+                <Route path="/login" element={<LoginPage />} />
 
-              {/* Protected Routes */}
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <Layout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<DashboardPage />} />
-                <Route path="stocks" element={<StocksPage />} />
-                <Route path="entry" element={<EntryPage />} />
-                <Route path="cash" element={<CashPage />} />
-                <Route path="payouts" element={<PayoutsPage />} />
-                <Route path="live" element={<LivePortfolioPage />} />
-                <Route path="data" element={<DataPage />} />
-              </Route>
+                {/* Protected Routes */}
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <Layout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<DashboardPage />} />
+                  <Route path="stocks" element={<StocksPage />} />
+                  <Route path="entry" element={<EntryPage />} />
+                  <Route path="cash" element={<CashPage />} />
+                  <Route path="payouts" element={<PayoutsPage />} />
+                  <Route path="live" element={<LivePortfolioPage />} />
+                  <Route path="data" element={<DataPage />} />
+                </Route>
 
-              {/* Catch all - redirect to welcome if unknown */}
-              <Route path="*" element={<Navigate to="/welcome" replace />} />
-            </Routes>
-          </BrowserRouter>
-        </ConfirmProvider>
-      </PortfolioProvider>
+                {/* Catch all - redirect to welcome if unknown */}
+                <Route path="*" element={<Navigate to="/welcome" replace />} />
+              </Routes>
+            </BrowserRouter>
+          </ConfirmProvider>
+        </PortfolioProvider>
+      </ProxyProvider>
     </AuthProvider>
   );
 };
