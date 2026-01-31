@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ChevronRight, Mail, Lock, UserPlus, LogIn, Activity } from 'lucide-react';
+import { ChevronRight, Mail, UserPlus, LogIn, Activity, ShieldCheck, Database, Key } from 'lucide-react';
 import { toast } from 'sonner';
 
 const LoginPage: React.FC = () => {
@@ -37,7 +37,7 @@ const LoginPage: React.FC = () => {
 
             if (error) {
                 console.error('Auth error:', error);
-                toast.error(isRegisterMode ? 'Signup Failed' : 'Login Failed', {
+                toast.error(isRegisterMode ? 'Protocol Initialization Failed' : 'Access Denied', {
                     description: error.code || 'An unexpected error occurred. Please try again.'
                 });
                 setAuthLoading(false);
@@ -46,8 +46,8 @@ const LoginPage: React.FC = () => {
                 if (data?.user && !data.session) {
                     console.log('Email confirmation required');
                     setEmailConfirmationSent(true);
-                    toast.success('Check Your Email', {
-                        description: 'Please confirm your email address to complete registration.',
+                    toast.success('Verification Uplink Sent', {
+                        description: 'Please confirm your identity email to complete registration.',
                         duration: 10000
                     });
                     // Clear form
@@ -56,18 +56,18 @@ const LoginPage: React.FC = () => {
                     setUsername('');
                 } else {
                     console.log('Account created with immediate session');
-                    toast.success('Account Created', {
-                        description: 'Your secure portfolio is now ready.'
+                    toast.success('Identity Established', {
+                        description: 'Your secure vault is ready for initialization.'
                     });
                 }
                 setAuthLoading(false);
             } else {
                 // Login successful - loading will be handled by auth state change
-                toast.success('Welcome Back!');
+                toast.success('Welcome Back, Operator');
             }
         } catch (err: any) {
             console.error('Auth exception:', err);
-            toast.error('Error', {
+            toast.error('System Failure', {
                 description: err?.message || 'An unexpected error occurred. Please try again.'
             });
             setAuthLoading(false);
@@ -75,110 +75,150 @@ const LoginPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden font-sans uppercase">
-            <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-blue-600/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-indigo-600/10 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden font-sans uppercase selection:bg-blue-500/30">
+            {/* Ambient Lighting */}
+            <div className="absolute top-0 right-0 w-full h-full pointer-events-none">
+                <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full animate-pulse-slow" />
+                <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full animate-pulse-slow delay-1000" />
+            </div>
 
-            <div className="w-full max-w-sm relative animate-in fade-in zoom-in-95 duration-700">
+            <div className="w-full max-w-md relative z-10 animate-in fade-in zoom-in-95 duration-700">
+
+                {/* Header */}
                 <div className="text-center mb-10">
-                    <div className="inline-flex p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl shadow-2xl mb-6">
-                        <Activity className="text-white" size={32} />
+                    <div className="inline-flex p-4 bg-slate-900 border border-white/5 rounded-3xl shadow-2xl mb-8 group relative overflow-hidden">
+                        <div className="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                        <ShieldCheck className="text-blue-500 relative z-10" size={32} />
                     </div>
-                    <h1 className="text-4xl font-black text-white tracking-tighter mb-1">Portfolio Ledger</h1>
-                    <p className="text-[10px] text-slate-500 font-black tracking-[0.2em] uppercase">Enterprise Authentication Gateway</p>
+                    <h1 className="text-3xl font-black text-white tracking-widest mb-2">Secure Gateway</h1>
+                    <div className="flex items-center justify-center gap-2 text-[10px] text-slate-500 font-bold tracking-[0.2em]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        SYSTEM OPERATIONAL
+                    </div>
                 </div>
 
-                <div className="bg-slate-800/40 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                    {emailConfirmationSent && (
-                        <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
-                            <div className="flex items-center gap-3">
-                                <Mail className="text-emerald-400" size={20} />
-                                <div>
-                                    <p className="text-sm font-bold text-emerald-400">Email Sent!</p>
-                                    <p className="text-xs text-emerald-300/80 mt-0.5 normal-case">Check your inbox to confirm your account</p>
+                {/* Glass Card */}
+                <div className="bg-slate-900/60 backdrop-blur-2xl p-2 rounded-[2.5rem] border border-white/5 shadow-2xl ring-1 ring-white/5">
+                    <div className="bg-slate-950/50 rounded-[2rem] p-6 sm:p-8">
+
+                        {emailConfirmationSent && (
+                            <div className="mb-6 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
+                                        <Mail className="text-emerald-400" size={18} />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="text-[10px] font-black text-emerald-400 tracking-wider">UPLINK SUCCESSFUL</p>
+                                        <p className="text-[9px] text-slate-400 mt-1 font-bold normal-case leading-relaxed">Verification link has been sent to your inbox.</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-
-                    <div className="flex gap-2 p-1 bg-slate-900/50 rounded-2xl mb-8">
-                        <button
-                            onClick={() => {
-                                setIsRegisterMode(false);
-                                setEmailConfirmationSent(false);
-                            }}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${!isRegisterMode ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                        >
-                            <LogIn size={14} /> SIGN IN
-                        </button>
-                        {signUpPaused ? null : <button
-                            onClick={() => {
-                                setIsRegisterMode(true);
-                                setEmailConfirmationSent(false);
-                            }}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${isRegisterMode ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                        >
-                            <UserPlus size={14} /> CREATE
-                        </button>}
-                    </div>
-
-                    <form onSubmit={handleAuthSubmit} className="space-y-4">
-                        {isRegisterMode && (
-                            <div className="relative group animate-in slide-in-from-top-2 duration-300">
-                                <Activity className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={18} />
-                                <input
-                                    type="text"
-                                    placeholder="DISPLAY NAME"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold focus:border-blue-500 outline-none transition-all"
-                                    required={isRegisterMode}
-                                />
-                            </div>
                         )}
-                        <div className="relative group">
-                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={18} />
-                            <input
-                                type="email"
-                                placeholder="IDENTITY EMAIL"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold focus:border-blue-500 outline-none transition-all"
-                                required
-                            />
-                        </div>
-                        <div className="relative group">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={18} />
-                            <input
-                                type="password"
-                                placeholder="ACCESS PASSWORD"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold focus:border-blue-500 outline-none transition-all"
-                                required
-                            />
+
+                        {/* Toggle */}
+                        <div className="flex bg-slate-900 p-1.5 rounded-2xl mb-8 border border-white/5">
+                            <button
+                                onClick={() => {
+                                    setIsRegisterMode(false);
+                                    setEmailConfirmationSent(false);
+                                }}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black tracking-widest transition-all duration-300 ${!isRegisterMode
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                    : 'text-slate-500 hover:text-slate-300'
+                                    }`}
+                            >
+                                <LogIn size={12} /> AUTHENTICATE
+                            </button>
+                            {signUpPaused ? null : (
+                                <button
+                                    onClick={() => {
+                                        setIsRegisterMode(true);
+                                        setEmailConfirmationSent(false);
+                                    }}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black tracking-widest transition-all duration-300 ${isRegisterMode
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                        : 'text-slate-500 hover:text-slate-300'
+                                        }`}
+                                >
+                                    <UserPlus size={12} /> INITIALIZE
+                                </button>
+                            )}
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={authLoading}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white h-14 rounded-2xl font-black text-xs tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3 shadow-xl shadow-blue-900/20 disabled:opacity-50"
-                        >
-                            {authLoading ? (
-                                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                            ) : (
-                                <>
-                                    {isRegisterMode ? 'INITIALIZE ACCOUNT' : 'ESTABLISH LINK'}
-                                    <ChevronRight size={18} />
-                                </>
+                        {/* Form */}
+                        <form onSubmit={handleAuthSubmit} className="space-y-4">
+                            {isRegisterMode && (
+                                <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
+                                    <label className="text-[9px] font-bold text-slate-500 ml-4 tracking-widest">Operator Alias</label>
+                                    <div className="relative group">
+                                        <Activity className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors duration-300" size={16} />
+                                        <input
+                                            type="text"
+                                            placeholder="ENTER NAME"
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
+                                            className="w-full bg-slate-900 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold tracking-wider focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700"
+                                            required={isRegisterMode}
+                                        />
+                                    </div>
+                                </div>
                             )}
-                        </button>
-                    </form>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-bold text-slate-500 ml-4 tracking-widest">Identity</label>
+                                <div className="relative group">
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors duration-300" size={16} />
+                                    <input
+                                        type="email"
+                                        placeholder="EMAIL ADDRESS"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="w-full bg-slate-900 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold tracking-wider focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-bold text-slate-500 ml-4 tracking-widest">Passcode</label>
+                                <div className="relative group">
+                                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors duration-300" size={16} />
+                                    <input
+                                        type="password"
+                                        placeholder="••••••••••••"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full bg-slate-900 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold tracking-wider focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={authLoading}
+                                className="w-full bg-white hover:bg-slate-200 text-slate-950 h-14 rounded-2xl font-black text-[10px] tracking-[0.2em] transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 shadow-xl mt-6 disabled:opacity-50 disabled:pointer-events-none"
+                            >
+                                {authLoading ? (
+                                    <div className="w-4 h-4 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        {isRegisterMode ? 'INITIALIZE LINK' : 'ESTABLISH LINK'}
+                                        <ChevronRight size={16} />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
-                <div className="text-center mt-10 space-y-2">
-                    <p className="text-slate-600 text-[10px] font-black tracking-[0.2em]">KSE GATEWAY SECURED v3.0</p>
-                    <p className="text-slate-700 text-[8px] font-bold">256-BIT END-TO-END ENCRYPTED</p>
+                {/* Footer */}
+                <div className="text-center mt-12 flex flex-col items-center gap-3">
+                    <Database size={16} className="text-slate-700" />
+                    <div className="space-y-1">
+                        <p className="text-slate-500 text-[10px] font-black tracking-[0.2em]">FINSIP PROTOCOL V1.2</p>
+                        <p className="text-slate-700 text-[8px] font-bold tracking-widest">ENCRYPTED CONNECTION</p>
+                    </div>
                 </div>
             </div>
         </div>

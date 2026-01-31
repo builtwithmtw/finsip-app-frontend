@@ -14,6 +14,7 @@ import DataPage from './pages/DataPage';
 import LivePortfolioPage from './pages/LivePortfolioPage';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import DeleteAccountPage from './pages/DeleteAccountPage';
 import { Toaster } from 'sonner';
 
 import { ProxyProvider } from './context/ProxyContext';
@@ -52,6 +53,15 @@ const App: React.FC = () => {
                   <Route path="live" element={<LivePortfolioPage />} />
                   <Route path="data" element={<DataPage />} />
                 </Route>
+
+                <Route
+                  path="/delete-account"
+                  element={
+                    <ProtectedRoute>
+                      <DeleteAccountPage />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* Catch all - redirect to welcome if unknown */}
                 <Route path="*" element={<Navigate to="/welcome" replace />} />

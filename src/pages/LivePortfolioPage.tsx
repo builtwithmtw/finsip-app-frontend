@@ -118,9 +118,10 @@ const LivePortfolioPage: React.FC = () => {
                 </div>
 
 
-                <div className="flex flex-row gap-2">
-                    <div className="flex bg-white p-2 rounded-[1rem] border border-slate-100 shadow-xl items-center gap-2">
+                <div className="flex flex-col 2xl:flex-row gap-6 2xl:items-center mt-6 xl:mt-0">
 
+
+                    <div>
                         <button
                             onClick={() => setActiveTab('live')}
                             className={clsx(
@@ -141,8 +142,9 @@ const LivePortfolioPage: React.FC = () => {
                         </button>
                     </div>
 
+
                     {activeTab === 'live' && (
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                             <div className={clsx(
                                 "flex items-center gap-5 px-8 py-4 rounded-[2rem] border shadow-2xl transition-all duration-1000",
                                 isMarketLive ? "bg-white border-white ring-8 ring-emerald-50/50" : "bg-slate-50 border-slate-200"
@@ -193,7 +195,7 @@ const LivePortfolioPage: React.FC = () => {
                 <>
                     {/* Performance Widgets + Summary */}
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                        <div className="lg:col-span-2 grid grid-cols-2 gap-8">
+                        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="bg-slate-900 p-6 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group">
                                 <div className="absolute -right-8 -top-8 text-white/[0.03] group-hover:scale-150 transition-transform duration-1000">
                                     <Landmark size={240} />

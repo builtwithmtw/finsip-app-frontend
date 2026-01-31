@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePortfolio } from '../context/PortfolioContext';
-import { Download, Upload, AlertTriangle, FileJson, ShieldCheck, RefreshCcw, History } from 'lucide-react';
+import { Download, Upload, AlertTriangle, FileJson, ShieldCheck, RefreshCcw, History, UserX, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -8,6 +9,7 @@ const DataPage: React.FC = () => {
     const { transactions, stocks, cashEntries, payouts, realizedProfits, importAllData, recalculateRealizedProfits } = usePortfolio();
     const { confirm } = useConfirm();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const navigate = useNavigate();
 
     const handleExport = () => {
         try {
@@ -223,6 +225,27 @@ const DataPage: React.FC = () => {
                     >
                         Sync Ledger
                     </button>
+                </div>
+
+                {/* Danger Zone */}
+                <div className="pt-12 border-t border-slate-200">
+                    <div className="bg-red-50 p-8 rounded-[2rem] border border-red-100 flex flex-col md:flex-row items-center gap-6 justify-between opacity-80 hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-red-100 rounded-xl">
+                                <UserX className="text-red-500" size={24} />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-black text-red-900 uppercase">Archive Termination</h4>
+                                <p className="text-xs text-red-700/60 font-medium">Manage account deletion protocols.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => navigate('/delete-account')}
+                            className="px-6 py-3 bg-white text-red-500 border border-red-200 hover:bg-red-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                        >
+                            Danger Zone <ArrowRight size={14} />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

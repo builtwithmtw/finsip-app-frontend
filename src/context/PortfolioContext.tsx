@@ -37,6 +37,7 @@ interface PortfolioContextType {
         realizedProfits: RealizedProfit[]
     }) => Promise<void>;
     recalculateRealizedProfits: () => Promise<void>;
+    clearAllData: () => Promise<void>;
 }
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
@@ -671,6 +672,28 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         }
     };
 
+
+    const clearAllData = async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            await supabase.from('realized_pnl').delete().eq('user_id', user.id);
+            await supabase.from('transactions').delete().eq('user_id', user.id);
+            await supabase.from('stocks').delete().eq('user_id', user.id);
+            await supabase.from('cash_entries').delete().eq('user_id', user.id);
+            await supabase.from('payouts').delete().eq('user_id', user.id);
+
+            await fetchData();
+            toast.success('All portfolio data has been purged.');
+        } catch (error: any) {
+            console.error('Error clearing data:', error);
+            toast.error('Failed to clear data: ' + error.message);
+            throw error;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <PortfolioContext.Provider value={{
             transactions,
@@ -695,7 +718,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             updatePayout,
             deletePayout,
             importAllData,
-            recalculateRealizedProfits
+            recalculateRealizedProfits,
+            clearAllData
         }}>
             {children}
         </PortfolioContext.Provider>
