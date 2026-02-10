@@ -287,6 +287,8 @@ const LivePortfolioPage: React.FC = () => {
                                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] text-right">Holding Qty</th>
                                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] text-right">Acquisition</th>
                                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] text-right">Live Feed</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] text-right">Equity Total</th>
+                                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] text-right">Portfolio %</th>
                                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] text-right">P/L Vector</th>
                                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] text-right">Status</th>
                                     </tr>
@@ -311,6 +313,7 @@ const LivePortfolioPage: React.FC = () => {
                                                 </div>
                                                 <div className="text-[9px] text-slate-400 font-bold uppercase mt-1">Total Shares</div>
                                             </td>
+
                                             <td className="px-6 py-4 text-right">
                                                 <div className="font-black text-slate-600 tabular-nums text-lg">{h.avgPrice.toFixed(2)}</div>
                                                 <div className="text-[9px] text-slate-400 font-bold uppercase mt-1">Avg Price</div>
@@ -320,6 +323,18 @@ const LivePortfolioPage: React.FC = () => {
                                                     {h.currentPrice > 0 ? h.currentPrice.toFixed(2) : '—'}
                                                 </div>
                                                 <div className="text-[9px] text-blue-400/60 font-black uppercase mt-1">Live Feed</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="font-black text-blue-600 tabular-nums text-xl tracking-tight">
+                                                    {formatCurrency(h.marketValue).split('.')[0].replace('Rs', '')}
+                                                </div>
+                                                <div className="text-[9px] text-blue-400/60 font-black uppercase mt-1">Equity Value</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="font-black text-indigo-600 tabular-nums text-xl tracking-tight">
+                                                    {((h.marketValue / (totals.totalValue + totals.totalPL)) * 100).toFixed(2)}%
+                                                </div>
+                                                <div className="text-[9px] text-indigo-400/60 font-black uppercase mt-1">Allocation</div>
                                             </td>
                                             <td className={clsx(
                                                 "px-6 py-4 text-right font-black text-xl tabular-nums transition-all border-x border-slate-50",
