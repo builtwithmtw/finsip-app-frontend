@@ -199,9 +199,9 @@ const LandingPage: React.FC = () => {
                                         <div className="relative text-center">
                                             <div className="inline-flex items-center gap-2 mb-4">
                                                 <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live Feed</span>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase ">Live Feed</span>
                                             </div>
-                                            <div className="text-5xl font-black text-white tracking-tighter mb-2">$842,912</div>
+                                            <div className=" font-black text-slate-900 uppercase tracking-tight text-5xl font-black rounded-full text-white mb-2">187453</div>
                                             <div className="text-sm font-medium text-emerald-400 mb-8">+$12,402 (1.4%) Today</div>
 
                                             <div className="flex justify-center gap-2">
@@ -220,7 +220,7 @@ const LandingPage: React.FC = () => {
                                                 <TrendingUp size={18} />
                                             </div>
                                             <div>
-                                                <div className="text-xs font-bold text-white mb-1">Dividend Yield</div>
+                                                <div className="text-xs font-bold text-white mb-1">Dividend </div>
                                                 <div className="text-[10px] text-slate-500">Last 30 Days</div>
                                             </div>
                                         </div>

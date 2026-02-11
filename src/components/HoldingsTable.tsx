@@ -77,7 +77,7 @@ const HoldingsTable: React.FC = () => {
             </div>
 
 
-            <div className="flex-1 overflow-y-auto overflow-x-auto -mx-8">
+            <div className="flex-1 overflow-y-auto overflow-x-auto -mx-8 scrollbar-hide-auto">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50/80 border-b border-slate-100">
                         <tr>

@@ -11,7 +11,7 @@ const DashboardPage: React.FC = () => {
     const { user } = useAuth();
     const { transactions, cashEntries, payouts, loading } = usePortfolio();
 
-    // Use dummy internal vars just to keep logic structural if needed, 
+    // Use dummy internal vars just to keep logic structural if needed,
     // but we can remove the entire useEffect block entirely.
 
 
@@ -42,7 +42,7 @@ const DashboardPage: React.FC = () => {
             });
 
         const invested = Array.from(map.values()).reduce((sum, h) => sum + h.totalCostBasis, 0);
-        const cash = cashEntries.reduce((sum, e) => sum + e.amount, 0);
+        const cash = cashEntries.reduce((sum, e) => sum + (e.type === 'withdraw' ? -e.amount : e.amount), 0);
         const payoutsVal = payouts.reduce((sum, p) => sum + p.amount, 0);
 
         // For remaining cash, we still use the "Net Cash Out" logic as it represents bank balance

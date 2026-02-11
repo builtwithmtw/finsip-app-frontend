@@ -9,16 +9,24 @@ import type { CashEntry } from '../types';
 const CashPage: React.FC = () => {
     const { cashEntries, addCashEntry, updateCashEntry, deleteCashEntry } = usePortfolio();
     const { confirm } = useConfirm();
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<{ month: string; amount: string; type: 'deposit' | 'withdraw'; memo: string }>({
         month: new Date().toISOString().slice(0, 7),
         amount: '',
+        type: 'deposit',
         memo: '',
     });
 
     const [editingId, setEditingId] = useState<string | null>(null);
-    const [editData, setEditData] = useState<{ amount: number; memo: string }>({ amount: 0, memo: '' });
+    const [editData, setEditData] = useState<{ amount: number; memo: string; type: 'deposit' | 'withdraw' }>({
+        amount: 0,
+        memo: '',
+        type: 'deposit'
+    });
 
-    const totalCash = cashEntries.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const totalCash = cashEntries.reduce((sum, e) => {
+        const amt = Number(e.amount) || 0;
+        return sum + (e.type === 'withdraw' ? -amt : amt);
+    }, 0);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,16 +35,22 @@ const CashPage: React.FC = () => {
         addCashEntry({
             month: formData.month,
             amount: Number(formData.amount),
+            type: formData.type,
             memo: formData.memo,
         });
 
-        toast.success(`Allocated ${formatCurrency(Number(formData.amount))} for ${formatMonth(formData.month)}`);
-        setFormData(prev => ({ ...prev, amount: '', memo: '' }));
+        const actionWord = formData.type === 'deposit' ? 'Allocated' : 'Withdrawn';
+        toast.success(`${actionWord} ${formatCurrency(Number(formData.amount))} for ${formatMonth(formData.month)}`);
+        setFormData(prev => ({ ...prev, amount: '', memo: '', type: 'deposit' }));
     };
 
     const handleStartEdit = (entry: CashEntry) => {
         setEditingId(entry.id);
-        setEditData({ amount: entry.amount, memo: entry.memo || '' });
+        setEditData({
+            amount: entry.amount,
+            memo: entry.memo || '',
+            type: entry.type || 'deposit'
+        });
     };
 
     const handleSaveEdit = async (id: string) => {
@@ -98,6 +112,32 @@ const CashPage: React.FC = () => {
                         </h2>
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3 px-1">Allocation Type</label>
+                                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, type: 'deposit' })}
+                                        className={`py-2 text-[10px] font-black rounded-lg transition-all ${formData.type === 'deposit'
+                                            ? 'bg-white text-blue-600 shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-600'
+                                            }`}
+                                    >
+                                        DEPOSIT
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, type: 'withdraw' })}
+                                        className={`py-2 text-[10px] font-black rounded-lg transition-all ${formData.type === 'withdraw'
+                                            ? 'bg-white text-rose-600 shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-600'
+                                            }`}
+                                    >
+                                        WITHDRAW
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 px-1">Target Month</label>
                                 <div className="relative font-bold">
                                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
@@ -139,10 +179,10 @@ const CashPage: React.FC = () => {
                             </div>
                             <button
                                 type="submit"
-                                className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all duration-300 font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 active:scale-95 uppercase tracking-widest"
+                                className={`w-full h-14 ${formData.type === 'deposit' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-rose-600 hover:bg-rose-500'} text-white rounded-2xl transition-all duration-300 font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 active:scale-95 uppercase tracking-widest`}
                             >
-                                <Plus size={20} />
-                                Commit Allocation
+                                {formData.type === 'deposit' ? <Plus size={20} /> : <X size={20} />}
+                                {formData.type === 'deposit' ? 'Commit Allocation' : 'Record Withdrawal'}
                             </button>
                         </form>
                     </div>
@@ -162,13 +202,14 @@ const CashPage: React.FC = () => {
                                 <p className="text-slate-300 font-black uppercase tracking-[0.5em] text-[10px]">Matrix Empty • No Allocations Found</p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto">
+                            <div className="max-h-[650px] overflow-y-auto overflow-x-auto scrollbar-hide-auto">
                                 <table className="w-full text-left border-collapse">
-                                    <thead className="bg-[#2563EB] text-white">
+                                    <thead className="bg-[#2563EB] text-white sticky top-0 z-10">
                                         <tr>
                                             <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Applicable Month</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Type</th>
                                             <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Memo / Origin</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Credit Value</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Value (Rs.)</th>
                                             <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Actions</th>
                                         </tr>
                                     </thead>
@@ -177,6 +218,25 @@ const CashPage: React.FC = () => {
                                             <tr key={entry.id} className="hover:bg-blue-50/20 group transition-all duration-300">
                                                 <td className="px-8 py-5">
                                                     <span className="font-black text-slate-900 uppercase tracking-tight">{formatMonth(entry.month)}</span>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    {editingId === entry.id ? (
+                                                        <select
+                                                            value={editData.type}
+                                                            onChange={e => setEditData({ ...editData, type: e.target.value as 'deposit' | 'withdraw' })}
+                                                            className="px-3 py-1.5 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-4 ring-blue-500/10 font-bold text-[10px] uppercase"
+                                                        >
+                                                            <option value="deposit">Deposit</option>
+                                                            <option value="withdraw">Withdraw</option>
+                                                        </select>
+                                                    ) : (
+                                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest uppercase ${entry.type === 'withdraw'
+                                                            ? 'bg-rose-100 text-rose-600'
+                                                            : 'bg-emerald-100 text-emerald-600'
+                                                            }`}>
+                                                            {entry.type || 'deposit'}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-8 py-5">
                                                     {editingId === entry.id ? (
@@ -190,7 +250,8 @@ const CashPage: React.FC = () => {
                                                         <span className="font-bold text-slate-500 text-xs">{entry.memo || '—'}</span>
                                                     )}
                                                 </td>
-                                                <td className="px-8 py-5 text-right font-black text-blue-600 text-lg tabular-nums">
+                                                <td className={`px-8 py-5 text-right font-black ${(editingId === entry.id ? editData.type : entry.type) === 'withdraw' ? 'text-rose-600' : 'text-blue-600'
+                                                    } text-lg tabular-nums`}>
                                                     {editingId === entry.id ? (
                                                         <input
                                                             type="number"
@@ -199,7 +260,7 @@ const CashPage: React.FC = () => {
                                                             className="w-32 px-3 py-1.5 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-4 ring-blue-500/10 text-right font-black"
                                                         />
                                                     ) : (
-                                                        formatCurrency(entry.amount).split('.')[0].replace('Rs', '')
+                                                        `${entry.type === 'withdraw' ? '-' : ''}${formatCurrency(entry.amount).split('.')[0].replace('Rs', '')}`
                                                     )}
                                                 </td>
                                                 <td className="px-8 py-5 text-right">

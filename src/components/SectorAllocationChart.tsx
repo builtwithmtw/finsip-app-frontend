@@ -44,7 +44,7 @@ const SectorAllocationChart: React.FC = () => {
             totalInvestedValue += amount;
         });
 
-        const totalBudgetedCash = cashEntries.reduce((sum, e) => sum + e.amount, 0);
+        const totalBudgetedCash = cashEntries.reduce((sum, e) => sum + (e.type === 'withdraw' ? -e.amount : e.amount), 0);
         const remainingBudget = Math.max(0, totalBudgetedCash - totalInvestedValue);
         const totalValueForChart = totalInvestedValue + remainingBudget;
 
@@ -120,12 +120,14 @@ const SectorAllocationChart: React.FC = () => {
                             ))}
                         </Pie>
                         <Tooltip
+                            wrapperStyle={{ zIndex: 100 }}
                             contentStyle={{
                                 backgroundColor: '#0f172a',
+                                opacity: 1,
                                 color: '#fff',
                                 borderRadius: '16px',
                                 border: 'none',
-                                boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                                boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3)',
                                 padding: '12px 16px'
                             }}
                             itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}
@@ -134,7 +136,7 @@ const SectorAllocationChart: React.FC = () => {
                     </PieChart>
                 </ResponsiveContainer>
 
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-0">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-1">Top Sector</span>
                     <span className="text-lg font-black text-slate-900 uppercase truncate max-w-[120px] block leading-none">{data[0]?.name}</span>
                     <span className="text-xs font-black text-blue-600 uppercase mt-2 block">{data[0]?.percentage.toFixed(1)}%</span>

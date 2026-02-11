@@ -163,6 +163,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                     id: c.id,
                     month: c.month,
                     amount: c.amount,
+                    type: c.type || 'deposit',
                     memo: c.memo,
                     createdAt: c.created_at
                 })));
@@ -397,6 +398,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             .insert([{
                 amount: data.amount,
                 month: data.month,
+                type: data.type,
                 memo: data.memo,
                 user_id: user.id
             }])
@@ -412,6 +414,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             id: inserted.id,
             month: inserted.month,
             amount: inserted.amount,
+            type: inserted.type,
             memo: inserted.memo,
             createdAt: inserted.created_at
         }]);
@@ -424,6 +427,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             .update({
                 amount: updates.amount,
                 month: updates.month,
+                type: updates.type,
                 memo: updates.memo
             })
             .eq('id', id);
@@ -624,12 +628,18 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
 
             if (data.cashEntries && data.cashEntries.length > 0) {
                 const { error } = await supabase.from('cash_entries').insert(
-                    data.cashEntries.map(c => ({
-                        amount: c.amount ?? (c as any).amount ?? 0,
-                        month: c.month || (c as any).date || new Date().toISOString().substring(0, 7),
-                        memo: c.memo || (c as any).origin || (c as any).description || '',
-                        user_id: user!.id
-                    }))
+                    data.cashEntries.map(c => {
+                        const rawType = (c.type || (c as any).type || 'deposit').toLowerCase();
+                        const validatedType = (rawType === 'deposit' || rawType === 'withdraw') ? rawType : 'deposit';
+
+                        return {
+                            amount: c.amount ?? (c as any).amount ?? 0,
+                            month: c.month || (c as any).date || new Date().toISOString().substring(0, 7),
+                            type: validatedType,
+                            memo: c.memo || (c as any).origin || (c as any).description || '',
+                            user_id: user!.id
+                        };
+                    })
                 );
                 if (error) throw new Error('Cash entries sync failed: ' + error.message);
             }
