@@ -82,8 +82,8 @@ const SectorAllocationChart: React.FC = () => {
     if (data.length === 0) return null;
 
     return (
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 h-full flex flex-col">
-            <div className="flex items-center justify-between mb-8">
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 flex flex-col h-[720px]">
+            <div className="flex items-center justify-between mb-6">
                 <div>
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Sector Exposure</h3>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Diversification Analytics</p>
@@ -96,16 +96,16 @@ const SectorAllocationChart: React.FC = () => {
                 </div>
             </div>
 
-            {/* Increased chart container height by 50% (from min-h-[300px] to ~450px) */}
-            <div className="relative flex-1 min-h-[450px]">
+            {/* Chart Container - Fixed size to maintain symmetry */}
+            <div className="relative h-[430px] mb-6 shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
                             data={data}
                             cx="50%"
                             cy="50%"
-                            innerRadius={105} // Increased by 50% from 70
-                            outerRadius={150} // Increased by 50% from 100
+                            innerRadius={130}
+                            outerRadius={170}
                             paddingAngle={5}
                             dataKey="value"
                             nameKey="name"
@@ -136,23 +136,26 @@ const SectorAllocationChart: React.FC = () => {
 
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-1">Top Sector</span>
-                    <span className="text-lg font-black text-slate-900 uppercase truncate max-w-[150px] block leading-none">{data[0]?.name}</span>
+                    <span className="text-lg font-black text-slate-900 uppercase truncate max-w-[120px] block leading-none">{data[0]?.name}</span>
                     <span className="text-xs font-black text-blue-600 uppercase mt-2 block">{data[0]?.percentage.toFixed(1)}%</span>
                 </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-x-8 gap-y-4">
-                {data.map((item, index) => (
-                    <div key={item.name} className="flex items-center justify-between group cursor-default">
-                        <div className="flex items-center gap-3">
-                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-900 transition-colors truncate max-w-[120px]">{item.name}</span>
+            {/* Scrollable Legend Area */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                    {data.map((item, index) => (
+                        <div key={item.name} className="flex items-center justify-between group cursor-default">
+                            <div className="flex items-center gap-3 truncate">
+                                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                                <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-900 transition-colors truncate">{item.name}</span>
+                            </div>
+                            <div className="flex items-center gap-4 shrink-0">
+                                <span className="text-xs font-black text-slate-900">{item.percentage.toFixed(1)}%</span>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <span className="text-xs font-black text-slate-900">{item.percentage.toFixed(1)}%</span>
-                        </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
         </div>
     );

@@ -62,15 +62,29 @@ const HoldingsTable: React.FC = () => {
     if (holdings.length === 0) return null;
 
     return (
-        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-            <div className="overflow-x-auto">
+        <div className="bg-white p-7 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/50 h-[720px] flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+                <div>
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Asset Allocation</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Equity Portfolio Matrix</p>
+                </div>
+                <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Total Equity</span>
+                    <span className="text-base font-black text-slate-900 tracking-tighter">
+                        {formatCurrency(totalPortfolioValue).split('.')[0]}
+                    </span>
+                </div>
+            </div>
+
+
+            <div className="flex-1 overflow-y-auto overflow-x-auto -mx-8">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50/80 border-b border-slate-100">
                         <tr>
                             <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Asset Symbol</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Total Shares</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Avg. Price</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Market Value</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Shares</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Price</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Equity Value</th>
                             <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Portfolio %</th>
                         </tr>
                     </thead>
@@ -81,25 +95,25 @@ const HoldingsTable: React.FC = () => {
                                 : 0;
 
                             return (
-                                <tr key={stock.symbol} className="hover:bg-blue-50/30 transition-all duration-300">
+                                <tr key={stock.symbol} className="hover:bg-blue-50/30 transition-all duration-300 group">
                                     <td className="px-8 py-6">
-                                        <div className="font-black text-slate-900 text-lg uppercase tracking-tight">{stock.symbol}</div>
+                                        <div className="font-black text-slate-900 text-lg uppercase tracking-tight group-hover:text-blue-600 transition-colors">{stock.symbol}</div>
                                     </td>
-                                    <td className="px-8 py-6 text-right font-bold text-slate-600">
-                                        {stock.totalShares.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    <td className="px-8 py-6 text-right font-bold text-slate-600 tabular-nums">
+                                        {stock.totalShares.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                     </td>
-                                    <td className="px-8 py-6 text-right font-bold text-slate-600">
-                                        {formatCurrency(stock.avgPrice)}
+                                    <td className="px-8 py-6 text-right font-bold text-slate-600 tabular-nums">
+                                        {formatCurrency(stock.avgPrice).replace('Rs', '')}
                                     </td>
-                                    <td className="px-8 py-6 text-right font-black text-blue-600 text-lg">
-                                        {formatCurrency(stock.totalInvested)}
+                                    <td className="px-8 py-6 text-right font-black text-blue-600 text-lg tabular-nums">
+                                        {formatCurrency(stock.totalInvested).replace('Rs', '')}
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <div className="flex flex-col items-end">
-                                            <span className="font-black text-slate-900 text-sm">{allocation.toFixed(2)}%</span>
+                                            <span className="font-black text-slate-900 text-sm tabular-nums">{allocation.toFixed(2)}%</span>
                                             <div className="w-20 h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden shadow-inner">
                                                 <div
-                                                    className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full"
+                                                    className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.3)]"
                                                     style={{ width: `${allocation}%` }}
                                                 />
                                             </div>
