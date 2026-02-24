@@ -59,7 +59,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     const fetchMarketData = useCallback(async () => {
         try {
-            const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/KSE100/companies?page=1&limit=500";
+            const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/ALLSHR/companies?page=1&limit=500";
             const proxyUrl = selectedProxy.url + encodeURIComponent(targetUrl);
 
             console.log(`[PortfolioContext] Fetching Feed via ${selectedProxy.name}...`);
