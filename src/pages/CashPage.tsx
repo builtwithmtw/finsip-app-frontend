@@ -23,10 +23,9 @@ const CashPage: React.FC = () => {
         type: 'deposit'
     });
 
-    const totalCash = cashEntries.reduce((sum, e) => {
-        const amt = Number(e.amount) || 0;
-        return sum + (e.type === 'withdraw' ? -amt : amt);
-    }, 0);
+    const totalDeposited = cashEntries.reduce((sum, e) => e.type === 'deposit' ? sum + Number(e.amount) : sum, 0);
+    const totalWithdraw = cashEntries.reduce((sum, e) => e.type === 'withdraw' ? sum + Number(e.amount) : sum, 0);
+    const totalCash = totalDeposited - totalWithdraw;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -83,7 +82,7 @@ const CashPage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-8 max-w-[1400px] mx-auto uppercase">
+        <div className="space-y-10 max-w-[1600px] mx-auto uppercase animate-in fade-in slide-in-from-bottom-8 duration-1000">
             <div>
                 <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                     <Wallet className="text-blue-600" size={32} />
@@ -92,21 +91,47 @@ const CashPage: React.FC = () => {
                 <p className="text-slate-500 font-bold mt-1 pl-1 tracking-widest text-[10px]">RECORD YOUR SAVINGS AND MONTHLY BUDGET TRANSFERS.</p>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
-                {/* Left side: Summary & Form */}
-                <div className="xl:col-span-4 space-y-8">
-                    {/* Total Cash Card */}
-                    <div className="bg-slate-900 p-8 rounded-[2rem] shadow-2xl relative overflow-hidden group">
-                        <div className="absolute -right-6 -bottom-6 text-white/5 group-hover:scale-110 transition-transform duration-500">
-                            <PiggyBank size={180} />
-                        </div>
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Available Budget Pool</span>
-                        <div className="text-4xl font-black text-white tracking-tighter tabular-nums">{formatCurrency(totalCash).split('.')[0]}</div>
-                        <p className="text-slate-400 text-[10px] mt-4 font-black tracking-widest opacity-60">TOTAL CUMULATIVE SAVINGS RECORDED</p>
+            {/* Stats Cards Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Main Card: Available For Investing */}
+                <div className="bg-slate-900 p-8 rounded-[2rem] shadow-2xl shadow-blue-900/10 relative overflow-hidden group">
+                    <div className="absolute -right-6 -bottom-6 text-white/5 group-hover:scale-110 transition-transform duration-500">
+                        <PiggyBank size={140} />
                     </div>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Available For Investing</span>
+                    <div className="text-4xl font-black text-white tracking-tighter tabular-nums">{formatCurrency(totalCash).split('.')[0]}</div>
+                    <div className="mt-4 flex items-center gap-2">
+                        <div className="h-1 w-8 bg-blue-600 rounded-full" />
+                        <p className="text-slate-400 text-[9px] font-black tracking-widest opacity-60">NET CAPITAL ALLOCATED</p>
+                    </div>
+                </div>
 
-                    <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
-                        <h2 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 uppercase">
+                {/* Total Deposited */}
+                <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 group hover:border-emerald-100 transition-all duration-300 relative overflow-hidden">
+                    <div className="absolute -right-4 -bottom-4 text-emerald-500/5 group-hover:scale-110 transition-transform duration-500">
+                        <Plus size={100} />
+                    </div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 block">Total Deposited</span>
+                    <div className="text-3xl font-black text-emerald-600 tracking-tighter tabular-nums">{formatCurrency(totalDeposited).split('.')[0]}</div>
+                    <p className="text-slate-300 text-[9px] mt-4 font-black tracking-widest uppercase">Cumulative Inflow</p>
+                </div>
+
+                {/* Total Withdraw */}
+                <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 group hover:border-rose-100 transition-all duration-300 relative overflow-hidden">
+                    <div className="absolute -right-4 -bottom-4 text-rose-500/5 group-hover:scale-110 transition-transform duration-500">
+                        <X size={100} />
+                    </div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 block">Total Withdraw</span>
+                    <div className="text-3xl font-black text-rose-600 tracking-tighter tabular-nums">{formatCurrency(totalWithdraw).split('.')[0]}</div>
+                    <p className="text-slate-300 text-[9px] mt-4 font-black tracking-widest uppercase">Cumulative Outflow</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 items-start">
+                {/* Left side: Form (Sticky) */}
+                <div className="xl:col-span-4 lg:sticky lg:top-8">
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 h-[550px] flex flex-col">
+                        <h2 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 uppercase shrink-0">
                             <Plus size={20} className="text-blue-600" />
                             Provision Funds
                         </h2>
@@ -190,27 +215,32 @@ const CashPage: React.FC = () => {
 
                 {/* Table area */}
                 <div className="xl:col-span-8">
-                    <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-                        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
-                            <h2 className="text-lg font-black text-slate-900">Provisioning Journal</h2>
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cashEntries.length} Records</div>
+                    <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden h-[550px] flex flex-col">
+                        <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
+                            <div>
+                                <h2 className="text-lg font-black text-slate-900">Provisioning Journal</h2>
+                                <div className="h-1 w-12 bg-emerald-500 rounded-full mt-1" />
+                            </div>
+                            <div className="px-4 py-1.5 bg-white border border-slate-200 rounded-full text-[10px] font-black text-slate-400 uppercase tracking-widest shadow-sm">
+                                {cashEntries.length} Records Detected
+                            </div>
                         </div>
 
                         {cashEntries.length === 0 ? (
-                            <div className="p-24 text-center flex flex-col items-center">
+                            <div className="flex-1 flex flex-col items-center justify-center p-24 text-center">
                                 <Wallet size={64} className="text-slate-100 mb-6" />
                                 <p className="text-slate-300 font-black uppercase tracking-[0.5em] text-[10px]">Matrix Empty • No Allocations Found</p>
                             </div>
                         ) : (
-                            <div className="max-h-[650px] overflow-y-auto overflow-x-auto scrollbar-hide-auto">
+                            <div className="flex-1 overflow-y-auto overflow-x-auto scrollbar-hide-auto">
                                 <table className="w-full text-left border-collapse">
-                                    <thead className="bg-[#2563EB] text-white sticky top-0 z-10">
+                                    <thead className="bg-blue-600 text-white sticky top-0 z-10">
                                         <tr>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Applicable Month</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Type</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em]">Memo / Origin</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Value (Rs.)</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-right">Actions</th>
+                                            <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.2em]">Applicable Month</th>
+                                            <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.2em]">Type</th>
+                                            <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.2em]">Memo / Origin</th>
+                                            <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-right">Value (Rs.)</th>
+                                            <th className="px-8 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-center">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
