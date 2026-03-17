@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { PortfolioProvider } from './context/PortfolioContext';
 import { ConfirmProvider } from './context/ConfirmContext';
 import { AuthProvider } from './context/AuthContext';
@@ -21,6 +21,24 @@ import { Toaster } from 'sonner';
 import { ProxyProvider } from './context/ProxyContext';
 import ProxyModal from './components/ProxyModal';
 import ChangelogModal from './components/ChangelogModal';
+import { supabase } from './lib/supabase';
+
+const AuthRecoveryHandler: React.FC = () => {
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('Password recovery event detected, navigating to reset page');
+        navigate('/reset-password');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  return null;
+};
 
 const App: React.FC = () => {
   return (
@@ -32,6 +50,7 @@ const App: React.FC = () => {
             <ProxyModal />
             <ChangelogModal />
             <BrowserRouter>
+              <AuthRecoveryHandler />
               <Routes>
                 {/* Public Routes */}
                 <Route path="/welcome" element={<LandingPage />} />
