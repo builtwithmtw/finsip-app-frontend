@@ -14,6 +14,7 @@ import DataPage from './pages/DataPage';
 import LivePortfolioPage from './pages/LivePortfolioPage';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DeleteAccountPage from './pages/DeleteAccountPage';
 import { Toaster } from 'sonner';
 
@@ -35,6 +36,7 @@ const App: React.FC = () => {
                 {/* Public Routes */}
                 <Route path="/welcome" element={<LandingPage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                 {/* Protected Routes */}
                 <Route

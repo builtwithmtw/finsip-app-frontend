@@ -9,6 +9,7 @@ interface AuthContextType {
     signIn: (email: string, password: string) => Promise<{ error: any; data?: any }>;
     signUp: (email: string, password: string, displayName: string) => Promise<{ error: any; data?: any }>;
     signOut: () => Promise<void>;
+    updatePassword: (password: string) => Promise<{ error: any; data?: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -88,6 +89,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await supabase.auth.signOut();
     };
 
+    const updatePassword = async (password: string) => {
+        setLoading(true);
+        const res = await supabase.auth.updateUser({ password });
+        if (res.error) setLoading(false);
+        return res;
+    };
+
 
 
     return (
@@ -98,6 +106,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             signIn,
             signUp,
             signOut,
+            updatePassword,
         }}>
             {loading ? (
                 <div className="min-h-screen bg-slate-900 flex items-center justify-center">
