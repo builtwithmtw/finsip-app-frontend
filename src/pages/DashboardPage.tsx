@@ -3,42 +3,16 @@ import HoldingsTable from '../components/HoldingsTable';
 import MonthlyView from '../components/MonthlyView';
 import { PiggyBank, HandCoins, Wallet, LayoutDashboard } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../utils/formatters';
 import SectorAllocationChart from '../components/SectorAllocationChart';
 
 const DashboardPage: React.FC = () => {
+    const { user } = useAuth();
     const { transactions, cashEntries, payouts, loading } = usePortfolio();
 
-    // Total Value Calculation
-    const [, setStockPrices] = React.useState<Record<string, number>>({});
-    const [, setIsPricingLive] = React.useState(false);
-
-    React.useEffect(() => {
-        const fetchPrices = async () => {
-            try {
-                const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/KSE100/companies?page=1&limit=500";
-                const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
-                const response = await fetch(proxyUrl);
-                const json = await response.json();
-                const prices: Record<string, number> = {};
-                const dataArray = (json && json.data) ? json.data : (json && json.response && json.response.data ? json.response.data : (Array.isArray(json) ? json : []));
-
-                if (dataArray.length > 0) {
-                    dataArray.forEach((item: any) => {
-                        const symbol = (item.symbol || item.ticker || "").toString().toUpperCase().trim();
-                        const price = Number(item.curr || item.last_price || item.price || 0);
-                        if (symbol && price > 0) prices[symbol] = price;
-                    });
-                    setStockPrices(prices);
-                    setIsPricingLive(true);
-                }
-            } catch (err) {
-                console.error(err);
-                setIsPricingLive(false);
-            }
-        };
-        fetchPrices();
-    }, []);
+    // Use dummy internal vars just to keep logic structural if needed,
+    // but we can remove the entire useEffect block entirely.
 
 
 
@@ -68,7 +42,7 @@ const DashboardPage: React.FC = () => {
             });
 
         const invested = Array.from(map.values()).reduce((sum, h) => sum + h.totalCostBasis, 0);
-        const cash = cashEntries.reduce((sum, e) => sum + e.amount, 0);
+        const cash = cashEntries.reduce((sum, e) => sum + (e.type === 'withdraw' ? -e.amount : e.amount), 0);
         const payoutsVal = payouts.reduce((sum, p) => sum + p.amount, 0);
 
         // For remaining cash, we still use the "Net Cash Out" logic as it represents bank balance
@@ -101,7 +75,9 @@ const DashboardPage: React.FC = () => {
                 <div>
                     <div className="flex items-center gap-2 mb-2">
                         <div className="h-1 w-8 bg-blue-600 rounded-full" />
-                        <span className="text-[10px] font-black text-blue-600 tracking-[0.3em]">System Monitoring</span>
+                        <span className="text-[10px] font-black text-blue-600 tracking-[0.3em]">
+                            {user?.user_metadata?.display_name ? `WELCOME ${user.user_metadata.display_name.toUpperCase()}` : 'System Monitoring'}
+                        </span>
                     </div>
                     <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         <LayoutDashboard className="text-blue-600" size={32} />

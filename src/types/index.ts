@@ -12,7 +12,7 @@ export interface Transaction {
   shares: number;
   pricePerShare: number;
   totalAmount: number;
-  type: 'buy' | 'sell';
+  type: "buy" | "sell";
   createdAt: string;
 }
 
@@ -20,6 +20,7 @@ export interface CashEntry {
   id: string;
   month: string; // YYYY-MM
   amount: number;
+  type: "deposit" | "withdraw";
   memo?: string;
   createdAt: string;
 }
@@ -53,4 +54,15 @@ export interface MonthlySummary {
   month: string; // YYYY-MM
   totalInvested: number;
   transactionCount: number;
+}
+
+export interface RealizedProfit {
+  id: string;
+  symbol: string;
+  quantitySold: number;
+  avgBuyPrice: number;
+  avgSellPrice: number;
+  realizedProfit: number;
+  sellDate: string; // YYYY-MM-DD
+  createdAt: string;
 }

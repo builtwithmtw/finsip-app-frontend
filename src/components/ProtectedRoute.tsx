@@ -1,16 +1,20 @@
 import React, { type ReactNode } from 'react';
 import { useAuth } from '../context/AuthContext';
-import LoginPage from '../pages/LoginPage';
+import { Navigate } from 'react-router-dom';
 
 interface ProtectedRouteProps {
     children: ReactNode;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, loading } = useAuth();
+
+    if (loading) {
+        return null; // Don't redirect while loading auth state
+    }
 
     if (!isAuthenticated) {
-        return <LoginPage />;
+        return <Navigate to="/welcome" replace />;
     }
 
     return <>{children}</>;
