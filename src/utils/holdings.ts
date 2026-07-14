@@ -63,6 +63,59 @@ export const computeHoldings = (transactions: Transaction[]): ComputedHolding[] 
         .map(h => ({ ...h, avgPrice: h.totalCostBasis / h.totalShares }));
 };
 
+export interface LiveHolding extends ComputedHolding {
+    currentPrice: number;
+    /** False when the feed carried no price for this symbol (delisted, suspended, typo). */
+    isPriced: boolean;
+    marketValue: number;
+    profitLoss: number;
+    profitLossPercentage: number;
+}
+
+/**
+ * Values holdings against the live feed. A symbol the feed didn't price is held at its
+ * cost basis rather than at zero -- pricing it at zero would wipe the position out of
+ * the portfolio total and report its entire cost as a loss.
+ */
+export const computeLiveHoldings = (
+    transactions: Transaction[],
+    livePrices: Record<string, number>
+): LiveHolding[] =>
+    computeHoldings(transactions).map(h => {
+        const currentPrice = livePrices[h.symbol] || 0;
+        const isPriced = currentPrice > 0;
+
+        const marketValue = isPriced ? h.totalShares * currentPrice : h.totalCostBasis;
+        const profitLoss = isPriced ? marketValue - h.totalCostBasis : 0;
+
+        return {
+            ...h,
+            currentPrice,
+            isPriced,
+            marketValue,
+            profitLoss,
+            profitLossPercentage: isPriced && h.totalCostBasis > 0
+                ? (profitLoss / h.totalCostBasis) * 100
+                : 0,
+        };
+    });
+
+export interface LiveTotals {
+    totalCost: number;
+    totalValue: number;
+    totalPL: number;
+    /** Holdings the feed couldn't price; their cost basis is standing in for market value. */
+    unpricedCount: number;
+}
+
+export const summarizeLive = (holdings: LiveHolding[]): LiveTotals =>
+    holdings.reduce<LiveTotals>((acc, h) => ({
+        totalCost: acc.totalCost + h.totalCostBasis,
+        totalValue: acc.totalValue + h.marketValue,
+        totalPL: acc.totalPL + h.profitLoss,
+        unpricedCount: acc.unpricedCount + (h.isPriced ? 0 : 1),
+    }), { totalCost: 0, totalValue: 0, totalPL: 0, unpricedCount: 0 });
+
 // Cost basis of the shares still held right now.
 export const totalCostFrom = (transactions: Transaction[]): number =>
     computeHoldings(transactions).reduce((sum, h) => sum + h.totalCostBasis, 0);

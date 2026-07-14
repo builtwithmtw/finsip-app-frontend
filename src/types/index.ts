@@ -3,6 +3,8 @@ export interface Stock {
   symbol: string;
   sector: string;
   createdAt: string;
+  /** Drag-to-rearrange order. Null on rows created before the position column existed. */
+  position: number | null;
 }
 
 export interface Transaction {

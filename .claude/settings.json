@@ -4,7 +4,10 @@
       "Bash(git rm *)",
       "Bash(python3 -)",
       "Bash(git mv *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(perl -pi -e \"s|^import \\\\{ formatCurrency \\\\} from '\\\\.\\\\./utils/formatters';|import { useCurrency } from '../context/PrivacyContext';|\" src/components/BulkTransactionForm.tsx src/components/HoldingsTable.tsx src/components/SectorAllocationChart.tsx src/components/TransactionDetailModal.tsx)",
+      "Bash(perl -pi -e \"s|^import \\\\{ formatCurrency \\\\} from '\\\\.\\\\./utils/formatters';|import { useCurrency } from '../context/PrivacyContext';|\" src/pages/LivePortfolioPage.tsx)",
+      "Bash(perl -pi -e \"s|^import \\\\{ formatCurrency, formatMonth \\\\} from '\\\\.\\\\./utils/formatters';|import { formatMonth } from '../utils/formatters';\\\\nimport { useCurrency } from '../context/PrivacyContext';|\" src/components/MonthlyView.tsx src/components/MonthlySummary.tsx)"
     ]
   }
 }

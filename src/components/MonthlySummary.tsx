@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { formatCurrency, formatMonth } from '../utils/formatters';
+import { formatMonth } from '../utils/formatters';
+import { useCurrency } from '../context/PrivacyContext';
 import { BarChart3 } from 'lucide-react';
 import type { MonthlySummary } from '../types';
 
 const MonthlySummaryView: React.FC = () => {
+    const formatCurrency = useCurrency();
     const { transactions } = usePortfolio();
 
     const summaries = useMemo(() => {

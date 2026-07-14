@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { formatCurrency } from '../utils/formatters';
+import { useCurrency } from '../context/PrivacyContext';
 import { computeHoldings } from '../utils/holdings';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -8,6 +8,7 @@ const INNER_RADIUS_RATIO = 0.68;
 const OUTER_RADIUS_RATIO = 0.92;
 
 const SectorAllocationChart: React.FC = () => {
+    const formatCurrency = useCurrency();
     const { transactions, stocks } = usePortfolio();
 
     // The donut sizes itself to the row, so the centre label has to follow it.
@@ -86,10 +87,10 @@ const SectorAllocationChart: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
                 <div>
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Sector Exposure</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Diversification Analytics</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">By Invested Cost</p>
                 </div>
                 <div className="bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Pool Value</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Invested</span>
                     <span className="text-base font-black text-slate-900 tracking-tight">
                         {formatCurrency(data.reduce((sum, item) => sum + item.value, 0)).split('.')[0]}
                     </span>

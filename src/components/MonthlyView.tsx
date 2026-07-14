@@ -1,21 +1,28 @@
 import React, { useMemo, useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useConfirm } from '../context/ConfirmContext';
-import { formatCurrency, formatMonth } from '../utils/formatters';
-import { Trash2 } from 'lucide-react';
+import { formatMonth } from '../utils/formatters';
+import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext';
+import { NavLink } from 'react-router-dom';
+import { Trash2, Table2, ArrowRight } from 'lucide-react';
+import { SkeletonBar, SkeletonCard, SkeletonTableRows } from './DashboardSkeleton';
 import { toast } from 'sonner';
 import clsx from 'clsx';
 import TransactionDetailModal from './TransactionDetailModal';
 import type { Transaction } from '../types';
 
 const MonthlyView: React.FC = () => {
-    const { transactions, stocks, deleteMonthTransactions } = usePortfolio();
+    const formatCurrency = useCurrency();
+    const mask = useMask();
+    const maskSymbol = usePartialMask();
+    const { transactions, stocks, deleteMonthTransactions, loading } = usePortfolio();
     const { confirm } = useConfirm();
 
-    // State for the detail modal
+    // State for the detail modal. A missing symbol means a whole month was opened;
+    // a missing month means a whole symbol was.
     const [selectedCell, setSelectedCell] = useState<{
-        symbol: string;
-        month: string;
+        symbol?: string;
+        month?: string;
         transactions: Transaction[];
     } | null>(null);
 
@@ -68,6 +75,22 @@ const MonthlyView: React.FC = () => {
         return { sortedMonths, sortedSymbols, matrix };
     }, [filteredTransactions, stocks]);
 
+    // Header clicks open a whole row or column of the matrix; the modal sorts by date,
+    // so nothing needs ordering here.
+    const openMonth = (month: string) => {
+        setSelectedCell({
+            month,
+            transactions: filteredTransactions.filter(t => t.month === month),
+        });
+    };
+
+    const openSymbol = (symbol: string) => {
+        setSelectedCell({
+            symbol,
+            transactions: filteredTransactions.filter(t => t.symbol === symbol),
+        });
+    };
+
     const handleDeleteMonth = async (month: string) => {
         const isConfirmed = await confirm({
             title: 'Wipe Monthly Data',
@@ -87,10 +110,40 @@ const MonthlyView: React.FC = () => {
         }
     };
 
+    // Without this the ledger claims there's no history for as long as the fetch runs.
+    if (loading) {
+        return (
+            <SkeletonCard>
+                <div className="flex items-center justify-between mb-5">
+                    <div className="space-y-2">
+                        <SkeletonBar className="h-5 w-48" />
+                        <SkeletonBar className="h-2.5 w-32" />
+                    </div>
+                    <SkeletonBar className="h-11 w-28 rounded-lg" />
+                </div>
+                <SkeletonTableRows rows={6} cols={5} />
+            </SkeletonCard>
+        );
+    }
+
     if (filteredTransactions.length === 0) {
         return (
-            <div className="text-center py-20 text-slate-400 bg-white rounded-lg border border-dashed border-slate-200">
-                <p className="font-bold uppercase tracking-widest text-[10px]">No transaction history detected</p>
+            <div className="bg-white rounded-xl border border-dashed border-slate-200 shadow-sm px-6 py-12 flex flex-col items-center text-center">
+                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
+                    <Table2 size={22} />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">No transactions yet</h3>
+                <p className="text-xs font-bold text-slate-400 mt-2 max-w-sm leading-relaxed">
+                    Every buy and sell you record shows up here as a symbol-by-month matrix.
+                    Record your first one in Monthly Entry.
+                </p>
+                <NavLink
+                    to="/entry"
+                    className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors"
+                >
+                    Go to Monthly Entry
+                    <ArrowRight size={13} />
+                </NavLink>
             </div>
         );
     }
@@ -98,9 +151,13 @@ const MonthlyView: React.FC = () => {
     return (
         <>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col group">
-                <div className="overflow-x-auto w-full max-w-full custom-scrollbar">
+                {/* Horizontal only, by design: the ledger must never grow its own vertical
+                    scrollbar. It grows as tall as it needs and the page scrolls instead.
+                    (The header is sticky left, not top -- sticky-top only pays off inside a
+                    vertical scroll container, which is exactly what we don't want here.) */}
+                <div className="overflow-x-auto overflow-y-hidden w-full max-w-full custom-scrollbar">
                     <table className="w-full text-left border-collapse min-w-max border-spacing-0">
-                        <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 font-black text-[10px] uppercase tracking-widest sticky top-0 z-20">
+                        <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 font-black text-[10px] uppercase tracking-widest">
                             <tr>
                                 <th className="px-4 py-2.5 sticky left-0 bg-slate-50 z-30 border-r border-slate-100">
                                     Symbol
@@ -108,10 +165,17 @@ const MonthlyView: React.FC = () => {
                                 {sortedMonths.map(month => (
                                     <th key={month} className="px-3 py-2.5 border-r border-slate-100 last:border-0 text-center min-w-[130px]">
                                         <div className="flex items-center justify-center gap-2 group/month">
-                                            <span className="whitespace-nowrap">{formatMonth(month)}</span>
+                                            <button
+                                                onClick={() => openMonth(month)}
+                                                title={`All transactions in ${formatMonth(month)}`}
+                                                className="whitespace-nowrap hover:text-blue-600 transition-colors"
+                                            >
+                                                {formatMonth(month)}
+                                            </button>
                                             <button
                                                 onClick={() => handleDeleteMonth(month)}
-                                                className="opacity-0 group-hover/month:opacity-100 p-0.5 hover:bg-rose-50 rounded transition-all text-slate-300 hover:text-rose-500"
+                                                title={`Delete all entries for ${formatMonth(month)}`}
+                                                className="p-1 rounded text-slate-300 hover:text-white hover:bg-rose-600 opacity-60 group-hover/month:opacity-100 transition-all"
                                             >
                                                 <Trash2 size={12} />
                                             </button>
@@ -127,7 +191,13 @@ const MonthlyView: React.FC = () => {
                                     index % 2 === 0 ? "bg-white":"bg-slate-50/20")}> <td className={clsx("px-4 py-1.5 font-black text-slate-900 sticky left-0 z-10 border-r border-slate-100 text-sm tracking-tight uppercase",
                                         index % 2 === 0 ? "bg-white":"bg-[#FBFDFE]"
                                     )}>
-                                        <span>{symbol}</span>
+                                        <button
+                                            onClick={() => openSymbol(symbol)}
+                                            title={`All transactions for ${symbol}`}
+                                            className="hover:text-blue-600 transition-colors"
+                                        >
+                                            {maskSymbol(symbol)}
+                                        </button>
                                     </td>
                                     {sortedMonths.map(month => {
                                         const data = matrix[symbol][month];
@@ -139,13 +209,13 @@ const MonthlyView: React.FC = () => {
                                             );
                                         }
 
-                                        // A month that buys and fully sells nets to zero shares, so fall back to a
-                                        // volume-weighted price rather than dividing by it.
+                                        // Always volume-weighted across the month's actual trades. Dividing the
+                                        // *net* amount by *net* shares breaks whenever a month both buys and
+                                        // sells: 100 @ 10 bought and 50 @ 20 sold nets to 50 shares for 0 rupees,
+                                        // which would price the row at 0.00.
                                         const grossShares = data.rawTransactions.reduce((sum, t) => sum + t.shares, 0);
                                         const grossAmount = data.rawTransactions.reduce((sum, t) => sum + t.totalAmount, 0);
-                                        const avgPrice = data.shares !== 0
-                                            ? data.totalAmount / data.shares
-                                            : (grossShares > 0 ? grossAmount / grossShares : 0);
+                                        const avgPrice = grossShares > 0 ? grossAmount / grossShares : 0;
 
                                         const isSell = data.shares < 0 || (data.shares === 0 && data.hasSell);
 
@@ -159,7 +229,7 @@ const MonthlyView: React.FC = () => {
                                                     "text-xs font-black tabular-nums leading-tight",
                                                     isSell ? "text-rose-600" : "text-slate-900"
                                                 )}>
-                                                    {Math.abs(data.shares).toLocaleString()} @ {avgPrice.toFixed(2)}
+                                                    {mask(Math.abs(data.shares).toLocaleString())} @ {mask(avgPrice.toFixed(2))}
                                                 </div>
                                                 <div className={clsx(
                                                     "text-[11px] font-bold tabular-nums leading-tight",
@@ -181,8 +251,8 @@ const MonthlyView: React.FC = () => {
                 isOpen={!!selectedCell}
                 onClose={() => setSelectedCell(null)}
                 transactions={selectedCell?.transactions || []}
-                symbol={selectedCell?.symbol || ''}
-                month={selectedCell?.month || ''}
+                symbol={selectedCell?.symbol}
+                month={selectedCell?.month}
             />
         </>
     );

@@ -1,18 +1,24 @@
 import React, { useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { formatCurrency } from '../utils/formatters';
+import { useCurrency, useMask } from '../context/PrivacyContext';
 import { computeHoldings } from '../utils/holdings';
 
 
 
 const HoldingsTable: React.FC = () => {
-    const { transactions } = usePortfolio();
+    const formatCurrency = useCurrency();
+    const mask = useMask();
+    const { transactions, stocks } = usePortfolio();
 
     const holdings = useMemo(() =>
         computeHoldings(transactions)
-            .map(h => ({ ...h, totalInvested: h.totalCostBasis }))
+            .map(h => ({
+                ...h,
+                totalInvested: h.totalCostBasis,
+                sector: stocks.find(s => s.symbol === h.symbol)?.sector || 'Others',
+            }))
             .sort((a, b) => b.totalInvested - a.totalInvested),
-        [transactions]
+        [transactions, stocks]
     );
 
     const totalPortfolioValue = useMemo(() =>
@@ -27,10 +33,10 @@ const HoldingsTable: React.FC = () => {
             <div className="flex items-center justify-between mb-2">
                 <div>
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Asset Allocation</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Equity Portfolio Matrix</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">By Invested Cost</p>
                 </div>
                 <div className="bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Total Equity</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Total Invested</span>
                     <span className="text-base font-black text-slate-900 tracking-tight">
                         {formatCurrency(totalPortfolioValue).split('.')[0]}
                     </span>
@@ -39,13 +45,14 @@ const HoldingsTable: React.FC = () => {
 
 
             <div className="flex-1 overflow-y-auto overflow-x-auto scrollbar-hide-auto">
-                <table className="w-full min-w-[520px] text-left border-collapse">
+                <table className="w-full min-w-[620px] text-left border-collapse">
                     <thead className="bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10">
                         <tr>
                             <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Asset Symbol</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Sector</th>
                             <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Shares</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Price</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Equity Value</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Avg Cost</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Invested</th>
                             <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Portfolio %</th>
                         </tr>
                     </thead>
@@ -58,10 +65,14 @@ const HoldingsTable: React.FC = () => {
                             return (
                                 <tr key={stock.symbol} className="hover:bg-blue-50/30 transition-all duration-300 group">
                                     <td className="px-4 py-2.5">
-                                        <div className="font-black text-slate-900 text-sm uppercase tracking-tight group-hover:text-blue-600 transition-colors">{stock.symbol}</div>
+                                        <div className="font-black text-slate-900 text-sm uppercase tracking-tight group-hover:text-blue-600 transition-colors">{mask(stock.symbol)}</div>
+                                    </td>
+                                    {/* Sector isn't masked -- it's a market classification, not a position. */}
+                                    <td className="px-4 py-2.5">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stock.sector}</span>
                                     </td>
                                     <td className="px-4 py-2.5 text-right font-bold text-slate-600 text-sm tabular-nums">
-                                        {stock.totalShares.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        {mask(stock.totalShares.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }))}
                                     </td>
                                     <td className="px-4 py-2.5 text-right font-bold text-slate-600 text-sm tabular-nums">
                                         {formatCurrency(stock.avgPrice).replace('Rs', '')}

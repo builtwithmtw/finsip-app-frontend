@@ -1,16 +1,69 @@
 import React, { useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useConfirm } from '../context/ConfirmContext';
-import { Plus, Trash2, Search } from 'lucide-react';
+import { Plus, Trash2, Search, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
+import clsx from 'clsx';
 
 const StockManager: React.FC = () => {
-    const { stocks, addStock, removeStock } = usePortfolio();
+    const { stocks, addStock, removeStock, reorderStocks } = usePortfolio();
     const { confirm } = useConfirm();
     const [newStock, setNewStock] = useState('');
     const [selectedSector, setSelectedSector] = useState('Others');
 
-    const sectors = ['Banks', 'Cement', 'Fertilizer', 'Others', 'Oil & Gas', 'Power', 'Tech', 'REITS'];
+    // Chips reorder live under the cursor; the new order is only written once the drag ends.
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+
+    // What the list looks like right now: the in-flight order while dragging, else the real one.
+    const displayed = dragOrder
+        ? dragOrder.flatMap(id => stocks.find(s => s.id === id) ?? [])
+        : stocks;
+
+    const moveChip = (from: number, to: number) => {
+        const ids = displayed.map(s => s.id);
+        const [moved] = ids.splice(from, 1);
+        ids.splice(to, 0, moved);
+
+        setDragOrder(ids);
+        setDragIndex(to);
+    };
+
+    const commitOrder = () => {
+        if (dragOrder) reorderStocks(dragOrder);
+        setDragIndex(null);
+        setDragOrder(null);
+    };
+
+    // Short PSX sector labels -- they show up in tight spots (chart legend, entry rows), so the
+    // full exchange names don't fit. The original eight are kept verbatim: sectors are stored as
+    // free text on the stock row, so renaming one would orphan every stock already tagged with it.
+    const sectors = [
+        'Autos',        // assemblers + parts
+        'Banks',
+        'Cables',
+        'Cement',
+        'Chemicals',    // + synthetics
+        'Engineering',
+        'Fertilizer',
+        'Foods',        // + vanaspati
+        'Glass',
+        'Insurance',
+        'Investments',  // + leasing, modarabas, mutual funds
+        'Leather',
+        'Oil & Gas',    // + exploration, marketing, refinery
+        'Packaging',    // paper & board
+        'Pharma',
+        'Power',
+        'Property',
+        'REITS',
+        'Sugar',
+        'Tech',
+        'Textiles',     // composite + spinning + weaving + woollen
+        'Tobacco',
+        'Transport',
+        'Others',
+    ];
 
     const handleAdd = (e: React.FormEvent) => {
         e.preventDefault();
@@ -80,11 +133,22 @@ const StockManager: React.FC = () => {
             ) : (
                 // Caps its own height so the dashboard never grows a page scrollbar.
                 <div className="flex flex-wrap gap-1.5 max-h-[92px] overflow-y-auto scrollbar-hide-auto">
-                    {stocks.map((stock) => (
+                    {displayed.map((stock, index) => (
                         <div
                             key={stock.id}
-                            className="group bg-slate-50 hover:bg-white border border-slate-100 hover:border-blue-100 rounded-md pl-2.5 pr-1 py-1 flex items-center gap-1.5 transition-colors"
+                            draggable
+                            onDragStart={() => setDragIndex(index)}
+                            onDragEnter={() => dragIndex !== null && dragIndex !== index && moveChip(dragIndex, index)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDragEnd={commitOrder}
+                            className={clsx(
+                                'group bg-slate-50 hover:bg-white border rounded-md pl-1.5 pr-1 py-1 flex items-center gap-1.5 transition-colors cursor-grab active:cursor-grabbing',
+                                dragIndex === index
+                                    ? 'border-blue-300 bg-white opacity-60'
+                                    : 'border-slate-100 hover:border-blue-100'
+                            )}
                         >
+                            <GripVertical size={12} className="text-slate-300 group-hover:text-slate-400 shrink-0" />
                             <span className="text-xs font-black text-slate-900 uppercase">{stock.symbol}</span>
                             <span className="text-[9px] font-bold text-slate-400 uppercase">{stock.sector || 'Others'}</span>
                             <button

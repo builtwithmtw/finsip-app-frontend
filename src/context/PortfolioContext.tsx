@@ -27,6 +27,7 @@ interface PortfolioContextType {
     deleteMonthTransactions: (month: string) => Promise<void>;
     addStock: (symbol: string, sector: string) => Promise<void>;
     removeStock: (id: string) => Promise<void>;
+    reorderStocks: (orderedIds: string[]) => Promise<void>;
     clearAllData: () => Promise<void>;
 }
 
@@ -129,12 +130,27 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             ]);
 
             if (stocksData) {
-                setStocks(stocksData.map(s => ({
-                    id: s.id,
-                    symbol: s.symbol,
-                    sector: s.sector,
-                    createdAt: s.created_at
-                })));
+                // Sorted here rather than in the query: `position` only exists once the
+                // add_stock_position migration has run, and ordering by a missing column
+                // would fail the request and blank the whole list.
+                setStocks(
+                    stocksData
+                        .map(s => ({
+                            id: s.id,
+                            symbol: s.symbol,
+                            sector: s.sector,
+                            createdAt: s.created_at,
+                            position: s.position ?? null
+                        }))
+                        .sort((a, b) => {
+                            if (a.position === null && b.position === null) {
+                                return a.createdAt.localeCompare(b.createdAt);
+                            }
+                            if (a.position === null) return 1;
+                            if (b.position === null) return -1;
+                            return a.position - b.position;
+                        })
+                );
             } else {
                 setStocks([]);
             }
@@ -207,8 +223,47 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             id: data.id,
             symbol: data.symbol,
             sector: data.sector,
-            createdAt: data.created_at
+            createdAt: data.created_at,
+            position: data.position ?? prev.length
         }]);
+    };
+
+    /**
+     * Persists a drag-to-rearrange. The new order is applied optimistically so the list doesn't
+     * snap back under the cursor; a failed write reloads from the server to undo it.
+     */
+    const reorderStocks = async (orderedIds: string[]) => {
+        if (!user) return;
+
+        const byId = new Map(stocks.map(s => [s.id, s]));
+        const reordered = orderedIds
+            .map((id, index) => {
+                const stock = byId.get(id);
+                return stock ? { ...stock, position: index } : null;
+            })
+            .filter((s): s is Stock => s !== null);
+
+        const previous = stocks;
+        setStocks(reordered);
+
+        // Plain updates, not an upsert: an upsert proposes a full INSERT row first, and a row
+        // carrying only { id, position } has a null symbol, which trips the NOT NULL constraint
+        // before the ON CONFLICT clause ever gets a chance to turn it into an update.
+        const results = await Promise.all(
+            reordered.map(s =>
+                supabase
+                    .from('stocks')
+                    .update({ position: s.position })
+                    .eq('id', s.id)
+                    .eq('user_id', user.id)
+            )
+        );
+
+        const failed = results.find(r => r.error);
+        if (failed?.error) {
+            setStocks(previous);
+            toast.error('Could not save the new order: ' + failed.error.message);
+        }
     };
 
     const removeStock = async (id: string) => {
@@ -383,6 +438,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             deleteMonthTransactions,
             addStock,
             removeStock,
+            reorderStocks,
             clearAllData
         }}>
             {children}

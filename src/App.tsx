@@ -14,8 +14,8 @@ import DeleteAccountPage from './pages/DeleteAccountPage';
 import { Toaster } from 'sonner';
 
 import { ProxyProvider } from './context/ProxyContext';
+import { PrivacyProvider } from './context/PrivacyContext';
 import ProxyModal from './components/ProxyModal';
-import ChangelogModal from './components/ChangelogModal';
 import { supabase } from './lib/supabase';
 
 const AuthRecoveryHandler: React.FC = () => {
@@ -42,11 +42,13 @@ const App: React.FC = () => {
         Toaster with it and swallow any toast raised during that window. */}
     <Toaster position="top-right" richColors closeButton />
     <AuthProvider>
+      <PrivacyProvider>
       <ProxyProvider>
         <PortfolioProvider>
           <ConfirmProvider>
+            {/* ProxyModal stays mounted but only opens on demand; the changelog used to
+                auto-open on every new version and greeted users with a popup on launch. */}
             <ProxyModal />
-            <ChangelogModal />
             <BrowserRouter>
               <AuthRecoveryHandler />
               <Routes>
@@ -84,6 +86,7 @@ const App: React.FC = () => {
           </ConfirmProvider>
         </PortfolioProvider>
       </ProxyProvider>
+      </PrivacyProvider>
     </AuthProvider>
     </>
   );

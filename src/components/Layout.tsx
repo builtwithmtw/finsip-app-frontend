@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useConfirm } from '../context/ConfirmContext';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
-import { formatCurrency } from '../utils/formatters';
-import { computeHoldings } from '../utils/holdings';
+import { usePrivacy, useCurrency } from '../context/PrivacyContext';
+import { getInitials } from '../utils/formatters';
+import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
 import clsx from 'clsx';
 
 const navItems = [
@@ -18,27 +20,60 @@ const navItems = [
 const Layout: React.FC = () => {
     const { transactions, livePrices, isMarketLive, marketLoading, selectedMonth, setSelectedMonth } = usePortfolio();
     const { selectedProxy, setShowModal, retryFetch } = useProxy();
-    const { signOut } = useAuth();
+    const { signOut, user } = useAuth();
+    const { hidden, toggleHidden } = usePrivacy();
+    const formatCurrency = useCurrency();
+    const { confirm } = useConfirm();
     const location = useLocation();
+    const navigate = useNavigate();
+
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+
+        const onPointerDown = (e: MouseEvent) => {
+            if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setMenuOpen(false);
+        };
+
+        document.addEventListener('mousedown', onPointerDown);
+        document.addEventListener('keydown', onKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', onPointerDown);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+    }, [menuOpen]);
+
+    const handleDeleteAccount = async () => {
+        const isConfirmed = await confirm({
+            title: 'Delete Account',
+            message: 'This permanently deletes your account and every transaction in it. This cannot be undone. Continue?',
+            variant: 'danger',
+            confirmText: 'Continue',
+            cancelText: 'Cancel'
+        });
+
+        if (isConfirmed) navigate('/delete-account');
+    };
 
     useEffect(() => {
         const currentNav = navItems.find(item => item.path === location.pathname);
         document.title = currentNav ? `${currentNav.label} | FINSIP` : 'FINSIP';
     }, [location.pathname]);
 
-    // Total Live Value vs Aggregate Invested Cost (of current holdings)
-    const { totalMarketValue, totalInvestedCost } = useMemo(() => {
-        const holdings = computeHoldings(transactions);
-
-        return {
-            totalMarketValue: holdings.reduce((sum, h) => sum + h.totalShares * (livePrices[h.symbol] || 0), 0),
-            totalInvestedCost: holdings.reduce((sum, h) => sum + h.totalCostBasis, 0),
-        };
-    }, [livePrices, transactions]);
+    // Unpriced symbols are held at cost inside summarizeLive, so a gap in the feed can no
+    // longer shrink the portfolio or report the missing position's whole cost as a loss.
+    const { totalValue: totalMarketValue, totalCost: totalInvestedCost, totalPL: netChange } = useMemo(
+        () => summarizeLive(computeLiveHoldings(transactions, livePrices)),
+        [livePrices, transactions]
+    );
 
     const isLive = isMarketLive && totalMarketValue > 0;
     const displayWorth = isLive ? totalMarketValue : totalInvestedCost;
-    const netChange = totalMarketValue - totalInvestedCost;
 
     return (
         <div className="h-screen overflow-hidden bg-[#F8FAFC] font-sans flex flex-col">
@@ -48,9 +83,16 @@ const Layout: React.FC = () => {
                     {/* Three columns so the worth pill sits dead centre regardless of what
                         the side columns contain. */}
                     <div className="flex flex-wrap items-center justify-between gap-2 py-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-4">
-                        <div className="flex items-center gap-2 shrink-0">
-                            <img src="/logo.svg" alt="FinSIP" className="w-8 h-8 rounded-lg" />
-                            <span className="text-lg font-black text-slate-900 tracking-tight">FINSIP</span>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                            <img src="/logo.svg" alt="FinSIP" className="w-9 h-9 rounded-lg shrink-0" />
+                            {/* Wordmark and tagline share one optical block: the tagline is letter-spaced
+                                to sit flush with the right edge of FINSIP above it. */}
+                            <div className="flex flex-col justify-center leading-none">
+                                <span className="text-lg font-black text-slate-900 tracking-tight leading-none">FINSIP</span>
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.28em] leading-none mt-1">
+                                    SIP Tracker
+                                </span>
+                            </div>
                         </div>
 
                         {/* Worth */}
@@ -152,21 +194,70 @@ const Layout: React.FC = () => {
                                 </button>
                             </div>
 
+                            {/* Stays out of the menu on purpose: hiding amounts is a panic
+                                action and has to be one click away. */}
                             <button
-                                onClick={signOut}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all"
+                                onClick={toggleHidden}
+                                title={hidden ? 'Show amounts (Shift+H)' : 'Hide amounts (Shift+H)'}
+                                aria-pressed={hidden}
+                                className={clsx(
+                                    "p-2 rounded-lg transition-all",
+                                    hidden
+                                        ? "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                                        : "text-slate-300 hover:text-slate-700 hover:bg-slate-100"
+                                )}
                             >
-                                <LogOut size={14} />
-                                <span className="hidden sm:inline">Lock</span>
+                                {hidden ? <EyeOff size={15} /> : <Eye size={15} />}
                             </button>
 
-                            <NavLink
-                                to="/delete-account"
-                                title="Delete account"
-                                className="p-2 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
-                            >
-                                <UserX size={15} />
-                            </NavLink>
+                            <div ref={menuRef} className="relative">
+                                <button
+                                    onClick={() => setMenuOpen(open => !open)}
+                                    title={user?.email ?? undefined}
+                                    aria-haspopup="menu"
+                                    aria-expanded={menuOpen}
+                                    className={clsx(
+                                        "w-8 h-8 shrink-0 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-black tracking-tight select-none transition-all",
+                                        "hover:ring-4 hover:ring-slate-900/10",
+                                        menuOpen && "ring-4 ring-slate-900/10"
+                                    )}
+                                >
+                                    {getInitials(user?.email)}
+                                </button>
+
+                                {menuOpen && (
+                                    <div
+                                        role="menu"
+                                        className="absolute right-0 top-full mt-2 w-60 bg-white rounded-xl border border-slate-100 shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                                    >
+                                        <div className="px-4 py-3 border-b border-slate-50">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Signed in as</span>
+                                            {/* Local part only -- the domain is noise you already know. */}
+                                            <span className="text-xs font-bold text-slate-900 break-all">
+                                                {user?.email?.split('@')[0] ?? '—'}
+                                            </span>
+                                        </div>
+
+                                        <button
+                                            role="menuitem"
+                                            onClick={() => { setMenuOpen(false); handleDeleteAccount(); }}
+                                            className="w-full flex items-center gap-2.5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:bg-rose-600 hover:text-white transition-colors"
+                                        >
+                                            <UserX size={14} />
+                                            Delete Account
+                                        </button>
+
+                                        <button
+                                            role="menuitem"
+                                            onClick={() => { setMenuOpen(false); signOut(); }}
+                                            className="w-full flex items-center gap-2.5 px-4 py-3 border-t border-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                                        >
+                                            <LogOut size={14} />
+                                            Sign Out
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
