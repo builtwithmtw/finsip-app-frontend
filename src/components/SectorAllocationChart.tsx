@@ -1,11 +1,18 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { formatCurrency } from '../utils/formatters';
 import { computeHoldings } from '../utils/holdings';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
+const INNER_RADIUS_RATIO = 0.68;
+const OUTER_RADIUS_RATIO = 0.92;
+
 const SectorAllocationChart: React.FC = () => {
     const { transactions, stocks } = usePortfolio();
+
+    // The donut sizes itself to the row, so the centre label has to follow it.
+    const chartRef = useRef<HTMLDivElement>(null);
+    const [holeSize, setHoleSize] = useState(0);
 
     const data = useMemo(() => {
         const sectorInvestedMap = new Map<string, number>();
@@ -29,6 +36,37 @@ const SectorAllocationChart: React.FC = () => {
             }))
             .sort((a, b) => b.value - a.value);
     }, [transactions, stocks]);
+
+    const hasData = data.length > 0;
+
+    useEffect(() => {
+        const el = chartRef.current;
+        if (!el) return;
+
+        const observer = new ResizeObserver(entries => {
+            const box = entries[0]?.contentRect;
+            if (box) setHoleSize(Math.min(box.width, box.height) * INNER_RADIUS_RATIO);
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [hasData]); // the card renders nothing until there's data, so re-attach once it appears
+
+    // Everything in the centre is a fraction of the hole's diameter, so the label
+    // shrinks in step with the donut. holeSize is 0 until the observer first fires.
+    const hole = holeSize || 96;
+    const topSector = data[0]?.name ?? '';
+
+    // The label sits inside a circle, so only a chord of the hole is usable width.
+    // Long sector names scale down to fit rather than getting clipped.
+    const usableWidth = hole * 0.82;
+    const approxCharWidth = 0.62; // ems, for this uppercase black face
+    const sectorSize = Math.min(hole * 0.17, usableWidth / Math.max(topSector.length * approxCharWidth, 1));
+
+    const labelStyles = {
+        caption: { fontSize: `${Math.max(7, hole * 0.08)}px` },
+        sector: { fontSize: `${Math.max(9, sectorSize)}px`, maxWidth: `${usableWidth}px` },
+        percentage: { fontSize: `${Math.max(9, hole * 0.11)}px` },
+    };
 
     const COLORS = [
         '#3B82F6', // Blue 500
@@ -58,16 +96,16 @@ const SectorAllocationChart: React.FC = () => {
                 </div>
             </div>
 
-            {/* Chart Container - Fixed size to maintain symmetry */}
-            <div className="relative flex-1 min-h-[190px] mb-3">
+            {/* Chart Container - donut scales with whatever height the row gives us */}
+            <div ref={chartRef} className="relative flex-1 min-h-[140px] mb-3">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
                             data={data}
                             cx="50%"
                             cy="50%"
-                            innerRadius={75}
-                            outerRadius={100}
+                            innerRadius={`${INNER_RADIUS_RATIO * 100}%`}
+                            outerRadius={`${OUTER_RADIUS_RATIO * 100}%`}
                             paddingAngle={5}
                             dataKey="value"
                             nameKey="name"
@@ -99,9 +137,9 @@ const SectorAllocationChart: React.FC = () => {
                 </ResponsiveContainer>
 
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-0">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Top Sector</span>
-                    <span className="text-lg font-black text-slate-900 uppercase truncate max-w-[120px] block leading-none">{data[0]?.name}</span>
-                    <span className="text-xs font-black text-blue-600 uppercase mt-2 block">{data[0]?.percentage.toFixed(1)}%</span>
+                    <span style={labelStyles.caption} className="font-black text-slate-400 uppercase tracking-widest block mb-1 leading-none">Top Sector</span>
+                    <span style={labelStyles.sector} className="font-black text-slate-900 uppercase block leading-none mx-auto">{topSector}</span>
+                    <span style={labelStyles.percentage} className="font-black text-blue-600 uppercase mt-1.5 block leading-none">{data[0]?.percentage.toFixed(1)}%</span>
                 </div>
             </div>
 
