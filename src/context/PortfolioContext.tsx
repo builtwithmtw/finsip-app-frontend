@@ -1,20 +1,24 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
 import { useProxy } from './ProxyContext';
 import { supabase } from '../lib/supabase';
-import type { Transaction, Stock, CashEntry, Payout, RealizedProfit } from '../types';
+import type { Transaction, Stock, RealizedProfit } from '../types';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
+import { avgBuyPriceFor } from '../utils/holdings';
 
 interface PortfolioContextType {
     transactions: Transaction[];
     stocks: Stock[];
-    cashEntries: CashEntry[];
-    payouts: Payout[];
     realizedProfits: RealizedProfit[];
+    // Month the entry form writes to; picked in the nav bar.
+    selectedMonth: string;
+    setSelectedMonth: (month: string) => void;
     loading: boolean;
     // Live Market Data
     livePrices: Record<string, number>;
     isMarketLive: boolean;
+    // True until the first market fetch settles, win or lose.
+    marketLoading: boolean;
 
     refreshData: () => Promise<void>;
     addTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'totalAmount'>) => Promise<void>;
@@ -23,20 +27,6 @@ interface PortfolioContextType {
     deleteMonthTransactions: (month: string) => Promise<void>;
     addStock: (symbol: string, sector: string) => Promise<void>;
     removeStock: (id: string) => Promise<void>;
-    addCashEntry: (entry: Omit<CashEntry, 'id' | 'createdAt'>) => Promise<void>;
-    updateCashEntry: (id: string, updates: Partial<CashEntry>) => Promise<void>;
-    deleteCashEntry: (id: string) => Promise<void>;
-    addPayout: (payout: Omit<Payout, 'id' | 'createdAt'>) => Promise<void>;
-    updatePayout: (id: string, updates: Partial<Payout>) => Promise<void>;
-    deletePayout: (id: string) => Promise<void>;
-    importAllData: (data: {
-        transactions: Transaction[],
-        stocks: Stock[],
-        cashEntries: CashEntry[],
-        payouts: Payout[],
-        realizedProfits: RealizedProfit[]
-    }) => Promise<void>;
-    recalculateRealizedProfits: () => Promise<void>;
     clearAllData: () => Promise<void>;
 }
 
@@ -46,14 +36,14 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const { user } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [stocks, setStocks] = useState<Stock[]>([]);
-    const [cashEntries, setCashEntries] = useState<CashEntry[]>([]);
-    const [payouts, setPayouts] = useState<Payout[]>([]);
     const [realizedProfits, setRealizedProfits] = useState<RealizedProfit[]>([]);
     const [loading, setLoading] = useState(false);
+    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
     // Centralized Live Market State
     const [livePrices, setLivePrices] = useState<Record<string, number>>({});
     const [isMarketLive, setIsMarketLive] = useState(false);
+    const [marketLoading, setMarketLoading] = useState(true);
 
     const { selectedProxy, setShowModal, setRetryFetch } = useProxy();
 
@@ -100,6 +90,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             setIsMarketLive(false);
             // setShowModal(true);
             // toast.error(`Connection failed via ${selectedProxy.name}. Please select another gateway.`);
+        } finally {
+            setMarketLoading(false);
         }
     }, [selectedProxy, setShowModal]);
 
@@ -108,11 +100,19 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         setRetryFetch(() => fetchMarketData);
     }, [fetchMarketData, setRetryFetch]);
 
+    // Poll fast while the feed is down so it recovers on its own, and back off to a
+    // normal refresh cadence once it is live.
+    const LIVE_REFRESH_MS = 5 * 60 * 1000;
+    const RECONNECT_RETRY_MS = 12 * 1000;
+
     useEffect(() => {
         fetchMarketData();
-        const interval = setInterval(fetchMarketData, 5 * 60 * 1000); // 5 Minutes
+        const interval = setInterval(
+            fetchMarketData,
+            isMarketLive ? LIVE_REFRESH_MS : RECONNECT_RETRY_MS
+        );
         return () => clearInterval(interval);
-    }, [fetchMarketData]);
+    }, [fetchMarketData, isMarketLive]);
 
     const fetchData = async () => {
         if (!user) return;
@@ -121,14 +121,10 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             const [
                 { data: stocksData },
                 { data: transData },
-                { data: cashData },
-                { data: payoutsData },
                 { data: pnlData }
             ] = await Promise.all([
                 supabase.from('stocks').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
                 supabase.from('transactions').select('*').eq('user_id', user.id).order('month', { ascending: false }),
-                supabase.from('cash_entries').select('*').eq('user_id', user.id).order('month', { ascending: false }),
-                supabase.from('payouts').select('*').eq('user_id', user.id).order('date', { ascending: false }),
                 supabase.from('realized_pnl').select('*').eq('user_id', user.id).order('sell_date', { ascending: false })
             ]);
 
@@ -156,31 +152,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                 })));
             } else {
                 setTransactions([]);
-            }
-
-            if (cashData) {
-                setCashEntries(cashData.map(c => ({
-                    id: c.id,
-                    month: c.month,
-                    amount: c.amount,
-                    type: c.type || 'deposit',
-                    memo: c.memo,
-                    createdAt: c.created_at
-                })));
-            } else {
-                setCashEntries([]);
-            }
-
-            if (payoutsData) {
-                setPayouts(payoutsData.map(p => ({
-                    id: p.id,
-                    symbol: p.symbol,
-                    amount: p.amount,
-                    date: p.date,
-                    createdAt: p.created_at
-                })));
-            } else {
-                setPayouts([]);
             }
 
             if (pnlData) {
@@ -212,8 +183,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             // Reset state when not authorized
             setTransactions([]);
             setStocks([]);
-            setCashEntries([]);
-            setPayouts([]);
         }
     }, [user?.id]); // Only refetch when user ID actually changes
 
@@ -275,27 +244,13 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         }
 
         // If it's a sell, calculate and record realized profit
-        if (data.type === 'sell') {
-            // Calculate avg buy price using current holdings logic
-            const symbolTransactions = transactions.filter(t => t.symbol === data.symbol);
-            let totalSharesAtSymbol = 0;
-            let totalCostBasisAtSymbol = 0;
+        const avgBuyPrice = data.type === 'sell'
+            ? avgBuyPriceFor(transactions, data.symbol)
+            : 0;
 
-            // Sort existing transactions chronologically to calculate avg cost
-            [...symbolTransactions]
-                .sort((a, b) => a.month.localeCompare(b.month))
-                .forEach(t => {
-                    if (t.type === 'buy') {
-                        totalSharesAtSymbol += t.shares;
-                        totalCostBasisAtSymbol += t.totalAmount;
-                    } else {
-                        const avgPriceBeforeSell = totalSharesAtSymbol > 0 ? totalCostBasisAtSymbol / totalSharesAtSymbol : 0;
-                        totalSharesAtSymbol -= t.shares;
-                        totalCostBasisAtSymbol -= t.shares * avgPriceBeforeSell;
-                    }
-                });
-
-            const avgBuyPrice = totalSharesAtSymbol > 0 ? totalCostBasisAtSymbol / totalSharesAtSymbol : 0;
+        // A sell with no shares behind it has no cost basis, so booking it would
+        // report the whole sale as profit. Skip the P&L record instead.
+        if (data.type === 'sell' && avgBuyPrice > 0) {
             const realizedProfitValue = (data.pricePerShare - avgBuyPrice) * data.shares;
 
             const { data: pnlData, error: pnlError } = await supabase
@@ -391,298 +346,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         setRealizedProfits(prev => prev.filter(p => !deletedIds.includes((p as any).transaction_id)));
     };
 
-    const addCashEntry = async (data: Omit<CashEntry, 'id' | 'createdAt'>) => {
-        if (!user) return;
-        const { data: inserted, error } = await supabase
-            .from('cash_entries')
-            .insert([{
-                amount: data.amount,
-                month: data.month,
-                type: data.type,
-                memo: data.memo,
-                user_id: user.id
-            }])
-            .select()
-            .single();
-
-        if (error) {
-            toast.error('Error adding budget: ' + error.message);
-            return;
-        }
-
-        setCashEntries(prev => [...prev, {
-            id: inserted.id,
-            month: inserted.month,
-            amount: inserted.amount,
-            type: inserted.type,
-            memo: inserted.memo,
-            createdAt: inserted.created_at
-        }]);
-    };
-
-    const updateCashEntry = async (id: string, updates: Partial<CashEntry>) => {
-        if (!user) return;
-        const { error } = await supabase
-            .from('cash_entries')
-            .update({
-                amount: updates.amount,
-                month: updates.month,
-                type: updates.type,
-                memo: updates.memo
-            })
-            .eq('id', id);
-
-        if (error) {
-            toast.error('Error updating budget: ' + error.message);
-            return;
-        }
-
-        setCashEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
-        toast.success('Budget updated');
-    };
-
-    const deleteCashEntry = async (id: string) => {
-        const { error } = await supabase.from('cash_entries').delete().eq('id', id);
-        if (error) {
-            toast.error('Error deleting budget: ' + error.message);
-            return;
-        }
-        setCashEntries(prev => prev.filter(e => e.id !== id));
-    };
-
-    const addPayout = async (data: Omit<Payout, 'id' | 'createdAt'>) => {
-        if (!user) return;
-        const { data: inserted, error } = await supabase
-            .from('payouts')
-            .insert([{
-                symbol: data.symbol,
-                amount: data.amount,
-                date: data.date,
-                user_id: user.id
-            }])
-            .select()
-            .single();
-
-        if (error) {
-            toast.error('Error adding payout: ' + error.message);
-            return;
-        }
-
-        setPayouts(prev => [...prev, {
-            id: inserted.id,
-            symbol: inserted.symbol,
-            amount: inserted.amount,
-            date: inserted.date,
-            createdAt: inserted.created_at
-        }]);
-    };
-
-    const updatePayout = async (id: string, updates: Partial<Payout>) => {
-        if (!user) return;
-        const { error } = await supabase
-            .from('payouts')
-            .update({
-                symbol: updates.symbol,
-                amount: updates.amount,
-                date: updates.date
-            })
-            .eq('id', id);
-
-        if (error) {
-            toast.error('Error updating payout: ' + error.message);
-            return;
-        }
-
-        setPayouts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-        toast.success('Payout updated');
-    };
-
-    const deletePayout = async (id: string) => {
-        const { error } = await supabase.from('payouts').delete().eq('id', id);
-        if (error) {
-            toast.error('Error deleting payout: ' + error.message);
-            return;
-        }
-        setPayouts(prev => prev.filter(p => p.id !== id));
-    };
-
-    const recalculateRealizedProfits = async () => {
-        if (!user || transactions.length === 0) return;
-        setLoading(true);
-        try {
-            // 1. Clear existing P&L records in DB
-            const { error: delError } = await supabase.from('realized_pnl').delete().eq('user_id', user.id);
-            if (delError) throw delError;
-
-            const symbols = Array.from(new Set(transactions.map(t => t.symbol)));
-            const newPnlEntries: any[] = [];
-
-            // 2. Process each symbol
-            for (const sym of symbols) {
-                const symTrans = [...transactions]
-                    .filter(t => t.symbol === sym)
-                    .sort((a, b) => {
-                        // Sort by month first, then by createdAt
-                        const monthComp = a.month.localeCompare(b.month);
-                        if (monthComp !== 0) return monthComp;
-                        return a.createdAt.localeCompare(b.createdAt);
-                    });
-
-                let totalShares = 0;
-                let totalCostBasis = 0;
-
-                for (const t of symTrans) {
-                    if (t.type === 'buy') {
-                        totalShares += t.shares;
-                        totalCostBasis += t.totalAmount;
-                    } else {
-                        // It's a sell
-                        const avgBuyPrice = totalShares > 0 ? totalCostBasis / totalShares : 0;
-                        const realizedProfit = (t.pricePerShare - avgBuyPrice) * t.shares;
-
-                        newPnlEntries.push({
-                            symbol: t.symbol,
-                            quantity_sold: t.shares,
-                            avg_buy_price: avgBuyPrice,
-                            avg_sell_price: t.pricePerShare,
-                            realized_profit: realizedProfit,
-                            sell_date: t.month + "-01", // Approximate date from month
-                            transaction_id: t.id,
-                            user_id: user.id
-                        });
-
-                        // Update inventory
-                        totalShares -= t.shares;
-                        totalCostBasis -= t.shares * avgBuyPrice;
-                    }
-                }
-            }
-
-            // 3. Batch insert new entries
-            if (newPnlEntries.length > 0) {
-                const { error: insError } = await supabase.from('realized_pnl').insert(newPnlEntries);
-                if (insError) throw insError;
-            }
-
-            // 4. Refresh local state
-            await fetchData();
-            toast.success('Realized profits recalculated successfully');
-        } catch (err: any) {
-            console.error('Recalculation error:', err);
-            toast.error('Failed to recalculate profits: ' + err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const importAllData = async (data: {
-        transactions: Transaction[],
-        stocks: Stock[],
-        cashEntries: CashEntry[],
-        payouts: Payout[],
-        realizedProfits: RealizedProfit[]
-    }) => {
-        setLoading(true);
-        try {
-            // Delete existing data for the current user to ensure a clean restore
-            const { error: delStocksErr } = await supabase.from('stocks').delete().eq('user_id', user!.id);
-            const { error: delTransErr } = await supabase.from('transactions').delete().eq('user_id', user!.id);
-            const { error: delCashErr } = await supabase.from('cash_entries').delete().eq('user_id', user!.id);
-            const { error: delPayoutsErr } = await supabase.from('payouts').delete().eq('user_id', user!.id);
-            const { error: delPnlErr } = await supabase.from('realized_pnl').delete().eq('user_id', user!.id);
-
-            if (delStocksErr || delTransErr || delCashErr || delPayoutsErr || delPnlErr) {
-                throw new Error('Failed to clear existing database data before restore.');
-            }
-
-            // Insert new data with explicit user_id mapping
-            if (data.stocks && data.stocks.length > 0) {
-                const { error } = await supabase.from('stocks').insert(
-                    data.stocks.map(s => ({
-                        symbol: (s.symbol || '').toUpperCase(),
-                        sector: s.sector || 'Others',
-                        user_id: user!.id
-                    }))
-                );
-                if (error) throw new Error('Stocks sync failed: ' + error.message);
-            }
-
-            if (data.transactions && data.transactions.length > 0) {
-                const { error } = await supabase.from('transactions').insert(
-                    data.transactions.map(t => {
-                        const shares = t.shares ?? 0;
-                        const price = t.pricePerShare ?? (t as any).price_per_share ?? 0;
-                        return {
-                            symbol: (t.symbol || '').toUpperCase(),
-                            shares: shares,
-                            price_per_share: price,
-                            total_amount: t.totalAmount ?? (t as any).total_amount ?? (shares * price),
-                            type: t.type || 'buy',
-                            month: t.month || (t as any).date?.substring(0, 7) || new Date().toISOString().substring(0, 7),
-                            user_id: user!.id
-                        };
-                    })
-                );
-                if (error) throw new Error('Transactions sync failed: ' + error.message);
-            }
-
-            if (data.cashEntries && data.cashEntries.length > 0) {
-                const { error } = await supabase.from('cash_entries').insert(
-                    data.cashEntries.map(c => {
-                        const rawType = (c.type || (c as any).type || 'deposit').toLowerCase();
-                        const validatedType = (rawType === 'deposit' || rawType === 'withdraw') ? rawType : 'deposit';
-
-                        return {
-                            amount: c.amount ?? (c as any).amount ?? 0,
-                            month: c.month || (c as any).date || new Date().toISOString().substring(0, 7),
-                            type: validatedType,
-                            memo: c.memo || (c as any).origin || (c as any).description || '',
-                            user_id: user!.id
-                        };
-                    })
-                );
-                if (error) throw new Error('Cash entries sync failed: ' + error.message);
-            }
-
-            if (data.payouts && data.payouts.length > 0) {
-                const { error } = await supabase.from('payouts').insert(
-                    data.payouts.map(p => ({
-                        symbol: (p.symbol || (p as any).stockSymbol || '').toUpperCase(),
-                        amount: p.amount ?? (p as any).amount ?? 0,
-                        date: p.date || (p as any).month || new Date().toISOString().split('T')[0],
-                        user_id: user!.id
-                    }))
-                );
-                if (error) throw new Error('Payouts sync failed: ' + error.message);
-            }
-
-            if (data.realizedProfits && data.realizedProfits.length > 0) {
-                const { error } = await supabase.from('realized_pnl').insert(
-                    data.realizedProfits.map(p => ({
-                        symbol: (p.symbol || '').toUpperCase(),
-                        quantity_sold: p.quantitySold ?? (p as any).quantity_sold ?? 0,
-                        avg_buy_price: p.avgBuyPrice ?? (p as any).avg_buy_price ?? 0,
-                        avg_sell_price: p.avgSellPrice ?? (p as any).avg_sell_price ?? 0,
-                        realized_profit: p.realizedProfit ?? (p as any).realized_profit ?? 0,
-                        sell_date: p.sellDate ?? (p as any).sell_date ?? new Date().toISOString().split('T')[0],
-                        user_id: user!.id
-                    }))
-                );
-                if (error) throw new Error('Realized profit sync failed: ' + error.message);
-            }
-
-            await fetchData();
-            toast.success('Full sync complete!');
-        } catch (error: any) {
-            console.error('Import error:', error);
-            toast.error(error.message || 'Failed to import data to Supabase');
-            throw error; // Re-throw to be caught by toast.promise in DataPage
-        } finally {
-            setLoading(false);
-        }
-    };
-
-
     const clearAllData = async () => {
         if (!user) return;
         setLoading(true);
@@ -690,8 +353,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             await supabase.from('realized_pnl').delete().eq('user_id', user.id);
             await supabase.from('transactions').delete().eq('user_id', user.id);
             await supabase.from('stocks').delete().eq('user_id', user.id);
-            await supabase.from('cash_entries').delete().eq('user_id', user.id);
-            await supabase.from('payouts').delete().eq('user_id', user.id);
 
             await fetchData();
             toast.success('All portfolio data has been purged.');
@@ -708,12 +369,13 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         <PortfolioContext.Provider value={{
             transactions,
             stocks,
-            cashEntries,
-            payouts,
             realizedProfits,
+            selectedMonth,
+            setSelectedMonth,
             loading,
             livePrices,
             isMarketLive,
+            marketLoading,
             refreshData: fetchData,
             addTransaction,
             updateTransaction,
@@ -721,14 +383,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             deleteMonthTransactions,
             addStock,
             removeStock,
-            addCashEntry,
-            updateCashEntry,
-            deleteCashEntry,
-            addPayout,
-            updatePayout,
-            deletePayout,
-            importAllData,
-            recalculateRealizedProfits,
             clearAllData
         }}>
             {children}

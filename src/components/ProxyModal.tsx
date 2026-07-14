@@ -23,42 +23,41 @@ const ProxyModal: React.FC = () => {
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
+            <div className="bg-white rounded-xl shadow-sm w-full max-w-lg overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
                 {/* Header */}
-                <div className="px-8 py-8 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div className="px-4 py-8 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase flex items-center gap-3">
+                        <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase flex items-center gap-3">
                             <Globe size={28} className="text-blue-600" />
                             Proxy Terminal
                         </h2>
-                        <p className="text-[10px] font-black text-slate-400 tracking-[0.2em] uppercase mt-1">Select Gateway for Market Feed</p>
+                        <p className="text-[10px] font-black text-slate-400 tracking-widest uppercase mt-1">Select Gateway for Market Feed</p>
                     </div>
                     <button
                         onClick={() => setShowModal(false)}
-                        className="p-3 bg-white text-slate-400 hover:text-rose-500 rounded-2xl shadow-sm transition-all active:scale-90"
+                        className="p-3 bg-white text-slate-400 hover:text-rose-500 rounded-lg shadow-sm transition-all active:scale-90"
                     >
                         <X size={20} />
                     </button>
                 </div>
 
                 {/* Content */}
-                <div className="p-8">
+                <div className="p-6">
                     <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                         {proxies.map((proxy) => (
                             <div
                                 key={proxy.id}
                                 onClick={() => selectProxy(proxy)}
                                 className={clsx(
-                                    "p-5 rounded-2xl border-2 transition-all cursor-pointer group flex items-center justify-between",
+                                    "p-5 rounded-lg border-2 transition-all cursor-pointer group flex items-center justify-between",
                                     selectedProxy.id === proxy.id
-                                        ? "border-blue-600 bg-blue-50/50"
-                                        : "border-slate-100 bg-slate-50 hover:border-slate-300"
+                                        ? "border-blue-600 bg-blue-50/50":"border-slate-100 bg-slate-50 hover:border-slate-300"
                                 )}
                             >
                                 <div className="flex items-center gap-4">
                                     <div className={clsx(
-                                        "w-12 h-12 rounded-xl flex items-center justify-center shadow-inner",
-                                        selectedProxy.id === proxy.id ? "bg-blue-600 text-white" : "bg-white text-slate-400 group-hover:text-slate-600"
+                                        "w-12 h-12 rounded-xl flex items-center justify-center ",
+                                        selectedProxy.id === proxy.id ? "bg-blue-600 text-white":"bg-white text-slate-400 group-hover:text-slate-600"
                                     )}>
                                         <Server size={20} />
                                     </div>
@@ -80,7 +79,7 @@ const ProxyModal: React.FC = () => {
                                         </button>
                                     )}
                                     {selectedProxy.id === proxy.id && (
-                                        <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/30">
+                                        <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center shadow-sm ">
                                             <Check size={16} />
                                         </div>
                                     )}
@@ -93,13 +92,13 @@ const ProxyModal: React.FC = () => {
                     {!isAdding ? (
                         <button
                             onClick={() => setIsAdding(true)}
-                            className="w-full mt-6 h-14 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-black text-[10px] tracking-widest hover:border-blue-400 hover:text-blue-500 transition-all uppercase flex items-center justify-center gap-2"
+                            className="w-full mt-6 h-14 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 font-black text-[10px] tracking-widest hover:border-blue-400 hover:text-blue-500 transition-all uppercase flex items-center justify-center gap-2"
                         >
                             <Plus size={16} />
                             Register Custom Proxy
                         </button>
                     ) : (
-                        <form onSubmit={handleAdd} className="mt-6 p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4 animate-in slide-in-from-top-4">
+                        <form onSubmit={handleAdd} className="mt-6 p-6 bg-slate-50 rounded-lg border border-slate-100 space-y-4 animate-in slide-in-from-top-4">
                             <div className="space-y-4">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">Gateway Name</label>
@@ -131,7 +130,7 @@ const ProxyModal: React.FC = () => {
                             <div className="flex gap-2">
                                 <button
                                     type="submit"
-                                    className="flex-1 h-12 bg-blue-600 text-white rounded-xl font-black text-[10px] tracking-widest uppercase shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
+                                    className="flex-1 h-12 bg-blue-600 text-white rounded-xl font-black text-[10px] tracking-widest uppercase shadow-sm  active:scale-95 transition-all"
                                 >
                                     Activate
                                 </button>
@@ -148,7 +147,7 @@ const ProxyModal: React.FC = () => {
                 </div>
 
                 {/* Footer */}
-                <div className="px-8 py-6 bg-slate-900 flex items-center justify-between">
+                <div className="px-4 py-3 bg-slate-900 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                         <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase">System Operational</span>

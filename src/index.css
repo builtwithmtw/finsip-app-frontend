@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Indeterminate bar for the app loader: sweeps left to right, forever. */
+@keyframes loader-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+@layer utilities {
+  .animate-loader-sweep {
+    animation: loader-sweep 1.2s ease-in-out infinite;
+  }
+}
+
 @layer base {
   body {
     @apply bg-slate-50 text-slate-900;
@@ -46,5 +58,15 @@
 
   .scrollbar-hide-auto:hover::-webkit-scrollbar {
     display: block;
+  }
+
+  /* Scrollbar never shown, not even on hover */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }

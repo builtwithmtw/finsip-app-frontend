@@ -1,200 +1,222 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Wallet, Calendar, LineChart, List, Menu, X, TrendingUp, FileJson, Sparkles, Landmark, LogOut } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../utils/formatters';
+import { computeHoldings } from '../utils/holdings';
 import clsx from 'clsx';
 
+const navItems = [
+    { path: '/', label: 'Overview', icon: LayoutDashboard },
+    { path: '/live', label: 'Live Portfolio', icon: Landmark },
+    { path: '/entry', label: 'Monthly Entry', icon: Calendar },
+    { path: '/ledger', label: 'Transaction Ledger', icon: Table2 },
+];
+
 const Layout: React.FC = () => {
-    const { transactions, livePrices, isMarketLive } = usePortfolio();
+    const { transactions, livePrices, isMarketLive, marketLoading, selectedMonth, setSelectedMonth } = usePortfolio();
+    const { selectedProxy, setShowModal, retryFetch } = useProxy();
     const { signOut } = useAuth();
     const location = useLocation();
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-    const navItems = [
-        { path: '/', label: 'Overview', icon: LayoutDashboard },
-        { path: '/live', label: 'Live Portfolio', icon: Landmark },
-        { path: '/stocks', label: 'Manage Stocks', icon: List },
-        { path: '/entry', label: 'Monthly Entry', icon: Calendar },
-        { path: '/cash', label: 'Cash Allocation', icon: Wallet },
-        { path: '/payouts', label: 'Payouts', icon: TrendingUp },
-        { path: '/data', label: 'Backup & Restore', icon: FileJson },
-    ];
 
     useEffect(() => {
         const currentNav = navItems.find(item => item.path === location.pathname);
-        const title = currentNav ? `${currentNav.label} | FINSIP` : 'FINSIP';
-        document.title = title;
+        document.title = currentNav ? `${currentNav.label} | FINSIP` : 'FINSIP';
     }, [location.pathname]);
 
     // Total Live Value vs Aggregate Invested Cost (of current holdings)
     const { totalMarketValue, totalInvestedCost } = useMemo(() => {
-        let marketValue = 0;
-        const map = new Map<string, { totalShares: number; totalCostBasis: number }>();
+        const holdings = computeHoldings(transactions);
 
-        [...transactions]
-            .filter(t => t.shares > 0 && t.pricePerShare > 0)
-            .sort((a, b) => a.month.localeCompare(b.month))
-            .forEach(t => {
-                const current = map.get(t.symbol) || { totalShares: 0, totalCostBasis: 0 };
-                const sharesNum = Number(t.shares || 0);
-                const priceNum = Number(t.pricePerShare || 0);
-                const amountNum = Number(t.totalAmount || (sharesNum * priceNum));
-
-                if (t.type === 'buy') {
-                    current.totalShares += sharesNum;
-                    current.totalCostBasis += amountNum;
-                } else {
-                    const avgPriceBeforeSell = current.totalShares > 0 ? current.totalCostBasis / current.totalShares : 0;
-                    current.totalShares -= sharesNum;
-                    current.totalCostBasis -= sharesNum * avgPriceBeforeSell;
-                }
-                if (current.totalShares > 0.001) map.set(t.symbol, current);
-                else map.delete(t.symbol);
-            });
-
-        map.forEach((data, symbol) => {
-            const livePrice = livePrices[symbol] || 0;
-            marketValue += data.totalShares * livePrice;
-        });
-
-        const invested = Array.from(map.values()).reduce((sum, h) => sum + h.totalCostBasis, 0);
-
-        return { totalMarketValue: marketValue, totalInvestedCost: invested };
+        return {
+            totalMarketValue: holdings.reduce((sum, h) => sum + h.totalShares * (livePrices[h.symbol] || 0), 0),
+            totalInvestedCost: holdings.reduce((sum, h) => sum + h.totalCostBasis, 0),
+        };
     }, [livePrices, transactions]);
 
-    const displayWorth = (isMarketLive && totalMarketValue > 0) ? totalMarketValue : totalInvestedCost;
+    const isLive = isMarketLive && totalMarketValue > 0;
+    const displayWorth = isLive ? totalMarketValue : totalInvestedCost;
+    const netChange = totalMarketValue - totalInvestedCost;
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] font-sans flex flex-col md:flex-row">
-            {/* Mobile Header */}
-            <div className="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-50">
-                <div className="flex items-center gap-2">
-                    <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-2 rounded-xl shadow-lg shadow-blue-500/20">
-                        <LineChart className="text-white" size={18} />
-                    </div>
-                    <span className="font-black text-slate-900 tracking-tight text-lg">FINSIP</span>
-                </div>
-                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-600 bg-slate-50 rounded-xl">
-                    {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-                </button>
-            </div>
-
-            {/* Sidebar Navigation */}
-            <aside className={clsx(
-                "bg-white border-r border-slate-100 w-full md:w-64 flex-shrink-0 fixed md:sticky top-16 md:top-0 h-[calc(100vh-64px)] md:h-screen z-40 transition-all duration-300 ease-in-out md:translate-x-0 flex flex-col shadow-[1px_0_10px_rgba(0,0,0,0.02)]",
-                isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-            )}>
-                <div className="p-8 hidden md:flex items-center gap-4 mb-4">
-                    <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-2.5 rounded-2xl shadow-xl shadow-blue-500/30 ring-4 ring-blue-50">
-                        <LineChart className="text-white" size={24} />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-black text-slate-900 leading-none tracking-tighter">FINSIP</h1>
-                        <div className="flex items-center gap-1.5 mt-1">
-                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-[0.1em]">SIP Manager</span>
-                            <Sparkles size={10} className="text-blue-500" />
+        <div className="h-screen overflow-hidden bg-[#F8FAFC] font-sans flex flex-col">
+            {/* Top Bar */}
+            <header className="bg-white border-b border-slate-100 z-50 shrink-0">
+                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10">
+                    {/* Three columns so the worth pill sits dead centre regardless of what
+                        the side columns contain. */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 py-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-4">
+                        <div className="flex items-center gap-2 shrink-0">
+                            <img src="/logo.svg" alt="FinSIP" className="w-8 h-8 rounded-lg" />
+                            <span className="text-lg font-black text-slate-900 tracking-tight">FINSIP</span>
                         </div>
-                    </div>
-                </div>
 
-                <nav className="px-4 space-y-2 overflow-y-auto flex-1">
-                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-4 mb-4">Core Navigator</div>
-                    {navItems.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className={({ isActive }) => clsx(
-                                "group flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-all duration-300",
-                                isActive
-                                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20 translate-x-1"
-                                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                            )}
-                        >
-                            <item.icon size={20} className={clsx("transition-transform duration-300 group-hover:scale-110")} />
-                            <span className="tracking-tight">{item.label}</span>
-                        </NavLink>
-                    ))}
-                    <button
-                        onClick={signOut}
-                        className="flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-rose-500 hover:bg-rose-50 transition-all duration-300 w-full text-left"
-                    >
-                        <LogOut size={20} />
-                        <span className="tracking-tight">Lock System</span>
-                    </button>
-                </nav>
-
-                <div className="p-6">
-                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-[2.5rem] shadow-2xl shadow-slate-900/10 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-4 text-white/5 group-hover:scale-125 transition-transform duration-500">
-                            <Sparkles size={64} />
-                        </div>
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">Portfolio Worth</div>
-                            <div className={clsx(
-                                "flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-500",
-                                (isMarketLive && totalMarketValue > 0) ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]" : "bg-slate-500/10 border-slate-500/20"
-                            )}>
-                                <span className={clsx("w-1.5 h-1.5 rounded-full", (isMarketLive && totalMarketValue > 0) ? "bg-emerald-500 animate-pulse" : "bg-slate-500")} />
-                                <span className={clsx("text-[9px] font-black tracking-widest uppercase", (isMarketLive && totalMarketValue > 0) ? "text-emerald-500" : "text-slate-500")}>
-                                    {(isMarketLive && totalMarketValue > 0) ? 'Live' : 'Static'}
+                        {/* Worth */}
+                        <div className="order-last w-full overflow-x-auto scrollbar-none flex items-center gap-3 bg-slate-900 px-3 py-2 rounded-lg shadow-sm lg:order-none lg:w-auto lg:gap-5 lg:pl-5 lg:pr-3 lg:py-2.5">
+                            {marketLoading ? (
+                                <div className="flex items-center gap-2.5 py-0.5">
+                                    <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-blue-400 rounded-full animate-spin" />
+                                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">
+                                        Fetching Live Feed
+                                    </span>
+                                </div>
+                            ) : (
+                            <>
+                            <div className="flex items-baseline gap-2.5 shrink-0">
+                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Portfolio Worth</span>
+                                <span className="text-base font-black text-white leading-none tracking-tight">
+                                    {formatCurrency(displayWorth).split('.')[0]}
                                 </span>
                             </div>
-                        </div>
-                        <div className="text-2xl font-black text-white leading-tight tracking-tighter mb-2">
-                            {formatCurrency(displayWorth).split('.')[0]}
-                        </div>
 
-                        {(isMarketLive && totalMarketValue > 0) && (
-                            <div className="flex flex-col gap-1 border-t border-white/5 pt-3">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Net Change</span>
+                            <div className="flex items-baseline gap-2.5 border-l border-white/10 pl-3 lg:pl-5 shrink-0">
+                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Total Cost</span>
+                                <span className="text-base font-black text-white leading-none tracking-tight">
+                                    {formatCurrency(totalInvestedCost).split('.')[0]}
+                                </span>
+                            </div>
+
+                            {isLive && (
+                                <div className="flex items-baseline gap-2.5 border-l border-white/10 pl-3 lg:pl-5 shrink-0">
+                                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Net Change</span>
                                     <span className={clsx(
-                                        "text-[10px] font-black",
-                                        totalMarketValue >= totalInvestedCost ? "text-emerald-400" : "text-rose-400"
+                                        "text-base font-black leading-none tracking-tight",
+                                        netChange >= 0 ? "text-emerald-400" : "text-rose-400"
                                     )}>
-                                        {totalMarketValue >= totalInvestedCost ? '+' : '-'} {formatCurrency(Math.abs(totalMarketValue - totalInvestedCost)).split('.')[0]}
+                                        {netChange >= 0 ? '+' : '-'}{formatCurrency(Math.abs(netChange)).split('.')[0]}
                                     </span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Growth %</span>
                                     <span className={clsx(
                                         "text-[10px] font-black px-2 py-0.5 rounded-lg",
-                                        totalMarketValue >= totalInvestedCost ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
+                                        netChange >= 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
                                     )}>
-                                        {totalInvestedCost > 0 ? ((totalMarketValue - totalInvestedCost) / totalInvestedCost * 100).toFixed(2) : '0.00'}%
+                                        {totalInvestedCost > 0 ? (netChange / totalInvestedCost * 100).toFixed(2) : '0.00'}%
                                     </span>
                                 </div>
-                            </div>
-                        )}
-                    </div>
+                            )}
 
-                    <div className="mt-6 text-center">
-                        <div className="text-[10px] text-slate-300 font-black uppercase tracking-widest bg-slate-50 py-1.5 px-3 rounded-full inline-block border border-slate-100">
-                            Made with ❤️ by Mtw
+                            <div className={clsx(
+                                "flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-500 shrink-0",
+                                isLive ? "bg-emerald-500/10 border-emerald-500/20" : "bg-slate-500/10 border-slate-500/20"
+                            )}>
+                                <span className={clsx("w-1.5 h-1.5 rounded-full", isLive ? "bg-emerald-500 animate-pulse" : "bg-slate-500")} />
+                                <span className={clsx("text-[9px] font-black tracking-widest uppercase", isLive ? "text-emerald-500" : "text-slate-500")}>
+                                    {isLive ? 'Live' : 'Static'}
+                                </span>
+                            </div>
+
+                            {/* Feed is down: it retries on its own every few seconds, but offer a manual nudge too. */}
+                            {!isMarketLive && (
+                                <button
+                                    onClick={() => retryFetch()}
+                                    title="Retry live feed"
+                                    className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors group"
+                                >
+                                    <RefreshCw size={11} className="group-active:rotate-180 transition-transform duration-500" />
+                                    <span className="text-[9px] font-black tracking-widest uppercase">Retry</span>
+                                </button>
+                            )}
+                            </>
+                            )}
+                        </div>
+
+                        {/* Feed status + gateway + lock */}
+                        <div className="flex items-center justify-end gap-3">
+                            <input
+                                type="month"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="bg-white border border-slate-200 rounded-lg shadow-sm px-2 py-1.5 lg:px-3 lg:py-2 text-xs font-medium text-slate-700 hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 outline-none cursor-pointer transition-colors"
+                            />
+
+                            {/* Gateway picker and manual refresh stay wired up, just hidden from the nav bar. */}
+                            <div className="hidden items-center gap-1 bg-white p-1.5 rounded-lg border border-slate-100 shadow-sm">
+                                <button
+                                    onClick={() => setShowModal(true)}
+                                    className="px-3 py-1.5 hover:bg-slate-50 rounded-md flex flex-col items-start transition-all group"
+                                >
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Gateway</span>
+                                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight flex items-center gap-1.5">
+                                        {selectedProxy.name}
+                                        <Activity size={10} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+                                    </span>
+                                </button>
+                                <div className="w-px h-7 bg-slate-100" />
+                                <button
+                                    onClick={() => retryFetch()}
+                                    className="p-2 hover:bg-emerald-50 text-slate-300 hover:text-emerald-500 rounded-md transition-all active:rotate-180 duration-500"
+                                    title="Refresh live feed"
+                                >
+                                    <Activity size={16} />
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={signOut}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all"
+                            >
+                                <LogOut size={14} />
+                                <span className="hidden sm:inline">Lock</span>
+                            </button>
+
+                            <NavLink
+                                to="/delete-account"
+                                title="Delete account"
+                                className="p-2 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                            >
+                                <UserX size={15} />
+                            </NavLink>
                         </div>
                     </div>
                 </div>
-            </aside>
+            </header>
 
             {/* Main Content */}
-            <main className="flex-1 min-w-0 flex flex-col bg-[#F8FAFC]">
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6 md:py-8 flex-1 w-full">
-                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <main className="flex-1 min-h-0 min-w-0 flex flex-col bg-[#F8FAFC]">
+                <div className="max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-10 py-3 lg:py-4 flex-1 min-h-0 w-full flex flex-col gap-3 lg:gap-4">
+                    {/* Tab Navigation */}
+                    <nav className="shrink-0 flex justify-start lg:justify-center gap-1 border-b border-slate-200 overflow-x-auto overflow-y-hidden scrollbar-none">
+                        {navItems.map((item) => (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                end={item.path === '/'}
+                                className={({ isActive }) => clsx(
+                                    "group relative flex items-center gap-1.5 px-3 lg:px-4 lg:gap-2 pt-2 pb-3 -mb-px rounded-t-lg",
+                                    "text-[10px] lg:text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-colors duration-200",
+                                    isActive
+                                        ? "text-blue-600"
+                                        : "text-slate-400 hover:text-slate-700 hover:bg-slate-100/70"
+                                )}
+                            >
+                                {({ isActive }) => (
+                                    <>
+                                        <item.icon
+                                            size={15}
+                                            className={clsx(
+                                                "transition-transform duration-200 group-hover:scale-110",
+                                                isActive ? "text-blue-600" : "text-slate-300 group-hover:text-slate-500"
+                                            )}
+                                        />
+                                        <span>{item.label}</span>
+                                        <span
+                                            className={clsx(
+                                                "absolute inset-x-2 bottom-0 h-0.5 rounded-full transition-all duration-200",
+                                                isActive ? "bg-blue-600 opacity-100" : "bg-slate-300 opacity-0 group-hover:opacity-100"
+                                            )}
+                                        />
+                                    </>
+                                )}
+                            </NavLink>
+                        ))}
+                    </nav>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide-auto animate-in fade-in duration-300">
                         <Outlet />
                     </div>
                 </div>
             </main>
-
-            {/* Overlay for mobile */}
-            {isMobileMenuOpen && (
-                <div
-                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-30 md:hidden"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                />
-            )}
         </div>
     );
 };

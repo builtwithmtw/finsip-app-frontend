@@ -48,7 +48,7 @@ const MonthlySummaryView: React.FC = () => {
                     <tbody className="divide-y divide-slate-100">
                         {summaries.map((s) => (
                             <tr key={s.month} className="hover:bg-slate-50 transition-colors">
-                                <td className="px-6 py-4 font-semibold text-slate-800">{formatMonth(s.month)}</td>
+                                <td className="px-6 py-4 font-black text-slate-800">{formatMonth(s.month)}</td>
                                 <td className="px-6 py-4 text-center text-slate-600">
                                     <span className="inline-flex items-center justify-center bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full text-xs font-medium">
                                         {s.transactionCount}

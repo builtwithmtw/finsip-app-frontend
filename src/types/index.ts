@@ -16,22 +16,6 @@ export interface Transaction {
   createdAt: string;
 }
 
-export interface CashEntry {
-  id: string;
-  month: string; // YYYY-MM
-  amount: number;
-  type: "deposit" | "withdraw";
-  memo?: string;
-  createdAt: string;
-}
-
-export interface Payout {
-  id: string;
-  symbol: string; // Stock symbol
-  date: string; // YYYY-MM-DD
-  amount: number;
-  createdAt: string;
-}
 
 export interface PortfolioSummary {
   totalInvested: number;

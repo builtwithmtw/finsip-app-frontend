@@ -58,8 +58,8 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 uppercase">
-            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-300">
-                <div className="bg-slate-50 border-b border-slate-100 p-8 flex items-center justify-between">
+            <div className="bg-white rounded-xl shadow-sm w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-300">
+                <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center justify-between">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{symbol}</span>
@@ -76,7 +76,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                     </button>
                 </div>
 
-                <div className="max-h-[60vh] overflow-y-auto p-8">
+                <div className="max-h-[60vh] overflow-y-auto p-6">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-slate-100">
@@ -91,7 +91,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                         <tbody className="divide-y divide-slate-50">
                             {transactions.map((t) => (
                                 <tr key={t.id} className="group hover:bg-blue-50/30 transition-colors">
-                                    <td className="py-5">
+                                    <td className="py-3">
                                         <div className="flex items-center gap-3 text-slate-600 font-bold text-xs tracking-tight">
                                             <Clock size={14} className="text-slate-400" />
                                             {new Date(t.createdAt).toLocaleString()}
@@ -100,12 +100,12 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                                     <td className="py-4 text-center">
                                         <span className={clsx(
                                             "px-2 py-1 rounded text-[10px] font-black uppercase tracking-wide",
-                                            t.type === 'buy' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                                            t.type === 'buy' ? "bg-emerald-100 text-emerald-700":"bg-rose-100 text-rose-700"
                                         )}>
                                             {t.type}
                                         </span>
                                     </td>
-                                    <td className="py-5 text-right font-black text-slate-900 tabular-nums">
+                                    <td className="py-3 text-right font-black text-slate-900 tabular-nums">
                                         {editingId === t.id ? (
                                             <input
                                                 type="number"
@@ -117,7 +117,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                                             t.shares.toLocaleString()
                                         )}
                                     </td>
-                                    <td className="py-5 text-right font-black text-slate-600 tabular-nums">
+                                    <td className="py-3 text-right font-black text-slate-600 tabular-nums">
                                         {editingId === t.id ? (
                                             <input
                                                 type="number"
@@ -129,18 +129,18 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                                             formatCurrency(t.pricePerShare).replace('Rs', '')
                                         )}
                                     </td>
-                                    <td className="py-5 text-right font-black text-slate-900 tabular-nums tracking-tighter">
+                                    <td className="py-3 text-right font-black text-slate-900 tabular-nums tracking-tight">
                                         {editingId === t.id
                                             ? formatCurrency(editData.shares * editData.pricePerShare).replace('Rs', '')
                                             : formatCurrency(t.totalAmount).replace('Rs', '')}
                                     </td>
-                                    <td className="py-5 text-right">
+                                    <td className="py-3 text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             {editingId === t.id ? (
                                                 <>
                                                     <button
                                                         onClick={() => handleSaveEdit(t.id)}
-                                                        className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
+                                                        className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors shadow-sm "
                                                         title="Save Changes"
                                                     >
                                                         <Check size={14} />
@@ -180,7 +180,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                 </div>
 
                 <div className="bg-slate-50 p-6 border-t border-slate-100 text-center">
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em]">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">
                         Audit Trail Log: {transactions.length} Total Executions Detected
                     </p>
                 </div>

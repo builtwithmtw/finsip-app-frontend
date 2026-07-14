@@ -91,7 +91,7 @@ const ChangelogModal: React.FC = () => {
 
     return (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xl animate-in fade-in duration-500">
-            <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
+            <div className="bg-white rounded-[3.5rem] shadow-sm w-full max-w-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
                 {/* Header */}
                 <div className="px-10 py-10 bg-slate-50 border-b border-slate-100 flex items-center justify-between relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-12 opacity-[0.03] pointer-events-none">
@@ -100,19 +100,19 @@ const ChangelogModal: React.FC = () => {
 
                     <div className="relative">
                         <div className="flex items-center gap-3 mb-2">
-                            <div className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-lg uppercase tracking-widest shadow-lg shadow-blue-500/20">
+                            <div className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-lg uppercase tracking-widest shadow-sm ">
                                 New Updates
                             </div>
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">V {CHANGELOG_DATA[0].version}</span>
                         </div>
-                        <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase whitespace-pre-line">
+                        <h2 className="text-4xl font-black text-slate-900 tracking-tight uppercase whitespace-pre-line">
                             Terminal{'\n'}Evolution
                         </h2>
                     </div>
 
                     <button
                         onClick={handleClose}
-                        className="p-4 bg-white text-slate-400 hover:text-rose-500 rounded-3xl shadow-sm transition-all active:scale-90 group relative z-10"
+                        className="p-4 bg-white text-slate-400 hover:text-rose-500 rounded-lg shadow-sm transition-all active:scale-90 group relative z-10"
                     >
                         <X size={24} />
                     </button>
@@ -120,7 +120,7 @@ const ChangelogModal: React.FC = () => {
 
                 {/* Content */}
                 <div className="max-h-[60vh] overflow-y-auto px-10 py-8 custom-scrollbar">
-                    <div className="space-y-12">
+                    <div className="space-y-8">
                         {CHANGELOG_DATA.map((entry, idx) => (
                             <div key={entry.version} className={clsx("relative", idx > 0 && "opacity-60")}>
                                 <div className="flex items-center gap-4 mb-6">
@@ -133,16 +133,15 @@ const ChangelogModal: React.FC = () => {
 
                                 <div className="grid gap-4">
                                     {entry.changes.map((change, cIdx) => (
-                                        <div key={cIdx} className="group bg-slate-50 hover:bg-white p-5 rounded-3xl border border-slate-100 hover:border-blue-100 transition-all duration-300 flex gap-5 items-start shadow-sm hover:shadow-xl hover:shadow-blue-500/5">
-                                            <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-inner group-hover:bg-blue-50 transition-colors shrink-0">
+                                        <div key={cIdx} className="group bg-slate-50 hover:bg-white p-5 rounded-lg border border-slate-100 hover:border-blue-100 transition-all duration-300 flex gap-5 items-start shadow-sm hover:shadow-sm hover:">
+                                            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center  group-hover:bg-blue-50 transition-colors shrink-0">
                                                 {change.icon}
                                             </div>
                                             <div className="pt-1">
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <span className={clsx(
-                                                        "text-[9px] font-black uppercase tracking-[0.1em]",
-                                                        change.type === 'feature' ? "text-emerald-500" :
-                                                            change.type === 'fix' ? "text-rose-500" : "text-blue-500"
+                                                        "text-[9px] font-black uppercase tracking-widest",
+                                                        change.type === 'feature' ? "text-emerald-500": change.type === 'fix' ?"text-rose-500":"text-blue-500"
                                                     )}>
                                                         {change.type}
                                                     </span>
@@ -161,14 +160,14 @@ const ChangelogModal: React.FC = () => {
                 </div>
 
                 {/* Footer */}
-                <div className="p-10 bg-slate-900 flex items-center justify-between">
+                <div className="p-6 bg-slate-900 flex items-center justify-between">
                     <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Matrix Protocol 2.0</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Matrix Protocol 2.0</p>
                         <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-0.5">Automated Change Detection</p>
                     </div>
                     <button
                         onClick={handleClose}
-                        className="px-8 h-14 bg-white text-slate-900 rounded-2xl font-black text-[11px] tracking-[0.2em] uppercase hover:bg-blue-600 hover:text-white transition-all shadow-xl active:scale-95"
+                        className="px-4 h-14 bg-white text-slate-900 rounded-lg font-black text-[11px] tracking-widest uppercase hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95"
                     >
                         Acknowledge
                     </button>

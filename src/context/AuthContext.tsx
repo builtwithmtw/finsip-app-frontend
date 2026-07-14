@@ -7,7 +7,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     loading: boolean;
     signIn: (email: string, password: string) => Promise<{ error: any; data?: any }>;
-    signUp: (email: string, password: string, displayName: string) => Promise<{ error: any; data?: any }>;
+    signUp: (email: string, password: string) => Promise<{ error: any; data?: any }>;
     signOut: () => Promise<void>;
     updatePassword: (password: string) => Promise<{ error: any; data?: any }>;
 }
@@ -61,27 +61,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
     }, []);
 
+    // `loading` gates the whole app behind a full-screen loader, so these must NOT set it:
+    // doing so unmounts the login form (losing its error state) and the Toaster along with
+    // it, which is why failed sign-ins used to report nothing at all. Callers track their
+    // own in-flight state; a successful sign-in swaps the UI via onAuthStateChange.
     const signIn = async (email: string, password: string) => {
-        setLoading(true);
-        const res = await supabase.auth.signInWithPassword({ email, password });
-        if (res.error) setLoading(false);
-        return res;
+        return supabase.auth.signInWithPassword({ email, password });
     };
 
-    const signUp = async (email: string, password: string, displayName: string) => {
-        setLoading(true);
-        const res = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: {
-                    display_name: displayName
-                },
-                emailRedirectTo: `${window.location.origin}/`
-            }
-        });
-        if (res.error) setLoading(false);
-        return res;
+    const signUp = async (email: string, password: string) => {
+        return supabase.auth.signUp({ email, password });
     };
 
     const signOut = async () => {
@@ -90,10 +79,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const updatePassword = async (password: string) => {
-        setLoading(true);
-        const res = await supabase.auth.updateUser({ password });
-        if (res.error) setLoading(false);
-        return res;
+        return supabase.auth.updateUser({ password });
     };
 
 
@@ -109,24 +95,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             updatePassword,
         }}>
             {loading ? (
-                <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-                    <div className="text-center">
-                        <div className="inline-flex p-6 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl shadow-2xl mb-6 animate-pulse">
-                            <svg
-                                className="text-white"
-                                width="48"
-                                height="48"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                            </svg>
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                    <div className="flex flex-col items-center animate-in fade-in duration-500">
+                        {/* Logo with a ring orbiting it */}
+                        <div className="relative w-16 h-16 mb-6">
+                            <div className="absolute inset-0 rounded-full border-2 border-slate-200" />
+                            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-600 animate-spin" />
+                            <img
+                                src="/logo.svg"
+                                alt=""
+                                className="absolute inset-0 m-auto w-9 h-9 rounded-lg animate-pulse"
+                            />
                         </div>
-                        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Loading Portfolio...</p>
+
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
+                            Loading Portfolio
+                        </p>
+
+                        {/* Indeterminate progress sliver */}
+                        <div className="w-40 h-0.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full w-1/3 bg-blue-600 rounded-full animate-loader-sweep" />
+                        </div>
                     </div>
                 </div>
             ) : children}
