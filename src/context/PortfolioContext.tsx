@@ -236,12 +236,10 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         if (!user) return;
 
         const byId = new Map(stocks.map(s => [s.id, s]));
-        const reordered = orderedIds
-            .map((id, index) => {
-                const stock = byId.get(id);
-                return stock ? { ...stock, position: index } : null;
-            })
-            .filter((s): s is Stock => s !== null);
+        const reordered = orderedIds.flatMap((id, index) => {
+            const stock = byId.get(id);
+            return stock ? [{ ...stock, position: index }] : [];
+        });
 
         const previous = stocks;
         setStocks(reordered);
