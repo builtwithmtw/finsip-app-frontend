@@ -1,72 +1,34 @@
 import React, { useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { formatCurrency } from '../utils/formatters';
+import { computeHoldings } from '../utils/holdings';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
 const SectorAllocationChart: React.FC = () => {
-    const { transactions, stocks, cashEntries } = usePortfolio();
+    const { transactions, stocks } = usePortfolio();
 
     const data = useMemo(() => {
-        const symbolData = new Map<string, { totalShares: number; totalCostBasis: number }>();
-
-        // Process transactions chronologically to calculate accurate cost basis per symbol
-        [...transactions]
-            .sort((a, b) => a.month.localeCompare(b.month))
-            .forEach(t => {
-                const current = symbolData.get(t.symbol) || { totalShares: 0, totalCostBasis: 0 };
-                const sharesNum = Number(t.shares || 0);
-                const amountNum = Number(t.totalAmount || 0);
-
-                if (t.type === 'buy') {
-                    current.totalShares += sharesNum;
-                    current.totalCostBasis += amountNum;
-                } else {
-                    const avgPriceBeforeSell = current.totalShares > 0 ? current.totalCostBasis / current.totalShares : 0;
-                    current.totalShares -= sharesNum;
-                    current.totalCostBasis -= sharesNum * avgPriceBeforeSell;
-                }
-
-                if (current.totalShares > 0.001) {
-                    symbolData.set(t.symbol, current);
-                } else {
-                    symbolData.delete(t.symbol);
-                }
-            });
-
         const sectorInvestedMap = new Map<string, number>();
         let totalInvestedValue = 0;
 
-        symbolData.forEach((data, symbol) => {
-            const amount = data.totalCostBasis;
-            const stock = stocks.find(s => s.symbol === symbol);
+        computeHoldings(transactions).forEach(holding => {
+            const amount = holding.totalCostBasis;
+            const stock = stocks.find(s => s.symbol === holding.symbol);
             const sector = stock?.sector || 'Others';
             sectorInvestedMap.set(sector, (sectorInvestedMap.get(sector) || 0) + amount);
             totalInvestedValue += amount;
         });
 
-        const totalBudgetedCash = cashEntries.reduce((sum, e) => sum + (e.type === 'withdraw' ? -e.amount : e.amount), 0);
-        const remainingBudget = Math.max(0, totalBudgetedCash - totalInvestedValue);
-        const totalValueForChart = totalInvestedValue + remainingBudget;
+        if (totalInvestedValue === 0) return [];
 
-        if (totalValueForChart === 0) return [];
-
-        const result = Array.from(sectorInvestedMap.entries())
+        return Array.from(sectorInvestedMap.entries())
             .map(([name, value]) => ({
                 name,
                 value,
-                percentage: (value / totalValueForChart) * 100
-            }));
-
-        if (remainingBudget > 0) {
-            result.push({
-                name: 'Cash Balance',
-                value: remainingBudget,
-                percentage: (remainingBudget / totalValueForChart) * 100
-            });
-        }
-
-        return result.sort((a, b) => b.value - a.value);
-    }, [transactions, stocks, cashEntries]);
+                percentage: (value / totalInvestedValue) * 100
+            }))
+            .sort((a, b) => b.value - a.value);
+    }, [transactions, stocks]);
 
     const COLORS = [
         '#3B82F6', // Blue 500
@@ -82,30 +44,30 @@ const SectorAllocationChart: React.FC = () => {
     if (data.length === 0) return null;
 
     return (
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 flex flex-col h-[720px]">
-            <div className="flex items-center justify-between mb-6">
+        <div className="bg-white p-4 lg:p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col h-full">
+            <div className="flex items-center justify-between mb-4">
                 <div>
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Sector Exposure</h3>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Diversification Analytics</p>
                 </div>
-                <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+                <div className="bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Pool Value</span>
-                    <span className="text-base font-black text-slate-900 tracking-tighter">
+                    <span className="text-base font-black text-slate-900 tracking-tight">
                         {formatCurrency(data.reduce((sum, item) => sum + item.value, 0)).split('.')[0]}
                     </span>
                 </div>
             </div>
 
             {/* Chart Container - Fixed size to maintain symmetry */}
-            <div className="relative h-[430px] mb-6 shrink-0">
+            <div className="relative flex-1 min-h-[190px] mb-3">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
                             data={data}
                             cx="50%"
                             cy="50%"
-                            innerRadius={130}
-                            outerRadius={170}
+                            innerRadius={75}
+                            outerRadius={100}
                             paddingAngle={5}
                             dataKey="value"
                             nameKey="name"
@@ -137,15 +99,15 @@ const SectorAllocationChart: React.FC = () => {
                 </ResponsiveContainer>
 
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-0">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-1">Top Sector</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Top Sector</span>
                     <span className="text-lg font-black text-slate-900 uppercase truncate max-w-[120px] block leading-none">{data[0]?.name}</span>
                     <span className="text-xs font-black text-blue-600 uppercase mt-2 block">{data[0]?.percentage.toFixed(1)}%</span>
                 </div>
             </div>
 
             {/* Scrollable Legend Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+            <div className="shrink-0 max-h-[120px] overflow-y-auto custom-scrollbar pr-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
                     {data.map((item, index) => (
                         <div key={item.name} className="flex items-center justify-between group cursor-default">
                             <div className="flex items-center gap-3 truncate">

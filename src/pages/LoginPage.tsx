@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ChevronRight, Mail, UserPlus, LogIn, Activity, ShieldCheck, Database, Key } from 'lucide-react';
+import { ChevronRight, Mail, UserPlus, LogIn, Key, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import clsx from 'clsx';
 import { toast } from 'sonner';
 
 const LoginPage: React.FC = () => {
@@ -18,208 +19,181 @@ const LoginPage: React.FC = () => {
     const [isRegisterMode, setIsRegisterMode] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [username, setUsername] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [authLoading, setAuthLoading] = useState(false);
-    const [emailConfirmationSent, setEmailConfirmationSent] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
 
     const signUpPaused = false;
+
+    // Supabase surfaces the useful text on .message; .code is often undefined, which is
+    // why failures used to show up blank.
+    const describeError = (error: any): string => {
+        const raw = error?.message || error?.error_description || '';
+        const code = error?.code || error?.name || '';
+
+        if (/invalid login credentials/i.test(raw)) return 'Incorrect email or password.';
+        if (/email not confirmed/i.test(raw)) return 'This email is not confirmed yet.';
+        if (/user already registered|already registered/i.test(raw)) return 'An account with this email already exists.';
+        if (/password should be at least/i.test(raw)) return 'Password must be at least 6 characters.';
+        if (/unable to validate email|invalid format/i.test(raw)) return 'That email address does not look valid.';
+        if (/rate limit|too many requests/i.test(raw)) return 'Too many attempts. Please wait a moment and try again.';
+        if (/fetch|network/i.test(raw)) return 'Could not reach the server. Check your connection.';
+
+        return raw || code || 'Something went wrong. Please try again.';
+    };
 
     const handleAuthSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setAuthLoading(true);
+        setFormError(null);
 
         try {
             const { error, data } = isRegisterMode
-                ? await signUp(email, password, username)
+                ? await signUp(email, password)
                 : await signIn(email, password);
-
-            console.log('Auth response:', { error, data });
 
             if (error) {
                 console.error('Auth error:', error);
-                toast.error(isRegisterMode ? 'Protocol Initialization Failed' : 'Access Denied', {
-                    description: error.code || 'An unexpected error occurred. Please try again.'
-                });
+                const message = describeError(error);
+                setFormError(message);
+                toast.error(isRegisterMode ? 'Sign up failed' : 'Sign in failed', { description: message });
                 setAuthLoading(false);
-            } else if (isRegisterMode) {
-                // Check if email confirmation is required
-                if (data?.user && !data.session) {
-                    console.log('Email confirmation required');
-                    setEmailConfirmationSent(true);
-                    toast.success('Verification Uplink Sent', {
-                        description: 'Please confirm your identity email to complete registration.',
-                        duration: 10000
-                    });
-                    // Clear form
-                    setEmail('');
-                    setPassword('');
-                    setUsername('');
-                } else {
-                    console.log('Account created with immediate session');
-                    toast.success('Identity Established', {
-                        description: 'Your secure vault is ready for initialization.'
-                    });
-                }
-                setAuthLoading(false);
-            } else {
-                // Login successful - loading will be handled by auth state change
-                toast.success('Welcome Back, Operator');
+                return;
             }
+
+            if (isRegisterMode) {
+                if (data?.session) {
+                    // Confirmation disabled: signUp already returned a session, we are logged in.
+                    toast.success('Account created');
+                    return;
+                }
+
+                // No session came back, so sign in with the credentials we already have.
+                const { error: signInError } = await signIn(email, password);
+
+                if (signInError) {
+                    console.error('Post-signup sign in failed:', signInError);
+                    const message = 'Account created, but this project still requires email confirmation. Disable it in Supabase to allow direct login.';
+                    setFormError(message);
+                    toast.error('Verification required', { description: message, duration: 10000 });
+                    setAuthLoading(false);
+                    return;
+                }
+
+                toast.success('Account created');
+                return;
+            }
+
+            // Login successful - loading will be handled by auth state change
+            toast.success('Welcome back');
         } catch (err: any) {
             console.error('Auth exception:', err);
-            toast.error('System Failure', {
-                description: err?.message || 'An unexpected error occurred. Please try again.'
-            });
+            const message = describeError(err);
+            setFormError(message);
+            toast.error('Something went wrong', { description: message });
             setAuthLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden font-sans uppercase selection:bg-blue-500/30">
-            {/* Ambient Lighting */}
-            <div className="absolute top-0 right-0 w-full h-full pointer-events-none">
-                <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full animate-pulse-slow" />
-                <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full animate-pulse-slow delay-1000" />
-            </div>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
+            <div className="w-full max-w-sm animate-in fade-in duration-500">
 
-            <div className="w-full max-w-md relative z-10 animate-in fade-in zoom-in-95 duration-700">
-
-                {/* Header */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex p-4 bg-slate-900 border border-white/5 rounded-3xl shadow-2xl mb-8 group relative overflow-hidden">
-                        <div className="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                        <ShieldCheck className="text-blue-500 relative z-10" size={32} />
-                    </div>
-                    <h1 className="text-3xl font-black text-white tracking-widest mb-2">Secure Gateway</h1>
-                    <div className="flex items-center justify-center gap-2 text-[10px] text-slate-500 font-bold tracking-[0.2em]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        SYSTEM OPERATIONAL
-                    </div>
+                {/* Brand */}
+                <div className="flex flex-col items-center mb-8">
+                    <img src="/logo.svg" alt="FinSIP" className="w-12 h-12 rounded-xl mb-3" />
+                    <h1 className="text-xl font-black text-slate-900 tracking-tight">FINSIP</h1>
+                    <p className="text-xs text-slate-400 mt-1">
+                        {isRegisterMode ? 'Create your account' : 'Sign in to your portfolio'}
+                    </p>
                 </div>
 
-                {/* Glass Card */}
-                <div className="bg-slate-900/60 backdrop-blur-2xl p-2 rounded-[2.5rem] border border-white/5 shadow-2xl ring-1 ring-white/5">
-                    <div className="bg-slate-950/50 rounded-[2rem] p-6 sm:p-8">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
 
-                        {emailConfirmationSent && (
-                            <div className="mb-6 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl animate-in fade-in slide-in-from-top-2">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
-                                        <Mail className="text-emerald-400" size={18} />
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="text-[10px] font-black text-emerald-400 tracking-wider">UPLINK SUCCESSFUL</p>
-                                        <p className="text-[9px] text-slate-400 mt-1 font-bold normal-case leading-relaxed">Verification link has been sent to your inbox.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Toggle */}
-                        <div className="flex bg-slate-900 p-1.5 rounded-2xl mb-8 border border-white/5">
-                            <button
-                                onClick={() => {
-                                    setIsRegisterMode(false);
-                                    setEmailConfirmationSent(false);
-                                }}
-                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black tracking-widest transition-all duration-300 ${!isRegisterMode
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                                    : 'text-slate-500 hover:text-slate-300'
-                                    }`}
-                            >
-                                <LogIn size={12} /> AUTHENTICATE
-                            </button>
-                            {signUpPaused ? null : (
-                                <button
-                                    onClick={() => {
-                                        setIsRegisterMode(true);
-                                        setEmailConfirmationSent(false);
-                                    }}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black tracking-widest transition-all duration-300 ${isRegisterMode
-                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                                        : 'text-slate-500 hover:text-slate-300'
-                                        }`}
-                                >
-                                    <UserPlus size={12} /> INITIALIZE
-                                </button>
+                    {/* Toggle */}
+                    <div className="flex bg-slate-50 p-1 rounded-lg mb-6 border border-slate-100">
+                        <button
+                            onClick={() => { setIsRegisterMode(false); setFormError(null); }}
+                            className={clsx(
+                                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors",
+                                !isRegisterMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
                             )}
+                        >
+                            <LogIn size={12} /> Sign In
+                        </button>
+                        {signUpPaused ? null : (
+                            <button
+                                onClick={() => { setIsRegisterMode(true); setFormError(null); }}
+                                className={clsx(
+                                    "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors",
+                                    isRegisterMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                                )}
+                            >
+                                <UserPlus size={12} /> Sign Up
+                            </button>
+                        )}
+                    </div>
+
+                    {formError && (
+                        <div className="flex items-start gap-2 mb-4 px-3 py-2.5 bg-rose-50 border border-rose-100 rounded-md animate-in fade-in slide-in-from-top-1 duration-200">
+                            <AlertCircle size={14} className="text-rose-500 mt-px shrink-0" />
+                            <p className="text-xs text-rose-700 leading-snug">{formError}</p>
+                        </div>
+                    )}
+
+                    <form onSubmit={handleAuthSubmit} className="space-y-3">
+                        <div className="relative group">
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={15} />
+                            <input
+                                type="email"
+                                placeholder="Email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full h-10 bg-slate-50 border border-slate-100 rounded-md pl-9 pr-3 text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all"
+                                required
+                            />
                         </div>
 
-                        {/* Form */}
-                        <form onSubmit={handleAuthSubmit} className="space-y-4">
-                            {isRegisterMode && (
-                                <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
-                                    <label className="text-[9px] font-bold text-slate-500 ml-4 tracking-widest">Operator Alias</label>
-                                    <div className="relative group">
-                                        <Activity className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors duration-300" size={16} />
-                                        <input
-                                            type="text"
-                                            placeholder="ENTER NAME"
-                                            value={username}
-                                            onChange={(e) => setUsername(e.target.value)}
-                                            className="w-full bg-slate-900 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold tracking-wider focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700"
-                                            required={isRegisterMode}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="space-y-1.5">
-                                <label className="text-[9px] font-bold text-slate-500 ml-4 tracking-widest">Identity</label>
-                                <div className="relative group">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors duration-300" size={16} />
-                                    <input
-                                        type="email"
-                                        placeholder="EMAIL ADDRESS"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        className="w-full bg-slate-900 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold tracking-wider focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[9px] font-bold text-slate-500 ml-4 tracking-widest">Passcode</label>
-                                <div className="relative group">
-                                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors duration-300" size={16} />
-                                    <input
-                                        type="password"
-                                        placeholder="••••••••••••"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full bg-slate-900 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white text-xs font-bold tracking-wider focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
+                        <div className="relative group">
+                            <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={15} />
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full h-10 bg-slate-50 border border-slate-100 rounded-md pl-9 pr-10 text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all"
+                                required
+                            />
                             <button
-                                type="submit"
-                                disabled={authLoading}
-                                className="w-full bg-white hover:bg-slate-200 text-slate-950 h-14 rounded-2xl font-black text-[10px] tracking-[0.2em] transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 shadow-xl mt-6 disabled:opacity-50 disabled:pointer-events-none"
+                                type="button"
+                                onClick={() => setShowPassword(prev => !prev)}
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 transition-colors"
                             >
-                                {authLoading ? (
-                                    <div className="w-4 h-4 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin" />
-                                ) : (
-                                    <>
-                                        {isRegisterMode ? 'INITIALIZE LINK' : 'ESTABLISH LINK'}
-                                        <ChevronRight size={16} />
-                                    </>
-                                )}
+                                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                             </button>
-                        </form>
-                    </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={authLoading}
+                            className="w-full h-10 bg-blue-600 hover:bg-blue-500 text-white rounded-md font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:pointer-events-none"
+                        >
+                            {authLoading ? (
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    {isRegisterMode ? 'Create Account' : 'Sign In'}
+                                    <ChevronRight size={14} />
+                                </>
+                            )}
+                        </button>
+                    </form>
                 </div>
 
-                {/* Footer */}
-                <div className="text-center mt-12 flex flex-col items-center gap-3">
-                    <Database size={16} className="text-slate-700" />
-                    <div className="space-y-1">
-                        <p className="text-slate-500 text-[10px] font-black tracking-[0.2em]">FINSIP PROTOCOL V1.2</p>
-                        <p className="text-slate-700 text-[8px] font-bold tracking-widest">ENCRYPTED CONNECTION</p>
-                    </div>
-                </div>
+                <p className="text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-6">
+                    FinSIP
+                </p>
             </div>
         </div>
     );
