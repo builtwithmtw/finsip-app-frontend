@@ -265,7 +265,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     };
 
     const removeStock = async (id: string) => {
-        const { error } = await supabase.from('stocks').delete().eq('id', id);
+        if (!user) return;
+        const { error } = await supabase.from('stocks').delete().eq('id', id).eq('user_id', user.id);
         if (error) {
             toast.error('Error removing stock: ' + error.message);
             return;
@@ -378,7 +379,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     };
 
     const deleteTransaction = async (id: string) => {
-        const { error } = await supabase.from('transactions').delete().eq('id', id);
+        if (!user) return;
+        const { error } = await supabase.from('transactions').delete().eq('id', id).eq('user_id', user.id);
         if (error) {
             toast.error('Error deleting transaction: ' + error.message);
             return;

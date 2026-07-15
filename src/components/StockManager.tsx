@@ -1,15 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useConfirm } from '../context/ConfirmContext';
-import { Plus, Trash2, Search, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Search, GripVertical, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import clsx from 'clsx';
+import { getSectorForSymbol } from '../data/psxSectors';
 
 const StockManager: React.FC = () => {
     const { stocks, addStock, removeStock, reorderStocks } = usePortfolio();
     const { confirm } = useConfirm();
     const [newStock, setNewStock] = useState('');
     const [selectedSector, setSelectedSector] = useState('Others');
+    // True while the sector below was filled in from the PSX lookup rather than
+    // picked by hand -- used to show the little "auto" hint. Cleared the moment
+    // the user changes the dropdown themselves.
+    const [autoDetected, setAutoDetected] = useState(false);
+
+    // Auto-fill the sector when the typed symbol matches a known PSX ticker.
+    // Unknown symbols leave the current selection untouched (still editable).
+    useEffect(() => {
+        const detected = getSectorForSymbol(newStock);
+        if (detected) {
+            setSelectedSector(detected);
+            setAutoDetected(true);
+        } else {
+            setAutoDetected(false);
+        }
+    }, [newStock]);
 
     // Chips reorder live under the cursor; the new order is only written once the drag ends.
     const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -110,13 +127,23 @@ const StockManager: React.FC = () => {
                     />
                 </div>
 
-                <select
-                    value={selectedSector}
-                    onChange={(e) => setSelectedSector(e.target.value)}
-                    className="h-9 sm:w-40 bg-slate-50 border-0 rounded-md px-3 text-slate-900 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all cursor-pointer"
-                >
-                    {sectors.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <div className="relative sm:w-40">
+                    <select
+                        value={selectedSector}
+                        onChange={(e) => { setSelectedSector(e.target.value); setAutoDetected(false); }}
+                        className="h-9 w-full bg-slate-50 border-0 rounded-md px-3 text-slate-900 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all cursor-pointer"
+                    >
+                        {sectors.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    {autoDetected && (
+                        <span
+                            title="Sector auto-detected from symbol"
+                            className="absolute right-7 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
+                        >
+                            <Sparkles size={12} />
+                        </span>
+                    )}
+                </div>
 
                 <button
                     type="submit"
