@@ -389,7 +389,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     };
 
     const deleteMonthTransactions = async (month: string) => {
-        const { error } = await supabase.from('transactions').delete().eq('month', month);
+        if (!user) return;
+        const { error } = await supabase.from('transactions').delete().eq('month', month).eq('user_id', user.id);
         if (error) {
             toast.error('Error deleting month data: ' + error.message);
             return;
