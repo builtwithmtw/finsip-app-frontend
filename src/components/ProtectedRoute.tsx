@@ -52,7 +52,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
     // There is no /login route: signed-out visitors get the login form in place
     // of whatever protected page they asked for, and land on it once they
-    // authenticate. "/" is the public screener and never reaches this.
+    // authenticate. The public pages -- "/" and /screener -- sit outside the
+    // (app) group and never reach this.
     if (!isAuthenticated) {
         return <LoginPage />;
     }

@@ -34,8 +34,8 @@ export const metadata: Metadata = {
     icon: [{ url: "/logo.svg", type: "image/svg+xml" }],
     apple: [{ url: "/apple-touch-icon.png" }],
   },
-  // Kept even though the PWA was dropped: these still give iOS "Add to Home
-  // Screen" the standalone treatment it had before, and cost nothing.
+  // iOS reads these rather than the manifest's display/name for "Add to Home
+  // Screen", so they have to agree with app/manifest.ts.
   appleWebApp: {
     capable: true,
     title: "FinSIP",

@@ -33,7 +33,14 @@
       "Bash(awk '$1==\"blob\"')",
       "Bash(sort -k3 -rn)",
       "Bash(awk '{printf \"%.2f MB  %s\\\\n\", $3/1048576, $4}')",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(node -e \"const s=require\\('sharp'\\); console.log\\('sharp ok', s.versions.vips\\)\")",
+      "Bash(node /private/tmp/claude-502/-Users-developer-Downloads-Apps-myapps-finsip-app-frontend/b206c832-696e-4a24-a5c0-5733f8b4dd53/scratchpad/gen-icons.mjs)",
+      "Bash(curl -s http://localhost:3000/screener)",
+      "Bash(curl -s -o /tmp/ilp.json -w \"HTTP %{http_code}  %{size_download}b\\\\n\" -H \"User-Agent: Mozilla/5.0\" -H \"Accept: application/json\" \"https://dps.psx.com.pk/timeseries/eod/ILP\")",
+      "Bash(curl -s -o /tmp/luck.json -w \"HTTP %{http_code}  %{size_download}b\\\\n\" -H \"User-Agent: Mozilla/5.0\" -H \"Accept: application/json\" \"https://dps.psx.com.pk/timeseries/eod/LUCK\")",
+      "Bash(npx tsx *)",
+      "Bash(node --experimental-strip-types -e ' *)"
     ]
   }
 }
