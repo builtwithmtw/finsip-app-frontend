@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency } from '../context/PrivacyContext';

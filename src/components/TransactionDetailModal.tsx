@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { X, Edit2, Trash2, Check, ArrowLeft } from 'lucide-react';
 import type { Transaction } from '../types';

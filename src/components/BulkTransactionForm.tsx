@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useMemo, useRef } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { Save, TrendingUp, TrendingDown, Info, Calculator, CopyPlus, Share2 } from 'lucide-react';

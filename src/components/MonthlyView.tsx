@@ -1,9 +1,11 @@
+"use client";
+
 import React, { useMemo, useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { formatMonth } from '../utils/formatters';
 import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext';
-import { NavLink } from 'react-router-dom';
+import Link from 'next/link';
 import { Trash2, Table2, ArrowRight } from 'lucide-react';
 import { SkeletonBar, SkeletonCard, SkeletonTableRows } from './DashboardSkeleton';
 import { toast } from 'sonner';
@@ -137,13 +139,13 @@ const MonthlyView: React.FC = () => {
                     Every buy and sell you record shows up here as a symbol-by-month matrix.
                     Record your first one in Monthly Entry.
                 </p>
-                <NavLink
-                    to="/entry"
+                <Link
+                    href="/entry"
                     className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors"
                 >
                     Go to Monthly Entry
                     <ArrowRight size={13} />
-                </NavLink>
+                </Link>
             </div>
         );
     }

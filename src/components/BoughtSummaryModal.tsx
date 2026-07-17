@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useMemo, useRef, useState } from 'react';
 import { X, Copy, Download, Image as ImageIcon, Check } from 'lucide-react';
 import { toast } from 'sonner';

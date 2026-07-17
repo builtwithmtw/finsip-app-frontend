@@ -5,6 +5,11 @@ export interface Stock {
   createdAt: string;
   /** Drag-to-rearrange order. Null on rows created before the position column existed. */
   position: number | null;
+  /**
+   * Target weight for the Allocation tab, relative to the other symbols rather than a
+   * share of 100. Null until one is set.
+   */
+  allocationWeight: number | null;
 }
 
 export interface Transaction {
@@ -51,4 +56,14 @@ export interface RealizedProfit {
   realizedProfit: number;
   sellDate: string; // YYYY-MM-DD
   createdAt: string;
+}
+
+/** A company as returned by an index feed. */
+export interface IndexCompany {
+  name: string;
+  weight: number;
+  price: number;
+  logo: string;
+  sector: string;
+  companyName: string;
 }

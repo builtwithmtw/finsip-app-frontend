@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { type User } from '@supabase/supabase-js';
@@ -17,8 +19,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
 
-    // Optimized loading: only show loader if we detect a potential session
+    // Optimized loading: only show loader if we detect a potential session.
+    // Client components still render on the server for the initial HTML, where
+    // there is no localStorage -- and no session to find either, so the server
+    // pass answers "no loader" and the effect below settles it for real.
     const [loading, setLoading] = useState(() => {
+        if (typeof window === 'undefined') return false;
+
         // Check if there's any indication of an existing session
         const hasSession = Object.keys(localStorage).some(key =>
             key.includes('supabase') || key.includes('auth-token')
@@ -84,6 +91,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 
 
+    // Renders children unconditionally. It used to swap in a full-screen loader
+    // while `loading`, but this provider now sits at the root and would hold the
+    // public screener hostage to an auth check it doesn't need -- and the server,
+    // which has no localStorage, would render the children while the client
+    // rendered the loader, which is a hydration mismatch. The loader moved to
+    // ProtectedRoute, where it only covers pages that actually require a user.
     return (
         <AuthContext.Provider value={{
             user,
@@ -94,31 +107,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             signOut,
             updatePassword,
         }}>
-            {loading ? (
-                <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-                    <div className="flex flex-col items-center animate-in fade-in duration-500">
-                        {/* Logo with a ring orbiting it */}
-                        <div className="relative w-16 h-16 mb-6">
-                            <div className="absolute inset-0 rounded-full border-2 border-slate-200" />
-                            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-600 animate-spin" />
-                            <img
-                                src="/logo.svg"
-                                alt=""
-                                className="absolute inset-0 m-auto w-9 h-9 rounded-lg animate-pulse"
-                            />
-                        </div>
-
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
-                            Loading Portfolio
-                        </p>
-
-                        {/* Indeterminate progress sliver */}
-                        <div className="w-40 h-0.5 bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full w-1/3 bg-blue-600 rounded-full animate-loader-sweep" />
-                        </div>
-                    </div>
-                </div>
-            ) : children}
+            {children}
         </AuthContext.Provider>
     );
 };

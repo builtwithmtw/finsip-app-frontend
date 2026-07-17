@@ -1,0 +1,310 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* FINSIP's forms are built against this plugin's base styles. */
+@plugin "@tailwindcss/forms";
+
+/* Kept so the screener's `dark:` classes stay valid, but nothing ever sets the
+   class: the theme toggle and its pre-paint script were dropped so the public
+   homepage matches the signed-in app. The .dark block below is dormant. */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* Screener typography is scoped to .screener-root rather than applied here --
+     mapping --font-sans to Manrope would restyle every FINSIP page, which was
+     built around the system stack. */
+  --font-sans: var(--font-app-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-heading);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-gain: var(--gain);
+  --color-gain-soft: var(--gain-soft);
+  --color-loss: var(--loss);
+  --color-loss-soft: var(--loss-soft);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* Tailwind 3.4's default sans, verbatim. FINSIP never overrode fontFamily, so
+     this is literally what it rendered in under Vite -- reproduced here because
+     Tailwind 4 ships a different default stack (no ui-sans-serif/system-ui). */
+  --font-app-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --brand: oklch(0.6 0.114 183);
+  --brand-foreground: oklch(0.985 0 0);
+  --gain: oklch(0.56 0.13 155);
+  --gain-soft: oklch(0.95 0.045 158);
+  --loss: oklch(0.55 0.21 27);
+  --loss-soft: oklch(0.955 0.035 25);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+  --brand: oklch(0.72 0.11 183);
+  --brand-foreground: oklch(0.16 0 0);
+  --gain: oklch(0.78 0.15 158);
+  --gain-soft: oklch(0.42 0.07 158 / 25%);
+  --loss: oklch(0.72 0.17 22);
+  --loss-soft: oklch(0.5 0.12 25 / 25%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+
+  /* Tailwind 3's preflight gave buttons `cursor: pointer`; v4 dropped that and
+     defers to the browser default, which is `default`. FINSIP was built under v3
+     and leans on <button> for anything clickable that isn't a route -- ledger
+     month and symbol headers, table actions, the nav menu -- so without this,
+     none of them look clickable. Restores v3 behaviour app-wide.
+     Disabled buttons are excluded: a pointer there advertises an action that
+     won't happen. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Screener typography, scoped.
+ *
+ * Upstream applied these to h1-h3 and .tabular-nums globally, which was safe in
+ * a single-purpose app. Here it would put Space Grotesk on every FINSIP heading
+ * and monospace every portfolio figure -- .tabular-nums is used heavily by the
+ * holdings and allocation tables. */
+.screener-root {
+  font-family: var(--font-screener-sans), var(--font-app-sans), sans-serif;
+}
+
+.screener-root h1,
+.screener-root h2,
+.screener-root h3 {
+  font-family: var(--font-heading), var(--font-screener-sans), sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.screener-root .tabular-nums {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+/* Indeterminate progress bar for loading states. */
+@keyframes progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+.animate-progress {
+  animation: progress 1.1s ease-in-out infinite;
+}
+
+/* Minimal, unobtrusive scrollbar for scrollable panels. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}
+/* ---------------------------------------------------------------------------
+ * FINSIP utilities, carried over from the Vite build's index.css.
+ * Plain CSS rather than Tailwind 4's @utility: these are used as bare classes
+ * and never take variants, so there is nothing to gain from registering them.
+ * ------------------------------------------------------------------------- */
+
+/* Indeterminate bar for the app loader: sweeps left to right, forever. */
+@keyframes loader-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.animate-loader-sweep {
+  animation: loader-sweep 1.2s ease-in-out infinite;
+}
+
+/* FINSIP's visible scrollbar. Scoped away from the screener, which ships its
+   own thinner .scrollbar-thin treatment above. */
+.finsip-root ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.finsip-root ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.finsip-root ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+  border: 3px solid #f1f5f9;
+  transition: all 0.2s ease;
+}
+
+.finsip-root ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Scrollbar only on hover */
+.scrollbar-hide-auto {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hide-auto::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide-auto:hover {
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
+}
+
+.scrollbar-hide-auto:hover::-webkit-scrollbar {
+  display: block;
+}
+
+/* Scrollbar never shown, not even on hover */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* number input without the spinner arrows -- they steal width in tight cells and
+   invite click-stepping where typing is the point */
+.no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

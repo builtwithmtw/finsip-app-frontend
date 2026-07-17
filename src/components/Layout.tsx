@@ -1,7 +1,10 @@
+"use client";
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
@@ -11,21 +14,24 @@ import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
 import clsx from 'clsx';
 
 const navItems = [
-    { path: '/', label: 'Overview', icon: LayoutDashboard },
+    { path: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { path: '/live', label: 'Live Portfolio', icon: Landmark },
     { path: '/entry', label: 'Monthly Entry', icon: Calendar },
     { path: '/ledger', label: 'Transaction Ledger', icon: Table2 },
+    { path: '/allocation', label: 'Allocation', icon: PieChart },
 ];
 
-const Layout: React.FC = () => {
+// Took its children from <Outlet /> under react-router; the App Router hands the
+// active page in as `children` from the (app) route-group layout instead.
+const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { transactions, livePrices, isMarketLive, marketLoading, selectedMonth, setSelectedMonth } = usePortfolio();
     const { selectedProxy, setShowModal, retryFetch } = useProxy();
     const { signOut, user } = useAuth();
     const { hidden, toggleHidden } = usePrivacy();
     const formatCurrency = useCurrency();
     const { confirm } = useConfirm();
-    const location = useLocation();
-    const navigate = useNavigate();
+    const pathname = usePathname();
+    const router = useRouter();
 
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -57,13 +63,13 @@ const Layout: React.FC = () => {
             cancelText: 'Cancel'
         });
 
-        if (isConfirmed) navigate('/delete-account');
+        if (isConfirmed) router.push('/delete-account');
     };
 
     useEffect(() => {
-        const currentNav = navItems.find(item => item.path === location.pathname);
+        const currentNav = navItems.find(item => item.path === pathname);
         document.title = currentNav ? `${currentNav.label} | FINSIP` : 'FINSIP';
-    }, [location.pathname]);
+    }, [pathname]);
 
     // Unpriced symbols are held at cost inside summarizeLive, so a gap in the feed can no
     // longer shrink the portfolio or report the missing position's whole cost as a loss.
@@ -268,43 +274,44 @@ const Layout: React.FC = () => {
                 <div className="max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-10 py-3 lg:py-4 flex-1 min-h-0 w-full flex flex-col gap-3 lg:gap-4">
                     {/* Tab Navigation */}
                     <nav className="shrink-0 flex justify-start lg:justify-center gap-1 border-b border-slate-200 overflow-x-auto overflow-y-hidden scrollbar-none">
-                        {navItems.map((item) => (
-                            <NavLink
-                                key={item.path}
-                                to={item.path}
-                                end={item.path === '/'}
-                                className={({ isActive }) => clsx(
-                                    "group relative flex items-center gap-1.5 px-3 lg:px-4 lg:gap-2 pt-2 pb-3 -mb-px rounded-t-lg",
-                                    "text-[10px] lg:text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-colors duration-200",
-                                    isActive
-                                        ? "text-blue-600"
-                                        : "text-slate-400 hover:text-slate-700 hover:bg-slate-100/70"
-                                )}
-                            >
-                                {({ isActive }) => (
-                                    <>
-                                        <item.icon
-                                            size={15}
-                                            className={clsx(
-                                                "transition-transform duration-200 group-hover:scale-110",
-                                                isActive ? "text-blue-600" : "text-slate-300 group-hover:text-slate-500"
-                                            )}
-                                        />
-                                        <span>{item.label}</span>
-                                        <span
-                                            className={clsx(
-                                                "absolute inset-x-2 bottom-0 h-0.5 rounded-full transition-all duration-200",
-                                                isActive ? "bg-blue-600 opacity-100" : "bg-slate-300 opacity-0 group-hover:opacity-100"
-                                            )}
-                                        />
-                                    </>
-                                )}
-                            </NavLink>
-                        ))}
+                        {navItems.map((item) => {
+                            // NavLink's isActive render-prop has no App Router equivalent;
+                            // every tab is a leaf route, so an exact match is what `end` meant.
+                            const isActive = pathname === item.path;
+
+                            return (
+                                <Link
+                                    key={item.path}
+                                    href={item.path}
+                                    className={clsx(
+                                        "group relative flex items-center gap-1.5 px-3 lg:px-4 lg:gap-2 pt-2 pb-3 -mb-px rounded-t-lg",
+                                        "text-[10px] lg:text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-colors duration-200",
+                                        isActive
+                                            ? "text-blue-600"
+                                            : "text-slate-400 hover:text-slate-700 hover:bg-slate-100/70"
+                                    )}
+                                >
+                                    <item.icon
+                                        size={15}
+                                        className={clsx(
+                                            "transition-transform duration-200 group-hover:scale-110",
+                                            isActive ? "text-blue-600" : "text-slate-300 group-hover:text-slate-500"
+                                        )}
+                                    />
+                                    <span>{item.label}</span>
+                                    <span
+                                        className={clsx(
+                                            "absolute inset-x-2 bottom-0 h-0.5 rounded-full transition-all duration-200",
+                                            isActive ? "bg-blue-600 opacity-100" : "bg-slate-300 opacity-0 group-hover:opacity-100"
+                                        )}
+                                    />
+                                </Link>
+                            );
+                        })}
                     </nav>
 
                     <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide-auto animate-in fade-in duration-300">
-                        <Outlet />
+                        {children}
                     </div>
                 </div>
             </main>

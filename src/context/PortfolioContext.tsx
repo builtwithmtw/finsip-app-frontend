@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
 import { useProxy } from './ProxyContext';
 import { supabase } from '../lib/supabase';
@@ -28,6 +30,7 @@ interface PortfolioContextType {
     addStock: (symbol: string, sector: string) => Promise<void>;
     removeStock: (id: string) => Promise<void>;
     reorderStocks: (orderedIds: string[]) => Promise<void>;
+    setStockWeight: (id: string, weight: number | null) => Promise<void>;
     clearAllData: () => Promise<void>;
 }
 
@@ -140,7 +143,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                             symbol: s.symbol,
                             sector: s.sector,
                             createdAt: s.created_at,
-                            position: s.position ?? null
+                            position: s.position ?? null,
+                            allocationWeight: s.allocation_weight ?? null
                         }))
                         .sort((a, b) => {
                             if (a.position === null && b.position === null) {
@@ -224,8 +228,32 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             symbol: data.symbol,
             sector: data.sector,
             createdAt: data.created_at,
-            position: data.position ?? prev.length
+            position: data.position ?? prev.length,
+            allocationWeight: data.allocation_weight ?? null
         }]);
+    };
+
+    /**
+     * Sets a symbol's target weight for the Allocation tab. Optimistic: the table
+     * recomputes under the cursor as the number is typed, and a rejected write puts the
+     * old weight back.
+     */
+    const setStockWeight = async (id: string, weight: number | null) => {
+        if (!user) return;
+
+        const previous = stocks;
+        setStocks(prev => prev.map(s => (s.id === id ? { ...s, allocationWeight: weight } : s)));
+
+        const { error } = await supabase
+            .from('stocks')
+            .update({ allocation_weight: weight })
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+        if (error) {
+            setStocks(previous);
+            toast.error('Could not save the weight: ' + error.message);
+        }
     };
 
     /**
@@ -440,6 +468,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             addStock,
             removeStock,
             reorderStocks,
+            setStockWeight,
             clearAllData
         }}>
             {children}
