@@ -89,8 +89,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     {/* Three columns so the worth pill sits dead centre regardless of what
                         the side columns contain. */}
                     <div className="flex flex-wrap items-center justify-between gap-2 py-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-4">
-                        <div className="flex items-center gap-2.5 shrink-0">
-                            <img src="/logo.svg" alt="FinSIP" className="w-9 h-9 rounded-lg shrink-0" />
+                        {/* The mark is the way back out to the public site, as it is on the
+                            screener's own header. `alt` is empty because the wordmark beside
+                            it already names the link. */}
+                        <Link
+                            href="/"
+                            className="flex items-center gap-2.5 shrink-0 rounded-lg transition-opacity hover:opacity-70"
+                        >
+                            <img src="/logo.svg" alt="" className="w-9 h-9 rounded-lg shrink-0" />
                             {/* Wordmark and tagline share one optical block: the tagline is letter-spaced
                                 to sit flush with the right edge of FINSIP above it. */}
                             <div className="flex flex-col justify-center leading-none">
@@ -99,7 +105,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                     SIP Tracker
                                 </span>
                             </div>
-                        </div>
+                        </Link>
 
                         {/* Worth */}
                         <div className="order-last w-full overflow-x-auto scrollbar-none flex items-center gap-3 bg-slate-900 px-3 py-2 rounded-lg shadow-sm lg:order-none lg:w-auto lg:gap-5 lg:pl-5 lg:pr-3 lg:py-2.5">

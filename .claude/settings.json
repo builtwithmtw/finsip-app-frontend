@@ -43,7 +43,8 @@
       "Bash(node --experimental-strip-types -e ' *)",
       "Bash(curl -s -o /dev/null -w \"dev server: HTTP %{http_code}\\\\n\" http://localhost:3000/screener)",
       "Bash(curl -s -D /tmp/hdr.txt -o /tmp/stocks.json -w \"HTTP %{http_code}  %{size_download}b  %{time_total}s\\\\n\" http://localhost:3000/api/stocks --max-time 180)",
-      "Bash(pkill -f \"next dev\")"
+      "Bash(pkill -f \"next dev\")",
+      "Bash(npx eslint *)"
     ]
   }
 }

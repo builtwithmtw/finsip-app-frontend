@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LineChart, Wallet, PieChart, ArrowRight, ShieldCheck } from "lucide-react";
 import { SECTORS } from "@/lib/types";
 import { TICKERS } from "@/lib/seed";
+import { AuthAction } from "@/components/home/AuthAction";
 
 export const metadata = {
   title: "FinSIP — PSX Screener & SIP Portfolio Tracker",
@@ -79,12 +80,10 @@ export default function Home() {
             </div>
           </div>
 
-          <Link
-            href="/dashboard"
-            className="rounded-lg border border-white/10 bg-white/5 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-300 backdrop-blur transition-colors hover:border-white/20 hover:text-white"
-          >
-            Log in
-          </Link>
+          {/* A client island: this page stays a server component, but the session
+              only exists in the browser, so the one control that depends on it
+              has to resolve there. */}
+          <AuthAction />
         </div>
       </header>
 
