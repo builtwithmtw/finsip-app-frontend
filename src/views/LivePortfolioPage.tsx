@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask } from '../context/PrivacyContext';

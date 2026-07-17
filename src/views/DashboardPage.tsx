@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useMemo } from 'react';
 import { LineChart, ArrowDown } from 'lucide-react';
 import HoldingsTable from '../components/HoldingsTable';

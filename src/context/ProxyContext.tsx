@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
@@ -27,25 +29,34 @@ export const ProxyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     // 1. Database Proxies (System)
     const [dbProxies, setDbProxies] = useState<Proxy[]>([]);
 
+    // These initializers run during the server render too, where localStorage
+    // doesn't exist. Reading through a guarded helper keeps the server pass on
+    // the same defaults a first-time visitor gets, and a corrupt entry no longer
+    // takes the whole provider down with a parse error.
+    const readStored = <T,>(key: string, fallback: T): T => {
+        if (typeof window === 'undefined') return fallback;
+        try {
+            const saved = localStorage.getItem(key);
+            return saved ? (JSON.parse(saved) as T) : fallback;
+        } catch {
+            return fallback;
+        }
+    };
+
     // 2. Custom Proxies (Local Storage)
-    const [customProxies, setCustomProxies] = useState<Proxy[]>(() => {
-        const saved = localStorage.getItem('custom_proxies');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [customProxies, setCustomProxies] = useState<Proxy[]>(() =>
+        readStored<Proxy[]>('custom_proxies', [])
+    );
 
     // Combined list
     const proxies = [...dbProxies, ...customProxies];
 
     // 3. Selected Proxy (Local Storage)
     // We defer the "validity check" until we have proxies loaded, but we try to load from LS first.
-    const [selectedProxy, setSelectedProxy] = useState<Proxy>(() => {
-        const saved = localStorage.getItem('selected_proxy');
-        if (saved) {
-            return JSON.parse(saved);
-        }
+    const [selectedProxy, setSelectedProxy] = useState<Proxy>(() =>
         // Fallback placeholder until DB loads
-        return { id: 'loading', name: 'Loading...', url: '' };
-    });
+        readStored<Proxy>('selected_proxy', { id: 'loading', name: 'Loading...', url: '' })
+    );
 
     const [showModal, setShowModal] = useState(false);
     const [retryFetchFn, setRetryFetchFn] = useState<() => void>(() => () => { });

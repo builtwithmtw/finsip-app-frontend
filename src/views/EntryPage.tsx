@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import BulkTransactionForm from '../components/BulkTransactionForm';
 

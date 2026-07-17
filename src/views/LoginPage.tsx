@@ -1,19 +1,22 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
-import { ChevronRight, Mail, UserPlus, LogIn, Key, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { ChevronRight, Mail, UserPlus, LogIn, Key, Eye, EyeOff, AlertCircle, LineChart } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
 
 const LoginPage: React.FC = () => {
     const { signIn, signUp, isAuthenticated } = useAuth();
-    const navigate = useNavigate();
+    const router = useRouter();
 
     useEffect(() => {
         if (isAuthenticated) {
-            navigate('/', { replace: true });
+            router.replace('/dashboard');
         }
-    }, [isAuthenticated, navigate]);
+    }, [isAuthenticated, router]);
 
     // Auth Form State
     const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -191,9 +194,26 @@ const LoginPage: React.FC = () => {
                     </form>
                 </div>
 
-                <p className="text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-6">
-                    FinSIP
-                </p>
+                {/* The screener is public, so there is somewhere useful to go from
+                    here without an account. Signed-out visitors reach this page by
+                    asking for a protected route, which means the browser's Back
+                    button returns them to whatever bounced them, not to the screener. */}
+                <div className="mt-6 flex flex-col items-center gap-3">
+                    <Link
+                        href="/screener"
+                        className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors"
+                    >
+                        <LineChart size={13} />
+                        Go to Screener
+                        <span className="text-slate-300 normal-case tracking-normal font-medium">
+                            — no account needed
+                        </span>
+                    </Link>
+
+                    <p className="text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest">
+                        FinSIP
+                    </p>
+                </div>
             </div>
         </div>
     );

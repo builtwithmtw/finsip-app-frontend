@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { Sparkles, X, CheckCircle2, Zap, Shield, TrendingUp, Globe, Edit3 } from 'lucide-react';
 import clsx from 'clsx';

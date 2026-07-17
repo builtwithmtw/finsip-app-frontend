@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
 import { useProxy } from './ProxyContext';
 import { supabase } from '../lib/supabase';

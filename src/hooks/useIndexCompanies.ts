@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProxy } from '../context/ProxyContext';
 import type { IndexCompany } from '../types';

@@ -1,6 +1,12 @@
 [build]
   command = "npm run build"
-  publish = "dist"
+  # Next's own output, wired up by @netlify/plugin-nextjs. The SPA `publish = "dist"`
+  # and the `/* /index.html 200` rule in public/_redirects are both gone: routing is
+  # the framework's job now, and that catch-all would have swallowed /api/stocks.
+  publish = ".next"
 
 [build.environment]
-  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL"
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

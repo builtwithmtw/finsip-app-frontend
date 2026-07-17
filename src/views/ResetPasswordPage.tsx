@@ -1,12 +1,14 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { ChevronRight, ShieldCheck, Key, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ResetPasswordPage: React.FC = () => {
     const { updatePassword, isAuthenticated, loading: authLoadingState } = useAuth();
-    const navigate = useNavigate();
+    const router = useRouter();
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -56,7 +58,7 @@ const ResetPasswordPage: React.FC = () => {
                 });
                 // Redirect to dashboard or login
                 setTimeout(() => {
-                    navigate('/', { replace: true });
+                    router.replace('/dashboard');
                 }, 2000);
             }
         } catch (err: any) {
@@ -85,7 +87,7 @@ const ResetPasswordPage: React.FC = () => {
                         The security token has expired or is invalid. Please request a new recovery uplink.
                     </p>
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => router.push('/dashboard')}
                         className="bg-slate-900 hover:bg-slate-800 text-white border border-white/5 py-3 px-8 rounded-xl text-[9px] font-black tracking-widest transition-all"
                     >
                         RETURN TO GATEWAY

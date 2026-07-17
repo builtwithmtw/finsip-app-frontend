@@ -1,5 +1,7 @@
+"use client";
+
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { AlertTriangle, Trash2, ShieldAlert, CheckCircle2, UserX, ArrowLeft } from 'lucide-react';
@@ -9,7 +11,7 @@ import { supabase } from '../lib/supabase';
 const DeleteAccountPage: React.FC = () => {
     const { signOut } = useAuth();
     const { clearAllData, stocks, transactions } = usePortfolio();
-    const navigate = useNavigate();
+    const router = useRouter();
 
     const [step, setStep] = useState<1 | 2>(1);
     const [loading, setLoading] = useState(false);
@@ -48,7 +50,7 @@ const DeleteAccountPage: React.FC = () => {
 
             toast.success("Account terminated successfully.");
             await signOut();
-            navigate('/', { replace: true });
+            router.replace('/dashboard');
         } catch (error: any) {
             console.error('Account deletion error:', error);
             toast.error("Failed to delete account: " + error.message);
@@ -68,7 +70,7 @@ const DeleteAccountPage: React.FC = () => {
             </div>
 
             <button
-                onClick={() => navigate(-1)}
+                onClick={() => router.back()}
                 className="absolute top-6 left-6 text-slate-500 hover:text-white flex items-center gap-2 transition-colors"
             >
                 <ArrowLeft size={16} /> <span className="text-xs font-bold tracking-widest uppercase">Abort</span>

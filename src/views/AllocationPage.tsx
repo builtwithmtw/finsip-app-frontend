@@ -1,5 +1,8 @@
+"use client";
+
 import React, { useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { RefreshCw, LineChart } from 'lucide-react';
 import clsx from 'clsx';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { usePortfolio } from '../context/PortfolioContext';
@@ -62,30 +65,34 @@ const IndexAllocationView: React.FC<{ investment: number }> = ({ investment }) =
  * money is split across what is already tracked.
  */
 const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
-    const { stocks, setStockWeight } = usePortfolio();
-    const { companies, loading, error, refetch } = useIndexCompanies('ALLSHR');
+    // Prices come from the feed the whole app already shares, so this table has
+    // them the moment the page opens. The ALLSHR fetch below is only for logos
+    // and is never waited on -- it used to gate the entire view behind a
+    // skeleton, which hid symbols and weights that were already in memory.
+    const { stocks, setStockWeight, livePrices } = usePortfolio();
+    const { companies, error, refetch } = useIndexCompanies('ALLSHR');
 
     // Raw input text per symbol, so a half-typed "1." or a cleared field survives the
     // round trip through Number() until the field is committed on blur.
     const [drafts, setDrafts] = useState<Record<string, string>>({});
 
     const rows: AllocationInput[] = useMemo(() => {
-        const feed = new Map(companies.map((c) => [c.name, c]));
+        const logos = new Map(companies.map((c) => [c.name, c.logo]));
 
         // Deliberately unsorted: these stay in the order set on Overview. Ranking by
         // weight here would make a row jump out from under the cursor mid-edit, and that
         // same order is what decides which symbols get funded.
         return stocks.map((s) => {
-            const match = feed.get(s.symbol.toUpperCase());
+            const symbol = s.symbol.toUpperCase();
             return {
                 id: s.id,
-                name: s.symbol.toUpperCase(),
-                logo: match?.logo ?? '',
-                price: match?.price ?? 0,
+                name: symbol,
+                logo: logos.get(symbol) ?? '',
+                price: livePrices[symbol] ?? 0,
                 weight: drafts[s.id] !== undefined ? Number(drafts[s.id]) || 0 : s.allocationWeight ?? 0,
             };
         });
-    }, [stocks, companies, drafts]);
+    }, [stocks, companies, livePrices, drafts]);
 
     const allocation = useAllocations(rows, investment);
 
@@ -108,8 +115,10 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
         if (next !== current) setStockWeight(row.id, next);
     };
 
-    if (loading && companies.length === 0) return <TableSkeleton />;
-
+    // No loading gate: symbols, weights and prices all come from context that is
+    // already populated, so the table renders immediately. Logos arrive later and
+    // simply appear -- Monthly Entry lists the same symbols with no wait, and this
+    // tab had no reason to behave differently.
     if (stocks.length === 0) {
         return (
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-6 py-12 text-center">
@@ -193,19 +202,31 @@ const AllocationPage: React.FC = () => {
                     ))}
                 </div>
 
-                <label className="flex items-center gap-2 bg-slate-900 rounded-lg pl-3 pr-1.5 py-1.5 shadow-sm">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Invest</span>
-                    <input
-                        type="number"
-                        min="0"
-                        step="1000"
-                        value={investment}
-                        // An empty field parses to NaN and would blank the whole table.
-                        onChange={(e) => setInvestment(Number(e.target.value) || 0)}
-                        onFocus={(e) => e.currentTarget.select()}
-                        className="no-spinner w-24 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-xs font-black text-white tabular-nums text-right outline-none transition-colors hover:bg-white/10 focus:border-blue-400 focus:bg-white/10"
-                    />
-                </label>
+                <div className="flex items-center gap-2">
+                    {/* Deciding what to hold is the step before deciding how much of
+                        it to hold, and the screener is where that happens. */}
+                    <Link
+                        href="/screener"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-black uppercase tracking-widest text-slate-500 shadow-sm hover:text-slate-900 hover:border-slate-300 transition-colors"
+                    >
+                        <LineChart size={13} />
+                        Screener
+                    </Link>
+
+                    <label className="flex items-center gap-2 bg-slate-900 rounded-lg pl-3 pr-1.5 py-1.5 shadow-sm">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Invest</span>
+                        <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            value={investment}
+                            // An empty field parses to NaN and would blank the whole table.
+                            onChange={(e) => setInvestment(Number(e.target.value) || 0)}
+                            onFocus={(e) => e.currentTarget.select()}
+                            className="no-spinner w-24 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-xs font-black text-white tabular-nums text-right outline-none transition-colors hover:bg-white/10 focus:border-blue-400 focus:bg-white/10"
+                        />
+                    </label>
+                </div>
             </div>
 
             {view === 'MINE' ? <MySymbolsView investment={investment} /> : <IndexAllocationView investment={investment} />}

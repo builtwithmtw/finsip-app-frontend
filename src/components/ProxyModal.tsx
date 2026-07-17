@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { useProxy } from '../context/ProxyContext';
 import { Globe, Plus, Trash2, Check, X, Server, Link2 } from 'lucide-react';

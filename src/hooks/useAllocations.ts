@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo } from 'react';
 
 /** Only the top slice by weight gets funded; the tail is too small to buy a share of. */
