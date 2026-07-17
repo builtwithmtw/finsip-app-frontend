@@ -27,7 +27,13 @@
       "Bash(sed -e '/^\"use client\";$/d' -e 's|@/components/ui/|../ui/|g' -e 's|@/lib/utils|../../lib/utils|g' -e 's|@/lib/types|../../lib/screener/types|g' mtwkse130-app-frontend/src/components/screener/StockTable.tsx)",
       "Bash(node -e \"const p=require\\('./package.json'\\); const fs=require\\('fs'\\); for \\(const k of ['next','react','tailwindcss','@tailwindcss/postcss','eslint-config-next']\\) { const d=k.startsWith\\('@tailwindcss/postcss'\\)||k==='tailwindcss'||k==='eslint-config-next'?p.devDependencies:p.dependencies; }; console.log\\('next installed:', fs.existsSync\\('node_modules/next'\\)\\); console.log\\('tailwindcss v:', require\\('./node_modules/tailwindcss/package.json'\\).version\\); console.log\\('react v:', require\\('./node_modules/react/package.json'\\).version\\); console.log\\('react-router present:', fs.existsSync\\('node_modules/react-router-dom'\\)\\);\")",
       "Bash(grep -n \"return \\(\\\\|<div className=\\\\\"min-h\\\\|<h1\\\\|<h2\\\\|FINSIP\\\\|FinSIP\\\\|logo\\\\|footer\\\\|</div>$\" src/views/LoginPage.tsx)",
-      "Bash(npx --yes netlify-cli@latest status)"
+      "Bash(npx --yes netlify-cli@latest status)",
+      "Bash(git rev-list *)",
+      "Bash(git cat-file *)",
+      "Bash(awk '$1==\"blob\"')",
+      "Bash(sort -k3 -rn)",
+      "Bash(awk '{printf \"%.2f MB  %s\\\\n\", $3/1048576, $4}')",
+      "Bash(git push *)"
     ]
   }
 }
