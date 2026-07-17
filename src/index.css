@@ -69,4 +69,17 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+
+  /* number input without the spinner arrows -- they steal width in tight cells and
+     invite click-stepping where typing is the point */
+  .no-spinner {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .no-spinner::-webkit-outer-spin-button,
+  .no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }

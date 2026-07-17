@@ -11,7 +11,9 @@
       "Bash(echo \"---typecheck exit: $?---\")",
       "WebFetch(domain:netlify.ai)",
       "Bash(npx -y skills add netlify/context-and-tools --skill '*' --yes --agent claude-code)",
-      "Bash(netlify --version)"
+      "Bash(netlify --version)",
+      "Bash(grep -n \"addStock,$\\\\|removeStock,$\\\\|reorderStocks,$\\\\|value={{\" src/context/PortfolioContext.tsx)",
+      "Bash(supabase projects *)"
     ]
   }
 }

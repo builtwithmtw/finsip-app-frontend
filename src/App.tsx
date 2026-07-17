@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage';
 import EntryPage from './pages/EntryPage';
 import LedgerPage from './pages/LedgerPage';
 import LivePortfolioPage from './pages/LivePortfolioPage';
+import AllocationPage from './pages/AllocationPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import DeleteAccountPage from './pages/DeleteAccountPage';
 import { Toaster } from 'sonner';
@@ -68,6 +69,7 @@ const App: React.FC = () => {
                   <Route path="entry" element={<EntryPage />} />
                   <Route path="ledger" element={<LedgerPage />} />
                   <Route path="live" element={<LivePortfolioPage />} />
+                  <Route path="allocation" element={<AllocationPage />} />
                 </Route>
 
                 <Route

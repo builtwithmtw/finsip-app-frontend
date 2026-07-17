@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,7 @@ const navItems = [
     { path: '/live', label: 'Live Portfolio', icon: Landmark },
     { path: '/entry', label: 'Monthly Entry', icon: Calendar },
     { path: '/ledger', label: 'Transaction Ledger', icon: Table2 },
+    { path: '/allocation', label: 'Allocation', icon: PieChart },
 ];
 
 const Layout: React.FC = () => {
