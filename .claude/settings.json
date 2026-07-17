@@ -40,7 +40,10 @@
       "Bash(curl -s -o /tmp/ilp.json -w \"HTTP %{http_code}  %{size_download}b\\\\n\" -H \"User-Agent: Mozilla/5.0\" -H \"Accept: application/json\" \"https://dps.psx.com.pk/timeseries/eod/ILP\")",
       "Bash(curl -s -o /tmp/luck.json -w \"HTTP %{http_code}  %{size_download}b\\\\n\" -H \"User-Agent: Mozilla/5.0\" -H \"Accept: application/json\" \"https://dps.psx.com.pk/timeseries/eod/LUCK\")",
       "Bash(npx tsx *)",
-      "Bash(node --experimental-strip-types -e ' *)"
+      "Bash(node --experimental-strip-types -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"dev server: HTTP %{http_code}\\\\n\" http://localhost:3000/screener)",
+      "Bash(curl -s -D /tmp/hdr.txt -o /tmp/stocks.json -w \"HTTP %{http_code}  %{size_download}b  %{time_total}s\\\\n\" http://localhost:3000/api/stocks --max-time 180)",
+      "Bash(pkill -f \"next dev\")"
     ]
   }
 }
