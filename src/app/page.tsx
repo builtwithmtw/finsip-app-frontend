@@ -1,13 +1,24 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { LineChart, Wallet, PieChart, ArrowRight, ShieldCheck } from "lucide-react";
 import { SECTORS } from "@/lib/types";
 import { TICKERS } from "@/lib/seed";
 import { AuthAction } from "@/components/home/AuthAction";
+import { SITE_URL } from "@/lib/site";
 
-export const metadata = {
-  title: "FinSIP — PSX Screener & SIP Portfolio Tracker",
+export const metadata: Metadata = {
+  // `absolute` opts out of the root layout's "%s | FinSIP" template -- the brand
+  // is already in this title.
+  title: { absolute: "FinSIP — PSX Screener & SIP Portfolio Tracker" },
   description:
     "Screen Pakistan Stock Exchange tickers by Shariah and sector, track your SIP portfolio, and plan how each rupee is allocated.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    url: "/",
+    title: "FinSIP — PSX Screener & SIP Portfolio Tracker",
+    description:
+      "Screen Pakistan Stock Exchange tickers by Shariah and sector, track your SIP portfolio, and plan how each rupee is allocated.",
+  },
   verification: {
     google: "egYOUN5b0osd7QhwRiU8gCzQEptchx_yClgb2Tx1ezM",
   },
@@ -50,9 +61,48 @@ const FEATURES = [
  * A server component on purpose -- it ships no JS beyond the framework, so the
  * first thing a visitor sees paints immediately.
  */
+// Structured data. WebSite gives Google the name to show in results instead of
+// one it infers from the domain; WebApplication is what the app actually is.
+// Injected as a raw <script> because JSON-LD must not be JSX-escaped -- Next has
+// no first-class metadata field for it.
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: `${SITE_URL}/`,
+      name: "FinSIP",
+      description:
+        "Screen Pakistan Stock Exchange tickers by Shariah and sector, track your SIP portfolio, and plan how each rupee is allocated.",
+      inLanguage: "en",
+    },
+    {
+      "@type": "WebApplication",
+      "@id": `${SITE_URL}/#app`,
+      name: "FinSIP",
+      url: `${SITE_URL}/`,
+      applicationCategory: "FinanceApplication",
+      operatingSystem: "Any",
+      description:
+        "PSX screener and SIP portfolio tracker for Pakistan Stock Exchange investors.",
+      featureList: [
+        "PSX screener with 1D to 5Y returns",
+        "Shariah and sector filters",
+        "SIP portfolio tracking",
+        "Monthly allocation planning",
+      ],
+    },
+  ],
+};
+
 export default function Home() {
   return (
     <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
       {/* Depth, cheaply: two blurred colour pools and a faint grid. Pointer-events
           off so none of it interferes with the buttons. */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">

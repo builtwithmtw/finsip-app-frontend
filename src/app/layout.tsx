@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Manrope, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { RootProviders } from "./root-providers";
+import { SITE_URL } from "@/lib/site";
 
 // Declared as CSS variables only -- next/font defines the var without applying
 // the family. globals.css then points them at .screener-root, so FINSIP's own
@@ -23,9 +24,55 @@ const fontMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FinSIP",
+  // metadataBase is what turns the relative URLs below (and in each page's own
+  // metadata) into the absolute ones canonical/OG tags require. Without it Next
+  // warns at build time and falls back to localhost.
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "FinSIP",
+    // Pages set a bare title; this appends the brand once, in one place, so
+    // "FinSIP Screener | FinSIP" can't happen.
+    template: "%s | FinSIP",
+  },
   description:
     "Screen Pakistan Stock Exchange tickers by Shariah and sector filters, and track your SIP portfolio.",
+  applicationName: "FinSIP",
+  // Every page is its own canonical unless it overrides this. Relative values
+  // resolve against metadataBase.
+  alternates: { canonical: "/" },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      // Lets Google show full-length text snippets and large image previews
+      // instead of guessing conservatively.
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    siteName: "FinSIP",
+    locale: "en_US",
+    url: "/",
+    title: "FinSIP — PSX Screener & SIP Portfolio Tracker",
+    description:
+      "Screen Pakistan Stock Exchange tickers by Shariah and sector filters, and track your SIP portfolio.",
+    // No purpose-built 1200x630 card exists yet, so this reuses the PWA icon.
+    // It renders as a small square in most unfurls -- worth replacing with a
+    // real og-image.png when there is one.
+    images: [{ url: "/pwa-512x512.png", width: 512, height: 512, alt: "FinSIP" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "FinSIP — PSX Screener & SIP Portfolio Tracker",
+    description:
+      "Screen Pakistan Stock Exchange tickers by Shariah and sector filters, and track your SIP portfolio.",
+    images: ["/pwa-512x512.png"],
+  },
   // Everything below came from index.html's <head> under Vite. Next emits these
   // tags from metadata instead, so they had to be restated when that file went
   // away. There is no favicon.ico in public/, which is why the browser's default
