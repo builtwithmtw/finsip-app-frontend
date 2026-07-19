@@ -28,13 +28,57 @@ const EMPTY_PERF: Performance = {
 
 type Point = { t: number; close: number };
 
-const RETRY_ATTEMPTS = 3;
-const RETRY_BASE_MS = 250;
+const RETRY_ATTEMPTS = 5;
+const RETRY_BASE_MS = 500;
+const RETRY_MAX_MS = 6_000;
+
+/** A socket that never answers costs a worker the whole run otherwise. */
+const REQUEST_TIMEOUT_MS = 10_000;
+
+/** How long the whole pool stands down after the portal says "too many". */
+const THROTTLE_MS = 2_000;
+const THROTTLE_MAX_MS = 15_000;
 
 /** Worth asking again: rate limiting and the portal's own hiccups. */
 const RETRIABLE = new Set([408, 425, 429, 500, 502, 503, 504]);
 
+/** The portal throttles per-IP, so a 429 is news for every worker, not just one. */
+const RATE_LIMITED = new Set([429, 503]);
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Shared backpressure.
+ *
+ * Retrying per-request isn't enough on its own: when the portal starts
+ * throttling, the other workers are mid-flight and keep arriving, so the run
+ * spends its retry budget on a portal that is still saying no. One worker
+ * hitting a 429 pauses all of them, which is what actually lets the window
+ * clear.
+ */
+let cooldownUntil = 0;
+
+function throttleAll(ms: number) {
+  cooldownUntil = Math.max(cooldownUntil, Date.now() + ms);
+}
+
+async function awaitCooldown() {
+  for (let wait = cooldownUntil - Date.now(); wait > 0; wait = cooldownUntil - Date.now()) {
+    await sleep(wait);
+  }
+}
+
+/** `Retry-After` is seconds or an HTTP date; the portal sends seconds. */
+function retryAfterMs(res: Response): number | null {
+  const raw = res.headers.get("retry-after");
+  if (!raw) return null;
+
+  const secs = Number(raw);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
+
+  const at = Date.parse(raw);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
 
 /**
  * Fetch with retries.
@@ -58,16 +102,28 @@ async function psxFetch(
   let last: unknown = new Error(`${label}: no attempt made`);
 
   for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+    await awaitCooldown();
+
     try {
-      const res = await fetch(
-        url,
-        attempt === 0 ? init : { ...init, cache: "no-store", next: undefined },
-      );
+      const res = await fetch(url, {
+        ...(attempt === 0
+          ? init
+          : { ...init, cache: "no-store" as const, next: undefined }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
       if (res.ok) return res;
 
       last = new Error(`${label}: HTTP ${res.status}`);
       // A 404 will say the same thing however many times we ask.
       if (!RETRIABLE.has(res.status)) break;
+
+      if (RATE_LIMITED.has(res.status)) {
+        // Prefer the portal's own number over our guess; it knows its window.
+        const after = retryAfterMs(res);
+        throttleAll(
+          Math.min(after ?? THROTTLE_MS * 2 ** attempt, THROTTLE_MAX_MS),
+        );
+      }
     } catch (err) {
       last = err;
     }
@@ -75,7 +131,10 @@ async function psxFetch(
     // Exponential, with jitter so 130 tickers don't retry in lockstep and
     // recreate the burst that got us rate-limited in the first place.
     if (attempt < RETRY_ATTEMPTS - 1) {
-      await sleep(RETRY_BASE_MS * 2 ** attempt + Math.random() * 100);
+      await sleep(
+        Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS) +
+          Math.random() * 250,
+      );
     }
   }
 
@@ -260,7 +319,26 @@ export type StocksResult = {
  * doesn't cache the gaps (see the route's Cache-Control).
  */
 export async function fetchAllStocks(): Promise<StocksResult> {
-  const built = await mapPool(TICKERS, 8, buildStock);
+  const built = await mapPool(TICKERS, 6, buildStock);
+
+  // Repair pass. Per-request retries are bounded and run while the portal is
+  // still under the load that caused the failure; by the time the pool drains,
+  // that load is gone. Going back for the stragglers on a quiet connection --
+  // two at a time, not six -- is what turns "mostly all the stocks" into all of
+  // them. Only a strictly better result replaces what we already have, so this
+  // can never lose data it was meant to recover.
+  const stragglers = built
+    .map((b, i) => ({ b, i }))
+    .filter(({ b }) => b.failures.length > 0);
+
+  if (stragglers.length > 0) {
+    console.warn(`PSX: repairing ${stragglers.length} incomplete tickers`);
+    await mapPool(stragglers, 2, async ({ b, i }) => {
+      const retried = await buildStock(TICKERS[i]);
+      if (retried.failures.length < b.failures.length) built[i] = retried;
+    });
+  }
+
   const failures = built.flatMap((b) => b.failures);
 
   if (failures.length > 0) {
