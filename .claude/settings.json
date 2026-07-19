@@ -44,7 +44,20 @@
       "Bash(curl -s -o /dev/null -w \"dev server: HTTP %{http_code}\\\\n\" http://localhost:3000/screener)",
       "Bash(curl -s -D /tmp/hdr.txt -o /tmp/stocks.json -w \"HTTP %{http_code}  %{size_download}b  %{time_total}s\\\\n\" http://localhost:3000/api/stocks --max-time 180)",
       "Bash(pkill -f \"next dev\")",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "WebFetch(domain:www.capitalstake.com)",
+      "Bash(curl -s --max-time 20 \"https://beta-restapi.sarmaaya.pk/api/indices/ALLSHR/companies?page=1&limit=2\")",
+      "Bash(curl -s --max-time 15 \"https://beta-restapi.sarmaaya.pk/api/stocks/FFC\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s --max-time 15 \"https://api.github.com/repos/capitalstake/api\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('full_name'\\), '|', d.get\\('description'\\), '|', d.get\\('html_url'\\)\\)\")",
+      "Bash(curl -s --max-time 12 -o /tmp/r -w \"%{http_code}\\\\n\" \"https://csapis.com/api/v1/stocks/returns?symbol=FFC\")",
+      "WebFetch(domain:eodhd.com)",
+      "Bash(curl -s --max-time 20 -o /tmp/kmi -w \"%{http_code}\\\\n\" \"https://beta-restapi.sarmaaya.pk/api/indices/KMIALLSHR/companies?page=1&limit=500\")",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s --max-time 25 \"https://beta-restapi.sarmaaya.pk/api/indices/ALLSHR/companies?page=1&limit=500\")",
+      "Bash(python3 -c \"import urllib.parse;print\\(urllib.parse.quote\\('https://beta-restapi.sarmaaya.pk/api/indices/ALLSHR/companies?page=1&limit=500',safe=''\\)\\)\")",
+      "Bash(curl -s --max-time 20 -o /tmp/px -w \"%{http_code}\\\\n\" \"https://finsip.muhammadtalhawaseem.workers.dev/?url=$\\(python3 -c \"import urllib.parse;print\\(urllib.parse.quote\\('https://beta-restapi.sarmaaya.pk/api/indices/ALLSHR/companies?page=1&limit=500',safe=''\\)\\)\"\\)\")"
     ]
   }
 }

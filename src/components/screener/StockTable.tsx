@@ -73,6 +73,41 @@ function formatMarketCap(v: number) {
   return `${Math.round(v / divisor).toLocaleString("en-US")}${suffix}`;
 }
 
+// Share counts run to nine figures, so abbreviate on the same principle as
+// market cap. Under 1000 prints as-is rather than "0M".
+function formatVolume(v: number) {
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${Math.round(v / 1e3)}K`;
+  return v.toLocaleString("en-US");
+}
+
+/**
+ * A numeric cell that falls back to "—". Price, 1Y high/low and volume differ
+ * only in how they format, so they share this rather than repeating the
+ * null-handling and class list four times.
+ */
+function NumCell({
+  value,
+  format,
+  title,
+}: {
+  value: number | undefined;
+  format: (v: number) => string;
+  title?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "text-sm tabular-nums",
+        value == null ? "text-muted-foreground" : "font-medium",
+      )}
+      title={title}
+    >
+      {value == null ? "—" : format(value)}
+    </span>
+  );
+}
+
 function PerfPill({ value }: { value: number | null | undefined }) {
   if (value == null) {
     return (
@@ -113,27 +148,15 @@ export function StockTable({
   pinnedFirst,
   onTogglePin,
 }: Props) {
-  // Default: sort by 1M performance descending (blanks sink to the bottom).
+  // Default: largest companies first. This was "m1" until the 1M column went
+  // away with the EOD feed -- a sort id with no matching column is ignored
+  // silently by TanStack, so the table would have loaded in seed order.
   const [sorting, setSorting] = useState<SortingState>([
-    { id: "m1", desc: true },
+    { id: "marketCap", desc: true },
   ]);
   const [search, setSearch] = useState("");
 
   const columns = useMemo<ColumnDef<Stock>[]>(() => {
-    const perfColumn = (
-      key: keyof Stock["perf"],
-      header: string,
-    ): ColumnDef<Stock> => ({
-      id: key,
-      // undefined (not null) so TanStack's sortUndefined can push blanks last.
-      accessorFn: (row) => row.perf[key] ?? undefined,
-      header,
-      cell: (ctx) => <PerfPill value={ctx.getValue<number | undefined>()} />,
-      sortDescFirst: true,
-      sortUndefined: "last",
-      meta: { align: "right" as const },
-    });
-
     return [
       {
         id: "pinned",
@@ -162,15 +185,21 @@ export function StockTable({
           );
         },
         enableGlobalFilter: false,
-        meta: { align: "center" as const, unsortable: true as const },
+        meta: { align: "center" as const, unsortable: true as const, width: "5%" },
       },
       {
         id: "ticker",
         accessorKey: "ticker",
         header: "Ticker",
+        // Widths are percentages, not pixels, so the table always fits its
+        // container exactly -- no horizontal scrollbar at any viewport. What
+        // matters for layout stability is that they're declared at all: under
+        // `table-fixed` the column stops resizing when a filter changes which
+        // tickers and sectors are on screen.
+        meta: { align: "left" as const, width: "25%" },
         cell: ({ row }) => (
-          <div className="flex flex-col">
-            <span className="font-semibold">
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate font-semibold">
               {row.original.ticker}
               {row.original.isShariah && showShariahBadge && (
                 <span
@@ -182,33 +211,30 @@ export function StockTable({
                 </span>
               )}
             </span>
-            <span className="text-xs text-muted-foreground">
+            {/* Longest sector runs past the column, so it clips with an
+                ellipsis and carries the full string as a tooltip. */}
+            <span
+              className="truncate text-xs text-muted-foreground"
+              title={row.original.sector}
+            >
               {row.original.sector}
             </span>
           </div>
         ),
-        meta: { align: "left" as const },
       },
       {
         id: "price",
         accessorFn: (row) => row.price ?? undefined,
         header: "Price",
-        cell: (ctx) => {
-          const price = ctx.getValue<number | undefined>();
-          return (
-            <span
-              className={cn(
-                "text-sm tabular-nums",
-                price == null ? "text-muted-foreground" : "font-medium",
-              )}
-            >
-              {price == null ? "—" : priceFormatter.format(price)}
-            </span>
-          );
-        },
+        cell: (ctx) => (
+          <NumCell
+            value={ctx.getValue<number | undefined>()}
+            format={(v) => priceFormatter.format(v)}
+          />
+        ),
         sortDescFirst: true,
         sortUndefined: "last",
-        meta: { align: "right" as const },
+        meta: { align: "center" as const, width: "11%" },
       },
       {
         id: "marketCap",
@@ -217,30 +243,82 @@ export function StockTable({
         cell: (ctx) => {
           const cap = ctx.getValue<number | undefined>();
           return (
-            <span
-              className={cn(
-                "text-sm tabular-nums",
-                cap == null ? "text-muted-foreground" : "font-medium",
-              )}
+            <NumCell
+              value={cap}
+              format={formatMarketCap}
               title={
                 cap == null
                   ? undefined
                   : `PKR ${Math.round(cap).toLocaleString("en-US")}`
               }
-            >
-              {cap == null ? "—" : formatMarketCap(cap)}
-            </span>
+            />
           );
         },
         sortDescFirst: true,
         sortUndefined: "last",
-        meta: { align: "right" as const },
+        meta: { align: "center" as const, width: "13%" },
       },
-      perfColumn("d1", "1D"),
-      perfColumn("m1", "1M"),
-      perfColumn("m6", "6M"),
-      perfColumn("ytd", "YTD"),
-      perfColumn("y5", "5Y"),
+      {
+        id: "d1",
+        // undefined (not null) so TanStack's sortUndefined can push blanks
+        // last. Must stay `??` and not `||`: a flat day is 0.00%, which is a
+        // real reading, and `||` would demote it to a blank.
+        accessorFn: (row) => row.d1 ?? undefined,
+        header: "1D",
+        cell: (ctx) => <PerfPill value={ctx.getValue<number | undefined>()} />,
+        sortDescFirst: true,
+        sortUndefined: "last",
+        meta: { align: "center" as const, width: "11%" },
+      },
+      {
+        id: "high52",
+        accessorFn: (row) => row.high52 ?? undefined,
+        header: "1Y High",
+        cell: (ctx) => (
+          <NumCell
+            value={ctx.getValue<number | undefined>()}
+            format={(v) => priceFormatter.format(v)}
+          />
+        ),
+        sortDescFirst: true,
+        sortUndefined: "last",
+        meta: { align: "center" as const, width: "11%" },
+      },
+      {
+        id: "low52",
+        accessorFn: (row) => row.low52 ?? undefined,
+        header: "1Y Low",
+        cell: (ctx) => (
+          <NumCell
+            value={ctx.getValue<number | undefined>()}
+            format={(v) => priceFormatter.format(v)}
+          />
+        ),
+        sortDescFirst: true,
+        sortUndefined: "last",
+        meta: { align: "center" as const, width: "11%" },
+      },
+      {
+        id: "volume",
+        accessorFn: (row) => row.volume ?? undefined,
+        header: "Volume",
+        cell: (ctx) => {
+          const vol = ctx.getValue<number | undefined>();
+          return (
+            <NumCell
+              value={vol}
+              format={formatVolume}
+              title={vol == null ? undefined : vol.toLocaleString("en-US")}
+            />
+          );
+        },
+        sortDescFirst: true,
+        sortUndefined: "last",
+        // Deliberately has no width: as the only unsized column it absorbs the
+        // remaining 10%, so the declared percentages never have to sum to
+        // exactly 100 by hand.
+        meta: { align: "center" as const },
+      },
     ];
   }, [showShariahBadge, pinned, onTogglePin]);
 
@@ -327,8 +405,17 @@ export function StockTable({
         </span>
       </div>
 
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
-        <Table>
+      {/* overflow-hidden, not auto: the page size is fixed and every row is a
+          fixed height, so the body is sized to hold exactly one page and has
+          nothing to scroll. Clipping rather than scrolling guarantees neither
+          scrollbar can appear. */}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {/* table-fixed: column widths come from the header row's declared
+            percentages rather than from cell content, so filtering, searching
+            or a long sector name can no longer resize the columns. No min-w --
+            the table is always exactly its container's width, which is what
+            keeps a horizontal scrollbar off the page. */}
+        <Table className="table-fixed">
           <TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur">
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id} className="hover:bg-transparent">
@@ -336,18 +423,30 @@ export function StockTable({
                   const meta = header.column.columnDef.meta as {
                     align?: string;
                     unsortable?: boolean;
+                    width?: string;
                   };
                   const align = meta?.align ?? "left";
                   const sorted = header.column.getIsSorted();
+                  // Only the header row carries widths -- under table-fixed the
+                  // body inherits them. The declared percentages total 90, and
+                  // the one column without a width (Volume) takes the rest, so
+                  // the table always sums to exactly 100% of its container.
+                  const width = meta?.width ? { width: meta.width } : undefined;
                   if (meta?.unsortable) {
-                    return <TableHead key={header.id} className="h-10 w-9" />;
+                    return (
+                      <TableHead key={header.id} className="h-10" style={width} />
+                    );
                   }
                   return (
                     <TableHead
                       key={header.id}
+                      style={width}
                       className={cn(
                         "h-10 whitespace-nowrap text-xs font-medium uppercase tracking-wide",
                         align === "right" && "text-right",
+                        // The sort button is inline-flex, so text-align on the
+                        // cell is what actually centres it.
+                        align === "center" && "text-center",
                       )}
                     >
                       <button
@@ -355,6 +454,8 @@ export function StockTable({
                         onClick={header.column.getToggleSortingHandler()}
                         className={cn(
                           "inline-flex items-center gap-1 transition-colors hover:text-foreground",
+                          // Right-aligned headers put the caret on the left so
+                          // it never sits between the label and the cell edge.
                           align === "right" && "flex-row-reverse",
                           sorted && "text-foreground",
                         )}

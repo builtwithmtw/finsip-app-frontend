@@ -2,8 +2,9 @@ import type { Sector } from "./types";
 
 /**
  * Sector -> tickers, transcribed verbatim from claude.md.
- * This is our universe of stocks; performance numbers are fetched live from
- * the PSX EOD feed (see lib/psx.ts) and Shariah status from lib/shariah.ts.
+ * This is our universe of stocks; prices, market caps and the 1D change are
+ * fetched live from the Sarmaaya feed (see lib/sarmaaya.ts), which also
+ * supplies Shariah status via KMIALLSHR membership.
  */
 export const SECTOR_TICKERS: Record<Sector, string[]> = {
   "COMMERCIAL BANKS": ["MEBL", "BAHL", "UBL", "MCB", "NBP", "FABL", "AKBL", "BAFL", "BOP"],

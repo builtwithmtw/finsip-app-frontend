@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchAllStocks } from "@/lib/psx";
+import { fetchAllStocks } from "@/lib/sarmaaya";
 
 // Rendered per request, not prerendered at build. `export const revalidate` made
 // this a build-time snapshot: whatever the portal happened to serve while the
@@ -20,10 +20,14 @@ const DEGRADED = "public, s-maxage=60, stale-while-revalidate=300";
 
 export async function GET() {
   try {
-    const { stocks, failures } = await fetchAllStocks();
+    const { stocks, missing } = await fetchAllStocks();
+
+    if (missing.length > 0) {
+      console.warn(`No feed row for ${missing.length} ticker(s):`, missing);
+    }
 
     const res = NextResponse.json(stocks);
-    res.headers.set("Cache-Control", failures.length > 0 ? DEGRADED : FULL);
+    res.headers.set("Cache-Control", missing.length > 0 ? DEGRADED : FULL);
     return res;
   } catch (err) {
     console.error("Failed to load PSX stocks", err);

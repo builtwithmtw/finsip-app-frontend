@@ -1,9 +1,10 @@
 /**
- * Shariah-compliant PSX symbols (source: Sarmaaya Shariah universe).
+ * Shariah-compliant PSX symbols (source: Sarmaaya Shariah universe, 288 symbols).
  *
- * Generated from shariah.json (288 symbols). A stock in our table
- * is Shariah-compliant when its ticker is in this set; this is the source of
- * truth for the `isShariah` flag in ./seed.ts and the "Shariah Only" filter.
+ * No longer the source of truth: live KMIALLSHR index membership is, and this
+ * set is only the fallback used when that call fails (see lib/sarmaaya.ts).
+ * It is a frozen snapshot, so it drifts as companies enter and leave the index
+ * -- prefer fixing the fetch over editing this list.
  */
 export const SHARIAH_SYMBOLS: ReadonlySet<string> = new Set([
   "AWTX", "FIMM", "GEMMEL", "GEMPACRA", "GIL", "MEBL", "JVDC", "GHNI", "LUCK",
