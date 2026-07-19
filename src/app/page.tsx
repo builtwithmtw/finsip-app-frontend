@@ -8,6 +8,9 @@ export const metadata = {
   title: "FinSIP — PSX Screener & SIP Portfolio Tracker",
   description:
     "Screen Pakistan Stock Exchange tickers by Shariah and sector, track your SIP portfolio, and plan how each rupee is allocated.",
+  verification: {
+    google: "egYOUN5b0osd7QhwRiU8gCzQEptchx_yClgb2Tx1ezM",
+  },
 };
 
 // Real counts, read from the screener's own universe at build time rather than
