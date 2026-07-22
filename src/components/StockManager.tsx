@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useConfirm } from '../context/ConfirmContext';
+import { usePartialMask } from '../context/PrivacyContext';
 import { Plus, Trash2, Search, GripVertical, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import clsx from 'clsx';
@@ -11,6 +12,7 @@ import { getSectorForSymbol } from '../data/psxSectors';
 const StockManager: React.FC = () => {
     const { stocks, addStock, removeStock, reorderStocks } = usePortfolio();
     const { confirm } = useConfirm();
+    const maskSymbol = usePartialMask();
     const [newStock, setNewStock] = useState('');
     const [selectedSector, setSelectedSector] = useState('Others');
     // True while the sector below was filled in from the PSX lookup rather than
@@ -178,7 +180,7 @@ const StockManager: React.FC = () => {
                             )}
                         >
                             <GripVertical size={12} className="text-slate-300 group-hover:text-slate-400 shrink-0" />
-                            <span className="text-xs font-black text-slate-900 uppercase">{stock.symbol}</span>
+                            <span className="text-xs font-black text-slate-900 uppercase">{maskSymbol(stock.symbol)}</span>
                             <span className="text-[9px] font-bold text-slate-400 uppercase">{stock.sector || 'Others'}</span>
                             <button
                                 onClick={() => handleRemove(stock.id, stock.symbol)}
