@@ -1,17 +1,42 @@
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask } from '../context/PrivacyContext';
 import { SkeletonBar, SkeletonCard, SkeletonTableRows } from '../components/DashboardSkeleton';
 import clsx from 'clsx';
-import { AlertTriangle } from 'lucide-react';
-import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
+import { AlertTriangle, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
+import { computeLiveHoldings, summarizeLive, type LiveHolding } from '../utils/holdings';
+
+type SortDir = 'asc' | 'desc';
+
+// Each header maps to a value on the holding. Price-derived columns return null
+// for unpriced rows so they sink to the bottom instead of sorting as 0.
+const COLUMNS: {
+    id: string;
+    label: string;
+    align: 'left' | 'right';
+    numeric: boolean;
+    get: (h: LiveHolding) => number | string | null;
+}[] = [
+    { id: 'symbol', label: 'Symbol', align: 'left', numeric: false, get: h => h.symbol },
+    { id: 'qty', label: 'Qty', align: 'right', numeric: true, get: h => h.totalShares },
+    { id: 'avg', label: 'Avg', align: 'right', numeric: true, get: h => h.avgPrice },
+    { id: 'live', label: 'Live', align: 'right', numeric: true, get: h => (h.isPriced ? h.currentPrice : null) },
+    { id: 'value', label: 'Value', align: 'right', numeric: true, get: h => h.marketValue },
+    { id: 'alloc', label: 'Alloc', align: 'right', numeric: true, get: h => h.marketValue },
+    { id: 'pl', label: 'P/L', align: 'right', numeric: true, get: h => (h.isPriced ? h.profitLoss : null) },
+    { id: 'plpct', label: '%', align: 'right', numeric: true, get: h => (h.isPriced ? h.profitLossPercentage : null) },
+];
 
 const LivePortfolioPage: React.FC = () => {
     const formatCurrency = useCurrency();
     const mask = useMask();
     const { transactions, loading, livePrices } = usePortfolio();
+
+    // No sort by default — largest positions (by cost) first, as before. Clicking
+    // a header takes over from there.
+    const [sort, setSort] = useState<{ id: string; dir: SortDir } | null>(null);
 
     const holdings = useMemo(() =>
         computeLiveHoldings(transactions, livePrices)
@@ -20,6 +45,33 @@ const LivePortfolioPage: React.FC = () => {
     );
 
     const totals = useMemo(() => summarizeLive(holdings), [holdings]);
+
+    const toggleSort = (col: (typeof COLUMNS)[number]) => {
+        setSort(prev =>
+            prev?.id === col.id
+                ? { id: col.id, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+                : { id: col.id, dir: col.numeric ? 'desc' : 'asc' }
+        );
+    };
+
+    const sortedHoldings = useMemo(() => {
+        if (!sort) return holdings;
+        const col = COLUMNS.find(c => c.id === sort.id);
+        if (!col) return holdings;
+        const factor = sort.dir === 'asc' ? 1 : -1;
+        return [...holdings].sort((a, b) => {
+            const av = col.get(a);
+            const bv = col.get(b);
+            // Unpriced (null) rows always sink, whichever direction we sort.
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            const cmp = typeof av === 'number' && typeof bv === 'number'
+                ? av - bv
+                : String(av).localeCompare(String(bv));
+            return cmp * factor;
+        });
+    }, [holdings, sort]);
 
     const topMovements = useMemo(() => {
         const sorted = holdings.filter(h => h.isPriced).sort((a, b) => b.profitLossPercentage - a.profitLossPercentage);
@@ -119,18 +171,37 @@ const LivePortfolioPage: React.FC = () => {
                     <table className="w-full min-w-[640px] text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-100">
-                                <th className="px-4 py-2.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Symbol</th>
-                                <th className="px-4 py-2.5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Qty</th>
-                                <th className="px-4 py-2.5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Avg</th>
-                                <th className="px-4 py-2.5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Live</th>
-                                <th className="px-4 py-2.5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Value</th>
-                                <th className="px-4 py-2.5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Alloc</th>
-                                <th className="px-4 py-2.5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">P/L</th>
-                                <th className="px-4 py-2.5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">%</th>
+                                {COLUMNS.map(col => {
+                                    const active = sort?.id === col.id;
+                                    return (
+                                        <th
+                                            key={col.id}
+                                            className={clsx(
+                                                "px-4 py-2.5 text-[10px] font-black uppercase tracking-widest",
+                                                col.align === 'left' ? "text-left" : "text-right"
+                                            )}
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleSort(col)}
+                                                className={clsx(
+                                                    "inline-flex items-center gap-1 transition-colors hover:text-slate-700",
+                                                    col.align === 'right' && "flex-row-reverse",
+                                                    active ? "text-blue-600" : "text-slate-400"
+                                                )}
+                                            >
+                                                {col.label}
+                                                {active
+                                                    ? (sort!.dir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)
+                                                    : <ChevronsUpDown size={12} className="opacity-40" />}
+                                            </button>
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {holdings.map((h) => (
+                            {sortedHoldings.map((h) => (
                                 <tr key={h.symbol} className="hover:bg-blue-50/30 transition-colors">
                                     <td className="px-4 py-2 font-black text-slate-900 text-sm uppercase tracking-tight">{mask(h.symbol)}</td>
                                     <td className="px-4 py-2 text-right font-bold text-slate-600 text-sm tabular-nums">

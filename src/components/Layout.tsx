@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Clock } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Clock, Star } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,7 @@ const navItems = [
     { path: '/entry', label: 'Monthly Entry', icon: Calendar },
     { path: '/ledger', label: 'Transaction Ledger', icon: Table2 },
     { path: '/allocation', label: 'Allocation', icon: PieChart },
+    { path: '/watchlist', label: 'Watchlist', icon: Star },
 ];
 
 // Took its children from <Outlet /> under react-router; the App Router hands the

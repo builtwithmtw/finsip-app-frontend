@@ -12,6 +12,15 @@ export interface Stock {
   allocationWeight: number | null;
 }
 
+/** A symbol the user is tracking on the Watchlist tab (not necessarily owned). */
+export interface WatchlistItem {
+  id: string;
+  symbol: string;
+  /** Sector captured when the item was added; the table prefers the live feed's sector when it has one. */
+  sector: string | null;
+  createdAt: string;
+}
+
 export interface Transaction {
   id: string;
   month: string; // YYYY-MM
