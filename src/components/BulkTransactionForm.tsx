@@ -2,11 +2,12 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { Save, TrendingUp, TrendingDown, Info, Calculator, CopyPlus, Share2 } from 'lucide-react';
+import { Save, TrendingUp, TrendingDown, Info, Calculator, CopyPlus, Share2, Bookmark, BookmarkCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency, usePartialMask } from '../context/PrivacyContext';
 import { formatMonth } from '../utils/formatters';
 import { computeHoldings } from '../utils/holdings';
+import { useRememberedEntries } from '../hooks/useRememberedEntries';
 import BoughtSummaryModal, { type SummaryRow } from './BoughtSummaryModal';
 import clsx from 'clsx';
 
@@ -14,6 +15,7 @@ const BulkTransactionForm: React.FC = () => {
     const formatCurrency = useCurrency();
     const maskSymbol = usePartialMask();
     const { stocks, addTransaction, selectedMonth: month, livePrices, transactions } = usePortfolio();
+    const { remembered, saving: rememberSaving, save: saveRemembered } = useRememberedEntries();
 
     // price is left undefined until the user types, so an untouched field can fall back
     // to the live feed while a deliberately cleared one stays empty.
@@ -176,6 +178,59 @@ const BulkTransactionForm: React.FC = () => {
         });
 
         toast.success(`Filled quantities from ${formatMonth(recentMonth)}`);
+    };
+
+    // True once any row carries a quantity. It decides which of the Remember
+    // button's two jobs runs: with quantities on screen it saves them, with the
+    // column empty it fills the saved ones back in.
+    const hasQuantities = useMemo(
+        () => stocks.some(s => {
+            const v = inputs[s.symbol]?.shares;
+            return v !== undefined && v !== '' && Number(v) > 0;
+        }),
+        [inputs, stocks]
+    );
+
+    const rememberedCount = useMemo(() => Object.keys(remembered).length, [remembered]);
+
+    const rememberOrRecall = async () => {
+        if (hasQuantities) {
+            // Remember: snapshot the quantities currently on screen.
+            const snapshot: Record<string, { shares: string; type: 'buy' | 'sell' }> = {};
+            stocks.forEach(stock => {
+                const data = inputs[stock.symbol];
+                const shares = data?.shares;
+                if (shares !== undefined && shares !== '' && Number(shares) > 0) {
+                    snapshot[stock.symbol] = { shares: String(shares), type: data?.type || 'buy' };
+                }
+            });
+
+            const ok = await saveRemembered(snapshot);
+            if (ok) toast.success(`Remembered quantities for ${Object.keys(snapshot).length} symbols`);
+            return;
+        }
+
+        // Recall: the column is empty, so fill it from the saved snapshot.
+        if (rememberedCount === 0) {
+            toast.error('Nothing remembered yet — enter quantities first, then Remember');
+            return;
+        }
+
+        setInputs(prev => {
+            const next = { ...prev };
+            stocks.forEach(stock => {
+                const saved = remembered[stock.symbol];
+                if (!saved) return;
+                next[stock.symbol] = {
+                    ...(next[stock.symbol] || {}),
+                    shares: saved.shares,
+                    type: saved.type,
+                };
+            });
+            return next;
+        });
+
+        toast.success('Filled remembered quantities');
     };
 
     // What the summary shows: the entries currently on screen, not what's already in the books.
@@ -409,6 +464,22 @@ const BulkTransactionForm: React.FC = () => {
                         >
                             <CopyPlus size={14} />
                             Fill Recent
+                        </button>
+
+                        <button
+                            onClick={rememberOrRecall}
+                            disabled={rememberSaving || (!hasQuantities && rememberedCount === 0)}
+                            title={
+                                hasQuantities
+                                    ? 'Remember the quantities currently entered'
+                                    : rememberedCount > 0
+                                        ? `Fill ${rememberedCount} remembered quantities`
+                                        : 'Enter quantities first, then Remember them'
+                            }
+                            className="flex-1 sm:flex-none bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 px-4 py-2 rounded-md transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap"
+                        >
+                            {hasQuantities ? <Bookmark size={14} /> : <BookmarkCheck size={14} />}
+                            {hasQuantities ? 'Remember' : 'Recall'}
                         </button>
 
                         <button
