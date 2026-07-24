@@ -4,13 +4,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Clock } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
 import { usePrivacy, useCurrency } from '../context/PrivacyContext';
 import { getInitials } from '../utils/formatters';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
+import { getPsxMarketState } from '../utils/marketSchedule';
 import clsx from 'clsx';
 
 const navItems = [
@@ -35,6 +36,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
+
+    // PSX Regular Market state, re-derived on a timer so the chip flips at the
+    // schedule's boundaries (e.g. Open at 09:32) without a page reload.
+    const [marketState, setMarketState] = useState(() => getPsxMarketState());
+    useEffect(() => {
+        const tick = () => setMarketState(getPsxMarketState());
+        tick();
+        const id = setInterval(tick, 30_000);
+        return () => clearInterval(id);
+    }, []);
 
     useEffect(() => {
         if (!menuOpen) return;
@@ -78,7 +89,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         [livePrices, transactions]
     );
 
-    const isLive = isMarketLive && totalMarketValue > 0;
+    // Prices only truly move while the market is Open; outside that window the feed
+    // (if it responds at all) is just the last close, so we don't badge it "Live".
+    const isLive = marketState.isOpen && isMarketLive && totalMarketValue > 0;
     const displayWorth = isLive ? totalMarketValue : totalInvestedCost;
 
     return (
@@ -150,18 +163,41 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                 </div>
                             )}
 
-                            <div className={clsx(
-                                "flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-500 shrink-0",
-                                isLive ? "bg-emerald-500/10 border-emerald-500/20" : "bg-slate-500/10 border-slate-500/20"
-                            )}>
-                                <span className={clsx("w-1.5 h-1.5 rounded-full", isLive ? "bg-emerald-500 animate-pulse" : "bg-slate-500")} />
-                                <span className={clsx("text-[9px] font-black tracking-widest uppercase", isLive ? "text-emerald-500" : "text-slate-500")}>
-                                    {isLive ? 'Live' : 'Static'}
-                                </span>
-                            </div>
+                            {/* One chip carries both facts: the PSX schedule (Market Open / Closed /
+                                Pre-Open / Post-Close) and, while Open, whether the feed is actually
+                                streaming ("Live") or has stalled ("Static"). Outside Open hours the
+                                schedule label wins — there's nothing live to show. */}
+                            {marketState.isOpen ? (
+                                <div className={clsx(
+                                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-500 shrink-0",
+                                    isLive ? "bg-emerald-500/10 border-emerald-500/20" : "bg-slate-500/10 border-slate-500/20"
+                                )}>
+                                    <span className={clsx("w-1.5 h-1.5 rounded-full", isLive ? "bg-emerald-500 animate-pulse" : "bg-slate-500")} />
+                                    <span className={clsx("text-[9px] font-black tracking-widest uppercase", isLive ? "text-emerald-500" : "text-slate-500")}>
+                                        {isLive ? 'Live' : 'Static'}
+                                    </span>
+                                </div>
+                            ) : marketState.phase === 'closed' ? (
+                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10 bg-white/5 shrink-0">
+                                    <Moon size={11} className="text-slate-300 fill-slate-300/30" />
+                                    <span className="text-[9px] font-black tracking-widest uppercase text-slate-200">
+                                        Market Closed
+                                    </span>
+                                </div>
+                            ) : (
+                                // Pre-Open / Post-Close: market's in session but not trading yet — amber, gently pulsing.
+                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-400/30 bg-amber-400/10 shrink-0">
+                                    <Clock size={11} className="text-amber-400 animate-pulse" />
+                                    <span className="text-[9px] font-black tracking-widest uppercase text-amber-400">
+                                        {marketState.label}
+                                    </span>
+                                </div>
+                            )}
 
-                            {/* Feed is down: it retries on its own every few seconds, but offer a manual nudge too. */}
-                            {!isMarketLive && (
+                            {/* Feed is down while the market is Open: it retries on its own every few
+                                seconds, but offer a manual nudge too. When the market is closed a dead
+                                feed is expected, so we don't nag with a Retry button. */}
+                            {marketState.isOpen && !isMarketLive && (
                                 <button
                                     onClick={() => retryFetch()}
                                     title="Retry live feed"
