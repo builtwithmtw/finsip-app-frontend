@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Plus, Star, Loader2 } from "lucide-react";
+import { Plus, Star } from "lucide-react";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useStocks } from "@/hooks/useStocks";
 import { useConfirm } from "@/context/ConfirmContext";
 import { toast } from "sonner";
 import AddWatchlistModal from "@/components/watchlist/AddWatchlistModal";
 import WatchlistTable, { type WatchlistRow } from "@/components/watchlist/WatchlistTable";
+import WatchlistTableSkeleton from "@/components/watchlist/WatchlistTableSkeleton";
 
 const WatchlistPage: React.FC = () => {
   const { items, loading, adding, addItem, removeItem } = useWatchlist();
@@ -81,11 +82,15 @@ const WatchlistPage: React.FC = () => {
         </button>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center gap-2 py-20 text-slate-400 text-sm font-semibold">
-          <Loader2 size={16} className="animate-spin" />
-          Loading watchlist…
-        </div>
+      {/* Hold the full-screen loader until BOTH the saved list and the live feed
+          are in, so the table never flashes rows with "—" prices that fill in a
+          moment later. If the list is empty there's nothing to price, so we don't
+          wait on the feed. */}
+      {loading || (items.length > 0 && stocksLoading) ? (
+        // Skeleton mirrors the real table so values land in place — no spinner,
+        // no jump. Row count tracks the saved list (capped at a page) when it's
+        // already in, so the placeholder is the right height.
+        <WatchlistTableSkeleton rows={items.length > 0 ? Math.min(items.length, 10) : 8} />
       ) : rows.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 px-6 py-16 text-center">
           <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center mx-auto mb-4">

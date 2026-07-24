@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { Trash2, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Trash2, ArrowUp, ArrowDown, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import clsx from "clsx";
+
+const PAGE_SIZE = 10;
 
 export interface WatchlistRow {
   id: string;
@@ -109,6 +111,19 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
     });
   }, [rows, sort]);
 
+  // Frontend pagination, 10 rows a page — keeps the card short so the page never
+  // grows a vertical scrollbar over a long list.
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+
+  // Clamp back into range when the row count or sort shrinks the current page away.
+  useEffect(() => {
+    if (page > pageCount - 1) setPage(pageCount - 1);
+  }, [page, pageCount]);
+
+  const start = page * PAGE_SIZE;
+  const pageRows = sorted.slice(start, start + PAGE_SIZE);
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
       <div className="overflow-x-auto">
@@ -152,7 +167,7 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row) => (
+            {pageRows.map((row) => (
               <tr
                 key={row.id}
                 className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
@@ -166,7 +181,7 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Num value={row.price} format={(v) => `Rs ${priceFormatter.format(v)}`} />
+                  <Num value={row.price} format={(v) => priceFormatter.format(v)} />
                 </td>
                 <td className="px-4 py-3 text-right">
                   <ChangePill value={row.d1} />
@@ -200,6 +215,37 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
           </tbody>
         </table>
       </div>
+
+      {sorted.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-2.5">
+          <span className="text-[11px] font-bold text-slate-400 tabular-nums">
+            {start + 1}–{Math.min(start + PAGE_SIZE, sorted.length)} of {sorted.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-400 tabular-nums">
+              Page {page + 1} of {pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              aria-label="Previous page"
+              className="inline-flex size-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors enabled:hover:bg-slate-50 disabled:opacity-40"
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              disabled={page >= pageCount - 1}
+              aria-label="Next page"
+              className="inline-flex size-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors enabled:hover:bg-slate-50 disabled:opacity-40"
+            >
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
