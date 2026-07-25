@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   type ColumnDef,
   type FilterFn,
@@ -15,6 +15,7 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
@@ -55,6 +56,19 @@ const PINNED_SORT = { id: "pinned", desc: true } as const;
 // Fixed row height (px) — matches the `h-14` on every row so partial pages and
 // empty states can reserve exactly a full page's height.
 const ROW_HEIGHT = 56;
+
+// The card layout has no column headers to click, so under `md` sorting moves
+// into an explicit control. Same column ids as the table — the two layouts
+// share one sorting state, so a choice made on either survives a resize.
+const MOBILE_SORTS = [
+  { id: "marketCap", label: "Mkt Cap" },
+  { id: "d1", label: "1D" },
+  { id: "price", label: "Price" },
+  { id: "volume", label: "Volume" },
+  { id: "ticker", label: "Ticker" },
+  { id: "high52", label: "1Y High" },
+  { id: "low52", label: "1Y Low" },
+] as const;
 
 function formatPct(v: number) {
   return `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
@@ -127,6 +141,103 @@ function PerfPill({ value }: { value: number | null | undefined }) {
     >
       {formatPct(value)}
     </span>
+  );
+}
+
+/** One labelled figure in a mobile card's stat row. */
+function CardStat({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="truncate text-xs tabular-nums">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * A row rendered as a card, for viewports under `md`. Eight columns can't be
+ * read at 375px — under `table-fixed` each one lands at ~40px — so below that
+ * breakpoint the same sorted, filtered, paginated rows are stacked instead:
+ * identity and today's move up top, the secondary figures in a stat row.
+ */
+function StockCard({
+  stock,
+  isPinned,
+  showShariahBadge,
+  onTogglePin,
+}: {
+  stock: Stock;
+  isPinned: boolean;
+  showShariahBadge: boolean;
+  onTogglePin: (ticker: string) => void;
+}) {
+  const { low52, high52 } = stock;
+  return (
+    <div className="flex items-start gap-2 border-b p-3 last:border-b-0 odd:bg-muted/20">
+      <button
+        type="button"
+        onClick={() => onTogglePin(stock.ticker)}
+        title={isPinned ? "Unpin ticker" : "Pin ticker"}
+        aria-label={isPinned ? "Unpin ticker" : "Pin ticker"}
+        aria-pressed={isPinned}
+        className="-m-1 inline-flex items-center justify-center rounded-md p-2 transition-colors hover:bg-accent"
+      >
+        <Pin
+          className={cn(
+            "size-4",
+            isPinned ? "fill-brand text-brand" : "text-muted-foreground/40",
+          )}
+        />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="truncate font-semibold">
+            {stock.ticker}
+            {stock.isShariah && showShariahBadge && (
+              <span
+                className="ml-1.5"
+                title="Shariah compliant"
+                aria-label="Shariah compliant"
+              >
+                🕌
+              </span>
+            )}
+          </span>
+          <span className="ml-auto shrink-0">
+            <NumCell
+              value={stock.price ?? undefined}
+              format={(v) => priceFormatter.format(v)}
+            />
+          </span>
+        </div>
+
+        <div className="mt-0.5 flex items-center gap-2">
+          <span className="truncate text-xs text-muted-foreground">
+            {stock.sector}
+          </span>
+          <span className="ml-auto shrink-0">
+            <PerfPill value={stock.d1} />
+          </span>
+        </div>
+
+        <dl className="mt-2 grid grid-cols-3 gap-2">
+          <CardStat label="Mkt Cap">
+            {stock.marketCap == null ? "—" : formatMarketCap(stock.marketCap)}
+          </CardStat>
+          <CardStat label="Volume">
+            {stock.volume == null ? "—" : formatVolume(stock.volume)}
+          </CardStat>
+          <CardStat label="1Y Range">
+            {low52 == null || high52 == null
+              ? "—"
+              : `${priceFormatter.format(low52)}–${priceFormatter.format(high52)}`}
+          </CardStat>
+        </dl>
+      </div>
+    </div>
   );
 }
 
@@ -354,13 +465,20 @@ export function StockTable({
     getPaginationRowModel: getPaginationRowModel(),
   });
 
+  // Drives the mobile sort control. Falls back to the initial sort when the
+  // user has cleared sorting entirely from the desktop headers.
+  const activeSort = sorting[0] ?? { id: "marketCap", desc: true };
+
   const rows = table.getRowModel().rows;
   const totalRows = table.getFilteredRowModel().rows.length;
   const pageIndex = table.getState().pagination.pageIndex;
   const pageSize = table.getState().pagination.pageSize;
 
+  // Under `md` the card list sizes to its content and the page scrolls, so the
+  // panel opts out of `flex-1` there — as a flex child with min-h-0 it would
+  // otherwise be squashed to the viewport height and clip its own rows.
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card max-lg:min-h-128">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card max-md:flex-none md:max-lg:min-h-128">
       {/* Indeterminate loading bar while the PSX data is being fetched. */}
       {isLoading && (
         <div
@@ -380,7 +498,13 @@ export function StockTable({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search ticker or sector…"
-            className="h-9 w-full rounded-md border bg-background pl-8 pr-8 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+            inputMode="search"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            // text-base under `md`: iOS Safari zooms the viewport on focus for
+            // any input under 16px, and never zooms back out.
+            className="h-9 w-full rounded-md border bg-background pl-8 pr-8 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 md:text-sm"
           />
           {search && (
             <button
@@ -393,23 +517,78 @@ export function StockTable({
             </button>
           )}
         </div>
-        <span className="flex items-center gap-1.5 text-sm text-muted-foreground tabular-nums">
-          {isLoading ? (
-            <>
-              <Loader2 className="size-3.5 animate-spin" />
-              Loading PSX data…
-            </>
-          ) : (
-            `${totalRows} tickers`
-          )}
-        </span>
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground tabular-nums">
+            {isLoading ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Loading PSX data…
+              </>
+            ) : (
+              `${totalRows} tickers`
+            )}
+          </span>
+
+          {/* Sort control for the card layout only — from `md` up the column
+              headers do this job. */}
+          <div className="flex items-center gap-1.5 md:hidden">
+            <label htmlFor="mobile-sort" className="sr-only">
+              Sort by
+            </label>
+            {/* appearance-none + our own chevron: the native arrow is drawn
+                inside the control's box and the label runs underneath it. */}
+            <div className="relative">
+              <select
+                id="mobile-sort"
+                value={activeSort.id}
+                onChange={(e) =>
+                  setSorting([
+                    {
+                      id: e.target.value,
+                      // Ticker reads naturally A→Z; every other column is a
+                      // figure, where "biggest first" is the useful default.
+                      desc: e.target.value !== "ticker",
+                    },
+                  ])
+                }
+                // text-base for the same iOS zoom-on-focus reason as the search
+                // input; this control only ever renders under `md`.
+                className="h-9 w-full appearance-none rounded-md border bg-background pl-2.5 pr-7 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                {MOBILE_SORTS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setSorting([{ id: activeSort.id, desc: !activeSort.desc }])
+              }
+              aria-label={
+                activeSort.desc ? "Sort ascending" : "Sort descending"
+              }
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border transition-colors hover:bg-accent"
+            >
+              {activeSort.desc ? (
+                <ArrowDown className="size-4" />
+              ) : (
+                <ArrowUp className="size-4" />
+              )}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* overflow-hidden, not auto: the page size is fixed and every row is a
           fixed height, so the body is sized to hold exactly one page and has
           nothing to scroll. Clipping rather than scrolling guarantees neither
           scrollbar can appear. */}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      {/* Table from `md` up only — eight columns are unreadable below it. */}
+      <div className="hidden min-h-0 flex-1 overflow-hidden md:block">
         {/* table-fixed: column widths come from the header row's declared
             percentages rather than from cell content, so filtering, searching
             or a long sector name can no longer resize the columns. No min-w --
@@ -546,9 +725,41 @@ export function StockTable({
         </Table>
       </div>
 
+      {/* Card list under `md`. Same rows, same page — only the presentation
+          differs. No filler rows: nothing here is clipped to a fixed height,
+          so a short last page just ends. */}
+      <div className="md:hidden">
+        {isLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-3 border-b p-3">
+              <Skeleton className="size-4 shrink-0 rounded-md" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-40" />
+                <Skeleton className="h-7 w-full" />
+              </div>
+            </div>
+          ))
+        ) : rows.length === 0 ? (
+          <p className="px-4 py-16 text-center text-sm text-muted-foreground">
+            No tickers match the selected filters.
+          </p>
+        ) : (
+          rows.map((row) => (
+            <StockCard
+              key={row.id}
+              stock={row.original}
+              isPinned={pinned.has(row.original.ticker)}
+              showShariahBadge={showShariahBadge}
+              onTogglePin={onTogglePin}
+            />
+          ))
+        )}
+      </div>
+
       {/* Pagination — always mounted so it never appears/disappears (no shift). */}
       {!isLoading && (
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t px-4 py-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t px-4 py-2 md:py-1.5">
           <span className="text-xs text-muted-foreground tabular-nums">
             {totalRows === 0 ? 0 : pageIndex * pageSize + 1}–
             {Math.min((pageIndex + 1) * pageSize, totalRows)} of {totalRows}
@@ -562,18 +773,18 @@ export function StockTable({
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
               aria-label="Previous page"
-              className="inline-flex size-6 items-center justify-center rounded-md border transition-colors enabled:hover:bg-accent disabled:opacity-40"
+              className="inline-flex size-8 items-center justify-center rounded-md border transition-colors enabled:hover:bg-accent disabled:opacity-40 md:size-6"
             >
-              <ChevronLeft className="size-3.5" />
+              <ChevronLeft className="size-4 md:size-3.5" />
             </button>
             <button
               type="button"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
               aria-label="Next page"
-              className="inline-flex size-6 items-center justify-center rounded-md border transition-colors enabled:hover:bg-accent disabled:opacity-40"
+              className="inline-flex size-8 items-center justify-center rounded-md border transition-colors enabled:hover:bg-accent disabled:opacity-40 md:size-6"
             >
-              <ChevronRight className="size-3.5" />
+              <ChevronRight className="size-4 md:size-3.5" />
             </button>
           </div>
         </div>

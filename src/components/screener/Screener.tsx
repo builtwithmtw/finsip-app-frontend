@@ -40,7 +40,7 @@ export function Screener() {
     <div className="flex h-full flex-1 flex-col overflow-hidden">
       <Header />
 
-      <div className="scrollbar-thin mx-auto flex w-full max-w-350 min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6 lg:overflow-hidden">
+      <div className="scrollbar-thin mx-auto flex w-full max-w-350 min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 sm:px-6 sm:py-6 lg:overflow-hidden">
         {isError ? (
           <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 text-sm">
             <p className="mb-3 text-destructive">Failed to load stocks.</p>
@@ -53,7 +53,7 @@ export function Screener() {
             </button>
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row lg:items-stretch">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4 lg:flex-row lg:items-stretch lg:gap-6">
             <FilterSidebar
               filters={filters}
               onChange={setFilters}
