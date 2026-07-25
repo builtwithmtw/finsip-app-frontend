@@ -9,12 +9,13 @@ import { formatMonth } from '../utils/formatters';
 import { computeHoldings } from '../utils/holdings';
 import { useRememberedEntries } from '../hooks/useRememberedEntries';
 import BoughtSummaryModal, { type SummaryRow } from './BoughtSummaryModal';
+import { SkeletonBar, SkeletonCard, SkeletonTableRows } from './DashboardSkeleton';
 import clsx from 'clsx';
 
 const BulkTransactionForm: React.FC = () => {
     const formatCurrency = useCurrency();
     const maskSymbol = usePartialMask();
-    const { stocks, addTransaction, selectedMonth: month, livePrices, transactions } = usePortfolio();
+    const { stocks, stocksLoading, addTransaction, selectedMonth: month, livePrices, transactions } = usePortfolio();
     const { remembered, saving: rememberSaving, save: saveRemembered } = useRememberedEntries();
 
     // price is left undefined until the user types, so an untouched field can fall back
@@ -272,6 +273,20 @@ const BulkTransactionForm: React.FC = () => {
 
         setShowSummary(true);
     };
+
+    // An empty symbol list and a symbol list that has not arrived yet look the
+    // same from here, so the "add stocks first" pitch waits for the query rather
+    // than flashing over a portfolio that does have symbols.
+    if (stocksLoading) {
+        return (
+            <div className="space-y-6">
+                <SkeletonCard>
+                    <SkeletonBar className="h-5 w-48 mb-5" />
+                    <SkeletonTableRows rows={6} cols={5} />
+                </SkeletonCard>
+            </div>
+        );
+    }
 
     if (stocks.length === 0) {
         return (

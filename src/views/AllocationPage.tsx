@@ -69,7 +69,7 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
     // them the moment the page opens. The ALLSHR fetch below is only for logos
     // and is never waited on -- it used to gate the entire view behind a
     // skeleton, which hid symbols and weights that were already in memory.
-    const { stocks, setStockWeight, livePrices } = usePortfolio();
+    const { stocks, stocksLoading, setStockWeight, livePrices } = usePortfolio();
     const { companies, error, refetch } = useIndexCompanies('ALLSHR');
 
     // Raw input text per symbol, so a half-typed "1." or a cleared field survives the
@@ -115,10 +115,12 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
         if (next !== current) setStockWeight(row.id, next);
     };
 
-    // No loading gate: symbols, weights and prices all come from context that is
-    // already populated, so the table renders immediately. Logos arrive later and
-    // simply appear -- Monthly Entry lists the same symbols with no wait, and this
-    // tab had no reason to behave differently.
+    // Weights and prices need no gate -- they come from context that is already
+    // populated, and logos arrive later and simply appear. The symbol list is the
+    // one thing worth waiting on: until its query lands, an empty `stocks` means
+    // "not here yet", not "none", and the two must not look the same.
+    if (stocksLoading) return <TableSkeleton />;
+
     if (stocks.length === 0) {
         return (
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-6 py-12 text-center">

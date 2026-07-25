@@ -46,8 +46,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
 
-    if (!mounted || loading) {
+    // Only the pre-mount tick, which is a single render, still gets the loader.
+    if (!mounted) {
         return <AuthLoader />;
+    }
+
+    // `loading` is only ever true when AuthProvider found a stored session, so
+    // while it resolves the odds are strongly on "signed in". Rendering the app
+    // shell through that window means the nav bar and each page's own skeletons
+    // appear immediately instead of a full-screen loader standing in for the
+    // whole app; PortfolioContext reports its tables as still loading until the
+    // session settles, so nothing flashes an empty state in the meantime.
+    if (loading) {
+        return <>{children}</>;
     }
 
     // There is no /login route: signed-out visitors get the login form in place

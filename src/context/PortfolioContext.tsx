@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, type ReactNode, useCallback } from 'react';
 import { useProxy } from './ProxyContext';
 import { supabase } from '../lib/supabase';
 import type { Transaction, Stock, RealizedProfit } from '../types';
@@ -15,7 +15,16 @@ interface PortfolioContextType {
     // Month the entry form writes to; picked in the nav bar.
     selectedMonth: string;
     setSelectedMonth: (month: string) => void;
+    /**
+     * True while *anything* the portfolio needs is still in flight, including the
+     * auth session. Kept for screens that genuinely need all three tables before
+     * they can render; prefer the per-table flags below so one slow query does
+     * not hold up a section that already has its data.
+     */
     loading: boolean;
+    stocksLoading: boolean;
+    transactionsLoading: boolean;
+    realizedLoading: boolean;
     // Live Market Data
     livePrices: Record<string, number>;
     isMarketLive: boolean;
@@ -37,11 +46,18 @@ interface PortfolioContextType {
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
 
 export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [realizedProfits, setRealizedProfits] = useState<RealizedProfit[]>([]);
-    const [loading, setLoading] = useState(false);
+
+    // One flag per table rather than one for the batch. They start true because
+    // the very first render happens before the session has even resolved, and a
+    // screen that read `false` there would show its "nothing here yet" empty
+    // state for a moment before the real data arrived.
+    const [stocksLoading, setStocksLoading] = useState(true);
+    const [transactionsLoading, setTransactionsLoading] = useState(true);
+    const [realizedLoading, setRealizedLoading] = useState(true);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
     // Centralized Live Market State
@@ -118,93 +134,153 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         return () => clearInterval(interval);
     }, [fetchMarketData, isMarketLive]);
 
+    /**
+     * The three tables are fetched as independent requests, each clearing its own
+     * flag as it lands. They used to share one `Promise.all` and one flag, which
+     * meant the slowest of the three decided when *any* of the dashboard could
+     * render -- a stalled realized-P&L query blanked the holdings table too.
+     */
     const fetchData = async () => {
         if (!user) return;
-        setLoading(true);
-        try {
-            const [
-                { data: stocksData },
-                { data: transData },
-                { data: pnlData }
-            ] = await Promise.all([
-                supabase.from('stocks').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
-                supabase.from('transactions').select('*').eq('user_id', user.id).order('month', { ascending: false }),
-                supabase.from('realized_pnl').select('*').eq('user_id', user.id).order('sell_date', { ascending: false })
-            ]);
 
-            if (stocksData) {
-                // Sorted here rather than in the query: `position` only exists once the
-                // add_stock_position migration has run, and ordering by a missing column
-                // would fail the request and blank the whole list.
-                setStocks(
-                    stocksData
-                        .map(s => ({
-                            id: s.id,
-                            symbol: s.symbol,
-                            sector: s.sector,
-                            createdAt: s.created_at,
-                            position: s.position ?? null,
-                            allocationWeight: s.allocation_weight ?? null
-                        }))
-                        .sort((a, b) => {
-                            if (a.position === null && b.position === null) {
-                                return a.createdAt.localeCompare(b.createdAt);
-                            }
-                            if (a.position === null) return 1;
-                            if (b.position === null) return -1;
-                            return a.position - b.position;
-                        })
-                );
-            } else {
-                setStocks([]);
-            }
+        const fetchStocks = async () => {
+            setStocksLoading(true);
+            try {
+                const { data: stocksData } = await supabase
+                    .from('stocks')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: true });
 
-            if (transData) {
-                setTransactions(transData.map(t => ({
-                    id: t.id,
-                    symbol: t.symbol,
-                    shares: t.shares,
-                    pricePerShare: t.price_per_share,
-                    totalAmount: t.total_amount,
-                    type: t.type,
-                    month: t.month,
-                    createdAt: t.created_at
-                })));
-            } else {
-                setTransactions([]);
+                if (stocksData) {
+                    // Sorted here rather than in the query: `position` only exists once the
+                    // add_stock_position migration has run, and ordering by a missing column
+                    // would fail the request and blank the whole list.
+                    setStocks(
+                        stocksData
+                            .map(s => ({
+                                id: s.id,
+                                symbol: s.symbol,
+                                sector: s.sector,
+                                createdAt: s.created_at,
+                                position: s.position ?? null,
+                                allocationWeight: s.allocation_weight ?? null
+                            }))
+                            .sort((a, b) => {
+                                if (a.position === null && b.position === null) {
+                                    return a.createdAt.localeCompare(b.createdAt);
+                                }
+                                if (a.position === null) return 1;
+                                if (b.position === null) return -1;
+                                return a.position - b.position;
+                            })
+                    );
+                } else {
+                    setStocks([]);
+                }
+            } finally {
+                setStocksLoading(false);
             }
+        };
 
-            if (pnlData) {
-                setRealizedProfits(pnlData.map(p => ({
-                    id: p.id,
-                    symbol: p.symbol,
-                    quantitySold: Number(p.quantity_sold),
-                    avgBuyPrice: Number(p.avg_buy_price),
-                    avgSellPrice: Number(p.avg_sell_price),
-                    realizedProfit: Number(p.realized_profit),
-                    sellDate: p.sell_date,
-                    createdAt: p.created_at
-                })));
-            } else {
-                setRealizedProfits([]);
+        const fetchTransactions = async () => {
+            setTransactionsLoading(true);
+            try {
+                const { data: transData } = await supabase
+                    .from('transactions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('month', { ascending: false });
+
+                if (transData) {
+                    setTransactions(transData.map(t => ({
+                        id: t.id,
+                        symbol: t.symbol,
+                        shares: t.shares,
+                        pricePerShare: t.price_per_share,
+                        totalAmount: t.total_amount,
+                        type: t.type,
+                        month: t.month,
+                        createdAt: t.created_at
+                    })));
+                } else {
+                    setTransactions([]);
+                }
+            } finally {
+                setTransactionsLoading(false);
             }
-        } catch (error) {
-            console.error('Error fetching data:', error);
+        };
+
+        const fetchRealized = async () => {
+            setRealizedLoading(true);
+            try {
+                const { data: pnlData } = await supabase
+                    .from('realized_pnl')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('sell_date', { ascending: false });
+
+                if (pnlData) {
+                    setRealizedProfits(pnlData.map(p => ({
+                        id: p.id,
+                        symbol: p.symbol,
+                        quantitySold: Number(p.quantity_sold),
+                        avgBuyPrice: Number(p.avg_buy_price),
+                        avgSellPrice: Number(p.avg_sell_price),
+                        realizedProfit: Number(p.realized_profit),
+                        sellDate: p.sell_date,
+                        createdAt: p.created_at
+                    })));
+                } else {
+                    setRealizedProfits([]);
+                }
+            } finally {
+                setRealizedLoading(false);
+            }
+        };
+
+        // allSettled, not all: one table failing should not reject the others or
+        // skip their state updates. The toast still fires once for the batch.
+        const results = await Promise.allSettled([
+            fetchStocks(),
+            fetchTransactions(),
+            fetchRealized()
+        ]);
+
+        const failure = results.find(r => r.status === 'rejected');
+        if (failure && failure.status === 'rejected') {
+            console.error('Error fetching data:', failure.reason);
             toast.error('Failed to sync with secure backup');
-        } finally {
-            setLoading(false);
         }
     };
 
+    // `authLoading` is a dependency below, so the effect can re-run for a user it
+    // has already loaded (onAuthStateChange settles the flag after the user is
+    // set). This keeps the fetch to once per identity.
+    const fetchedForUserId = useRef<string | null>(null);
+
     useEffect(() => {
         if (user) {
+            if (fetchedForUserId.current === user.id) return;
+            fetchedForUserId.current = user.id;
             fetchData();
-        } else {
-            // Reset state when not authorized
-            setTransactions([]);
-            setStocks([]);
+            return;
         }
-    }, [user?.id]); // Only refetch when user ID actually changes
+
+        // While the session is still resolving there is nothing to say yet: a user
+        // is about to appear or is about to be confirmed absent. Clearing the flags
+        // here would flash every empty state in the app on each reload.
+        if (authLoading) return;
+
+        // Reset state when not authorized
+        fetchedForUserId.current = null;
+        setTransactions([]);
+        setStocks([]);
+        setRealizedProfits([]);
+        setStocksLoading(false);
+        setTransactionsLoading(false);
+        setRealizedLoading(false);
+    }, [user?.id, authLoading]); // Only refetch when user ID actually changes
 
     const addStock = async (symbol: string, sector: string) => {
         if (!user) return;
@@ -432,7 +508,9 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     const clearAllData = async () => {
         if (!user) return;
-        setLoading(true);
+        setStocksLoading(true);
+        setTransactionsLoading(true);
+        setRealizedLoading(true);
         try {
             await supabase.from('realized_pnl').delete().eq('user_id', user.id);
             await supabase.from('transactions').delete().eq('user_id', user.id);
@@ -445,7 +523,10 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             toast.error('Failed to clear data: ' + error.message);
             throw error;
         } finally {
-            setLoading(false);
+            // fetchData clears these on the happy path; this covers the throw.
+            setStocksLoading(false);
+            setTransactionsLoading(false);
+            setRealizedLoading(false);
         }
     };
 
@@ -456,7 +537,10 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             realizedProfits,
             selectedMonth,
             setSelectedMonth,
-            loading,
+            loading: authLoading || stocksLoading || transactionsLoading || realizedLoading,
+            stocksLoading,
+            transactionsLoading,
+            realizedLoading,
             livePrices,
             isMarketLive,
             marketLoading,
