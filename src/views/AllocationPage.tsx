@@ -9,6 +9,7 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useIndexCompanies } from '../hooks/useIndexCompanies';
 import { useAllocations, MAX_ALLOCATION_HOLDINGS, type AllocationInput, type AllocationRow } from '../hooks/useAllocations';
 import AllocationTable from '../components/allocation/AllocationTable';
+import { DISPLAY, NUMERIC } from '../utils/typography';
 
 type AllocationView = 'KMI30' | 'MINE';
 
@@ -17,14 +18,18 @@ const VIEWS: Array<{ id: AllocationView; label: string }> = [
     { id: 'MINE', label: 'My Symbols' },
 ];
 
+// Footnotes under the table: same micro-label voice, only the colour changes.
+const NOTE = 'text-[10px] font-semibold uppercase tracking-[0.16em]';
+
 const FeedError: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
-    <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
-        <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest">
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-amber-50 px-4 py-2.5 text-amber-700 ring-1 ring-amber-500/15">
+        <p className={NOTE} style={DISPLAY}>
             Could not reach the market feed
         </p>
         <button
             onClick={onRetry}
-            className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 hover:text-amber-900 transition-colors"
+            style={DISPLAY}
+            className={clsx(NOTE, 'flex items-center gap-1.5 transition-colors hover:text-amber-900')}
         >
             <RefreshCw size={12} />
             Retry
@@ -33,9 +38,9 @@ const FeedError: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
 );
 
 const TableSkeleton: React.FC = () => (
-    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 rounded-2xl bg-white p-3 ring-1 ring-slate-900/5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
         {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="h-6 rounded bg-slate-100 animate-pulse" />
+            <div key={i} className="h-6 animate-pulse rounded bg-slate-100" />
         ))}
     </div>
 );
@@ -123,10 +128,15 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
 
     if (stocks.length === 0) {
         return (
-            <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-6 py-12 text-center">
-                <p className="text-sm font-black text-slate-900 uppercase tracking-tight">No symbols yet</p>
-                <p className="text-[11px] font-medium text-slate-400 mt-1.5">
-                    Add symbols from the Overview tab and they'll show up here.
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center">
+                <p
+                    className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                    style={DISPLAY}
+                >
+                    No symbols yet
+                </p>
+                <p className="mt-3 text-xs font-medium text-slate-400">
+                    Add symbols from the Overview tab and they&apos;ll show up here.
                 </p>
             </div>
         );
@@ -156,26 +166,27 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
                 onWeightCommit={handleCommit}
             />
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
                 {unweighted && (
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <p className={clsx(NOTE, 'text-slate-500')} style={DISPLAY}>
                         Set a weight on a symbol to fund it
                     </p>
                 )}
                 {rows.length > MAX_ALLOCATION_HOLDINGS && (
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <p className={clsx(NOTE, 'text-slate-500')} style={DISPLAY}>
                         First {MAX_ALLOCATION_HOLDINGS} are funded — reorder on Overview
                     </p>
                 )}
                 {unpriced.length > 0 && (
-                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">
+                    <p className={clsx(NOTE, 'flex items-center gap-1.5 text-amber-600')} style={DISPLAY}>
+                        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                         No live price: {unpriced.join(', ')}
                     </p>
                 )}
                 {/* Weights are relative, so a total that isn't 100 is fine -- normalization
                     handles it. Showing the sum just makes the split easier to reason about. */}
-                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-auto">
-                    Weights are relative — they don't need to total 100
+                <p className={clsx(NOTE, 'ml-auto text-slate-300')} style={DISPLAY}>
+                    Weights are relative — they don&apos;t need to total 100
                 </p>
             </div>
         </div>
@@ -189,14 +200,19 @@ const AllocationPage: React.FC = () => {
     return (
         <div className="flex flex-col gap-2 pb-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+                {/* Segmented control on one recessed track — the same control as the
+                    Buy/Sell switch in Monthly Entry, at page scale. */}
+                <div className="flex items-center gap-1 rounded-xl bg-white p-1 ring-1 ring-slate-900/5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
                     {VIEWS.map((v) => (
                         <button
                             key={v.id}
                             onClick={() => setView(v.id)}
+                            style={DISPLAY}
                             className={clsx(
-                                'px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors',
-                                view === v.id ? 'bg-slate-900 text-white' : 'text-slate-400 hover:text-slate-700'
+                                'rounded-lg px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] transition-all',
+                                view === v.id
+                                    ? 'bg-slate-900 text-white'
+                                    : 'text-slate-400 hover:text-slate-900'
                             )}
                         >
                             {v.label}
@@ -209,14 +225,28 @@ const AllocationPage: React.FC = () => {
                         it to hold, and the screener is where that happens. */}
                     <Link
                         href="/screener"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[10px] font-black uppercase tracking-widest text-slate-500 shadow-sm hover:text-slate-900 hover:border-slate-300 transition-colors"
+                        style={DISPLAY}
+                        className="flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 ring-1 ring-slate-900/5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] transition-colors hover:text-slate-900"
                     >
                         <LineChart size={13} />
                         Screener
                     </Link>
 
-                    <label className="flex items-center gap-2 bg-slate-900 rounded-lg pl-3 pr-1.5 py-1.5 shadow-sm">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Invest</span>
+                    {/* The one input that drives every number in the table, so it gets the
+                        dark slab the running totals use everywhere else. */}
+                    <label className="relative flex items-center gap-2.5 overflow-hidden rounded-xl bg-slate-950 py-1.5 pl-3.5 pr-1.5 ring-1 ring-white/10">
+                        <span
+                            aria-hidden
+                            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                        />
+                        <span className="flex items-center">
+                            <span
+                                className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-300"
+                                style={DISPLAY}
+                            >
+                                Invest
+                            </span>
+                        </span>
                         <input
                             type="number"
                             min="0"
@@ -225,7 +255,8 @@ const AllocationPage: React.FC = () => {
                             // An empty field parses to NaN and would blank the whole table.
                             onChange={(e) => setInvestment(Number(e.target.value) || 0)}
                             onFocus={(e) => e.currentTarget.select()}
-                            className="no-spinner w-24 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-xs font-black text-white tabular-nums text-right outline-none transition-colors hover:bg-white/10 focus:border-blue-400 focus:bg-white/10"
+                            style={NUMERIC}
+                            className="no-spinner w-24 rounded-lg bg-white/5 px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-white outline-none ring-1 ring-white/10 transition-colors hover:bg-white/10 focus:bg-white/10 focus:ring-sky-400/50"
                         />
                     </label>
                 </div>

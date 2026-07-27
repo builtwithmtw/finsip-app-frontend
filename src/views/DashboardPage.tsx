@@ -12,6 +12,7 @@ import {
     StockManagerSkeleton
 } from '../components/DashboardSkeleton';
 import { computeHoldings } from '../utils/holdings';
+import { DISPLAY } from '../utils/typography';
 
 const DashboardPage: React.FC = () => {
     const { transactions, stocksLoading, transactionsLoading } = usePortfolio();
@@ -46,17 +47,27 @@ const DashboardPage: React.FC = () => {
                     </div>
                 </div>
             ) : (
-                <div className="bg-white rounded-xl border border-dashed border-slate-200 shadow-sm px-6 py-12 flex flex-col items-center text-center">
-                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
-                        <LineChart size={22} />
+                /* The one dashed edge in the app — it says "nothing here yet" without a
+                   line of copy, which is why this panel doesn't use the shared shell. */
+                <div className="relative flex flex-col items-center overflow-hidden rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-sky-400 ring-1 ring-slate-900/10">
+                        <LineChart size={20} />
                     </div>
-                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">No holdings yet</h3>
-                    <p className="text-xs font-bold text-slate-400 mt-2 max-w-sm leading-relaxed">
+                    <h3
+                        className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                        style={DISPLAY}
+                    >
+                        No holdings yet
+                    </h3>
+                    <p className="mt-3 max-w-sm text-xs font-medium leading-relaxed text-slate-400">
                         Start by adding the symbols you track, then record what you bought in Monthly Entry.
                         Your allocation and sector breakdown will show up here.
                     </p>
-                    <div className="mt-5 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-600">
-                        <ArrowDown size={13} className="animate-bounce" />
+                    <div
+                        className="mt-6 inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+                        style={DISPLAY}
+                    >
+                        <ArrowDown size={13} className="animate-bounce text-sky-500" />
                         Add your first symbol below
                     </div>
                 </div>

@@ -12,6 +12,8 @@ import { usePrivacy, useCurrency } from '../context/PrivacyContext';
 import { getInitials } from '../utils/formatters';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
 import { getPsxMarketState } from '../utils/marketSchedule';
+import { DISPLAY, NUMERIC } from '../utils/typography';
+import { Amount } from './Amount';
 import clsx from 'clsx';
 
 const navItems = [
@@ -23,58 +25,15 @@ const navItems = [
     { path: '/watchlist', label: 'Watchlist', icon: Star },
 ];
 
-/* ---- Worth panel typography -------------------------------------------------
- * Space Grotesk and JetBrains Mono are already loaded app-wide by next/font as
- * bare CSS variables; globals.css only binds them inside `.screener-root`, so the
- * panel reaches for them directly. Labels get the geometric display face, every
- * figure gets mono so digits hold their column as prices tick. */
-const DISPLAY = { fontFamily: 'var(--font-heading), sans-serif' } as const;
-const NUMERIC = { fontFamily: 'var(--font-mono), ui-monospace, monospace' } as const;
-
-// "Rs 1,234" -> ["Rs", "1,234"], so the symbol can sit small and dim beside the
-// number instead of competing with it. The privacy mask has no symbol to peel off.
-const splitAmount = (formatted: string): [string | null, string] => {
-    const match = formatted.match(/^Rs\s*(.*)$/);
-    return match ? ['Rs', match[1]] : [null, formatted];
-};
-
-const Amount: React.FC<{ value: string; size?: string; className?: string }> = ({
-    value,
-    size = 'text-[17px]',
-    className,
-}) => {
-    const [symbol, figure] = splitAmount(value);
-    return (
-        <span className={clsx('flex items-baseline gap-1', className)}>
-            {symbol && (
-                <span className="text-[9px] font-medium text-current opacity-45" style={DISPLAY}>
-                    {symbol}
-                </span>
-            )}
-            <span className={clsx(size, 'font-semibold leading-none tracking-tight tabular-nums')} style={NUMERIC}>
-                {figure}
-            </span>
-        </span>
-    );
-};
-
 // Micro-label stacked over its figure — reads as an instrument panel rather than a
-// sentence, and lets each metric keep a fixed column as values change width. A short
-// accent tick keys the label to its metric so the row scans by colour, not by reading.
-const Metric: React.FC<{ label: string; accent: string; children: React.ReactNode }> = ({
-    label,
-    accent,
-    children,
-}) => (
+// sentence, and lets each metric keep a fixed column as values change width.
+const Metric: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
     <div className="flex shrink-0 flex-col gap-2">
-        <span className="flex items-center gap-1.5">
-            <span aria-hidden className={clsx('h-2 w-0.5 rounded-full', accent)} />
-            <span
-                className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-300"
-                style={DISPLAY}
-            >
-                {label}
-            </span>
+        <span
+            className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-300"
+            style={DISPLAY}
+        >
+            {label}
         </span>
         <div className="flex items-baseline gap-2">{children}</div>
     </div>
@@ -183,8 +142,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             {/* Wordmark and tagline share one optical block: the tagline is letter-spaced
                                 to sit flush with the right edge of FINSIP above it. */}
                             <div className="flex flex-col justify-center leading-none">
-                                <span className="text-lg font-black text-slate-900 tracking-tight leading-none">FINSIP</span>
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.28em] leading-none mt-1">
+                                <span
+                                    className="text-[17px] font-semibold leading-none tracking-[0.06em] text-slate-900"
+                                    style={DISPLAY}
+                                >
+                                    FINSIP
+                                </span>
+                                <span
+                                    className="mt-1.5 text-[8px] font-semibold uppercase leading-none tracking-[0.3em] text-slate-400"
+                                    style={DISPLAY}
+                                >
                                     SIP Tracker
                                 </span>
                             </div>
@@ -220,27 +187,26 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                         </div>
                                     ) : (
                                     <>
-                                    <Metric label="Portfolio Worth" accent="bg-sky-400">
-                                        <Amount value={formatCurrency(Math.round(displayWorth))} className="text-white" />
+                                    <Metric label="Portfolio Worth">
+                                        <Amount value={formatCurrency(Math.round(displayWorth))} className="text-white" bare roll />
                                     </Metric>
 
                                     <Rule />
 
-                                    <Metric label="Total Cost" accent="bg-slate-600">
+                                    <Metric label="Total Cost">
                                         <Amount
                                             value={formatCurrency(Math.round(totalInvestedCost))}
                                             size="text-[15px]"
                                             className="text-slate-300"
+                                            bare
+                                            roll
                                         />
                                     </Metric>
 
                                     {hasValuation && (
                                         <>
                                             <Rule />
-                                            <Metric
-                                                label="Net Change"
-                                                accent={netChange >= 0 ? 'bg-emerald-400' : 'bg-rose-400'}
-                                            >
+                                            <Metric label="Net Change">
                                                 <span className={clsx(
                                                     "flex items-baseline gap-1.5",
                                                     netChange >= 0 ? "text-emerald-400" : "text-rose-400"
@@ -251,6 +217,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                                     <Amount
                                                         value={formatCurrency(Math.round(Math.abs(netChange)))}
                                                         size="text-[15px]"
+                                                        bare
+                                                        roll
                                                     />
                                                 </span>
                                                 <span
@@ -338,11 +306,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                         {/* Feed status + gateway + lock */}
                         <div className="flex items-center justify-end gap-3">
+                            {/* Same recessed, borderless field as every other input in the app --
+                                the focus ring is the only edge that ever appears. */}
                             <input
                                 type="month"
                                 value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="bg-white border border-slate-200 rounded-lg shadow-sm px-2 py-1.5 lg:px-3 lg:py-2 text-xs font-medium text-slate-700 hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 outline-none cursor-pointer transition-colors"
+                                style={NUMERIC}
+                                className={clsx(
+                                    "cursor-pointer rounded-xl border-0 bg-slate-100/70 px-2.5 py-2 lg:px-3",
+                                    "text-[12px] font-semibold tabular-nums text-slate-700 outline-none",
+                                    "transition-all hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-sky-500/25"
+                                )}
                             />
 
                             {/* Gateway picker and manual refresh stay wired up, just hidden from the nav bar. */}
@@ -351,10 +326,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                     onClick={() => setShowModal(true)}
                                     className="px-3 py-1.5 hover:bg-slate-50 rounded-md flex flex-col items-start transition-all group"
                                 >
-                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Gateway</span>
-                                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight flex items-center gap-1.5">
+                                    <span className="mb-1 text-[8px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400" style={DISPLAY}>Gateway</span>
+                                    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-tight text-sky-600" style={DISPLAY}>
                                         {selectedProxy.name}
-                                        <Activity size={10} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+                                        <Activity size={10} className="text-slate-300 transition-colors group-hover:text-sky-500" />
                                     </span>
                                 </button>
                                 <div className="w-px h-7 bg-slate-100" />
@@ -374,10 +349,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                 title={hidden ? 'Show amounts (Shift+H)' : 'Hide amounts (Shift+H)'}
                                 aria-pressed={hidden}
                                 className={clsx(
-                                    "p-2 rounded-lg transition-all",
+                                    "rounded-xl p-2 transition-all",
                                     hidden
-                                        ? "text-blue-600 bg-blue-50 hover:bg-blue-100"
-                                        : "text-slate-300 hover:text-slate-700 hover:bg-slate-100"
+                                        ? "bg-slate-900 text-sky-400 ring-1 ring-slate-900/10"
+                                        : "text-slate-400 ring-1 ring-slate-900/5 hover:bg-slate-100 hover:text-slate-900"
                                 )}
                             >
                                 {hidden ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -389,8 +364,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                     title={user?.email ?? undefined}
                                     aria-haspopup="menu"
                                     aria-expanded={menuOpen}
+                                    style={DISPLAY}
                                     className={clsx(
-                                        "w-8 h-8 shrink-0 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-black tracking-tight select-none transition-all",
+                                        "flex h-9 w-9 shrink-0 select-none items-center justify-center rounded-xl bg-slate-900",
+                                        "text-[11px] font-semibold tracking-[0.06em] text-white transition-all",
                                         "hover:ring-4 hover:ring-slate-900/10",
                                         menuOpen && "ring-4 ring-slate-900/10"
                                     )}
@@ -401,12 +378,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                 {menuOpen && (
                                     <div
                                         role="menu"
-                                        className="absolute right-0 top-full mt-2 w-60 bg-white rounded-xl border border-slate-100 shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                                        className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-2xl bg-white shadow-[0_24px_48px_-24px_rgba(2,6,23,0.35)] ring-1 ring-slate-900/5 animate-in fade-in slide-in-from-top-1 duration-150"
                                     >
-                                        <div className="px-4 py-3 border-b border-slate-50">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Signed in as</span>
+                                        <div className="border-b border-slate-100 px-4 py-3.5">
+                                            <span
+                                                className="mb-2 block text-[9px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400"
+                                                style={DISPLAY}
+                                            >
+                                                Signed in as
+                                            </span>
                                             {/* Local part only -- the domain is noise you already know. */}
-                                            <span className="text-xs font-bold text-slate-900 break-all">
+                                            <span className="break-all text-xs font-semibold text-slate-900">
                                                 {user?.email?.split('@')[0] ?? '—'}
                                             </span>
                                         </div>
@@ -414,7 +396,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                         <button
                                             role="menuitem"
                                             onClick={() => { setMenuOpen(false); handleDeleteAccount(); }}
-                                            className="w-full flex items-center gap-2.5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:bg-rose-600 hover:text-white transition-colors"
+                                            style={DISPLAY}
+                                            className="flex w-full items-center gap-2.5 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-600 transition-colors hover:bg-rose-600 hover:text-white"
                                         >
                                             <UserX size={14} />
                                             Delete Account
@@ -423,7 +406,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                         <button
                                             role="menuitem"
                                             onClick={() => { setMenuOpen(false); signOut(); }}
-                                            className="w-full flex items-center gap-2.5 px-4 py-3 border-t border-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                                            style={DISPLAY}
+                                            className="flex w-full items-center gap-2.5 border-t border-slate-100 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
                                         >
                                             <LogOut size={14} />
                                             Sign Out
@@ -439,42 +423,50 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             {/* Main Content */}
             <main className="flex-1 min-h-0 min-w-0 flex flex-col bg-[#F8FAFC]">
                 <div className="max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-10 py-3 lg:py-4 flex-1 min-h-0 w-full flex flex-col gap-3 lg:gap-4">
-                    {/* Tab Navigation */}
-                    <nav className="shrink-0 flex justify-start lg:justify-center gap-1 border-b border-slate-200 overflow-x-auto overflow-y-hidden scrollbar-none">
-                        {navItems.map((item) => {
-                            // NavLink's isActive render-prop has no App Router equivalent;
-                            // every tab is a leaf route, so an exact match is what `end` meant.
-                            const isActive = pathname === item.path;
+                    {/* Tab Navigation — a segmented rail rather than underlined tabs. The
+                        active tab takes the dark slab the app already uses for its primary
+                        actions, so where you are is unmistakable at a glance; the rest of
+                        the rail stays quiet on a recessed track. */}
+                    <nav className="shrink-0 self-start lg:self-center max-w-full overflow-x-auto overflow-y-hidden scrollbar-none">
+                        <div className="inline-flex items-center gap-1 rounded-2xl bg-white p-1 ring-1 ring-slate-900/5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+                            {navItems.map((item) => {
+                                // NavLink's isActive render-prop has no App Router equivalent;
+                                // every tab is a leaf route, so an exact match is what `end` meant.
+                                const isActive = pathname === item.path;
 
-                            return (
-                                <Link
-                                    key={item.path}
-                                    href={item.path}
-                                    className={clsx(
-                                        "group relative flex items-center gap-1.5 px-3 lg:px-4 lg:gap-2 pt-2 pb-3 -mb-px rounded-t-lg",
-                                        "text-[10px] lg:text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-colors duration-200",
-                                        isActive
-                                            ? "text-blue-600"
-                                            : "text-slate-400 hover:text-slate-700 hover:bg-slate-100/70"
-                                    )}
-                                >
-                                    <item.icon
-                                        size={15}
+                                return (
+                                    <Link
+                                        key={item.path}
+                                        href={item.path}
+                                        style={DISPLAY}
                                         className={clsx(
-                                            "transition-transform duration-200 group-hover:scale-110",
-                                            isActive ? "text-blue-600" : "text-slate-300 group-hover:text-slate-500"
+                                            "group relative flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 lg:gap-2 lg:px-3.5",
+                                            "text-[10px] font-semibold uppercase tracking-[0.14em] transition-all duration-200",
+                                            isActive
+                                                ? "bg-slate-900 text-white shadow-[0_8px_18px_-10px_rgba(2,6,23,0.9)]"
+                                                : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-900"
                                         )}
-                                    />
-                                    <span>{item.label}</span>
-                                    <span
-                                        className={clsx(
-                                            "absolute inset-x-2 bottom-0 h-0.5 rounded-full transition-all duration-200",
-                                            isActive ? "bg-blue-600 opacity-100" : "bg-slate-300 opacity-0 group-hover:opacity-100"
+                                    >
+                                        {/* The seam that runs along every dark surface in the app,
+                                            scaled down to a tab. */}
+                                        {isActive && (
+                                            <span
+                                                aria-hidden
+                                                className="pointer-events-none absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                                            />
                                         )}
-                                    />
-                                </Link>
-                            );
-                        })}
+                                        <item.icon
+                                            size={14}
+                                            className={clsx(
+                                                "shrink-0 transition-colors",
+                                                isActive ? "text-sky-400" : "text-slate-400 group-hover:text-slate-600"
+                                            )}
+                                        />
+                                        <span>{item.label}</span>
+                                    </Link>
+                                );
+                            })}
+                        </div>
                     </nav>
 
                     <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide-auto animate-in fade-in duration-300">

@@ -12,6 +12,19 @@ import { toast } from 'sonner';
 import clsx from 'clsx';
 import TransactionDetailModal from './TransactionDetailModal';
 import type { Transaction } from '../types';
+import { computeHoldings } from '../utils/holdings';
+import { DISPLAY, NUMERIC } from '../utils/typography';
+import { Panel } from './Panel';
+
+const HEAD = 'py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
+
+interface Cell {
+    shares: number;
+    totalAmount: number;
+    hasSell: boolean;
+    hasBuy: boolean;
+    rawTransactions: Transaction[];
+}
 
 const MonthlyView: React.FC = () => {
     const formatCurrency = useCurrency();
@@ -28,12 +41,17 @@ const MonthlyView: React.FC = () => {
         transactions: Transaction[];
     } | null>(null);
 
+    // Which month column the pointer is over. Rows already light up on their own via
+    // the group; this is the other half of the crosshair, and it is what makes a wide
+    // grid readable -- you can follow a column down without losing the line.
+    const [hoveredMonth, setHoveredMonth] = useState<string | null>(null);
+
     const filteredTransactions = useMemo(() =>
         transactions.filter(t => t.shares > 0 && t.pricePerShare > 0),
         [transactions]
     );
 
-    const { sortedMonths, sortedSymbols, matrix } = useMemo(() => {
+    const { sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals, held } = useMemo(() => {
         const monthsSet = new Set<string>();
         const symbolsSet = new Set<string>();
 
@@ -44,7 +62,16 @@ const MonthlyView: React.FC = () => {
 
         const sortedMonths = Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
 
+        // Symbols still held today rise to the top; positions fully exited sink below
+        // them. Within each group the order stays the one set on Overview, so the grid
+        // doesn't reshuffle for any reason other than actually closing a position.
+        const held = new Set(computeHoldings(filteredTransactions).map(h => h.symbol));
+
         const sortedSymbols = Array.from(symbolsSet).sort((a, b) => {
+            const heldA = held.has(a) ? 0 : 1;
+            const heldB = held.has(b) ? 0 : 1;
+            if (heldA !== heldB) return heldA - heldB;
+
             const indexA = stocks.findIndex(s => s.symbol === a);
             const indexB = stocks.findIndex(s => s.symbol === b);
             const posA = indexA === -1 ? 999 : indexA;
@@ -52,7 +79,7 @@ const MonthlyView: React.FC = () => {
             return posA - posB;
         });
 
-        const matrix: Record<string, Record<string, { shares: number; totalAmount: number; hasSell: boolean; hasBuy: boolean; rawTransactions: Transaction[] }>> = {};
+        const matrix: Record<string, Record<string, Cell>> = {};
 
         filteredTransactions.forEach(t => {
             if (!matrix[t.symbol]) matrix[t.symbol] = {};
@@ -74,7 +101,26 @@ const MonthlyView: React.FC = () => {
             else existing.hasBuy = true;
         });
 
-        return { sortedMonths, sortedSymbols, matrix };
+        // Per-month net, for the footer.
+        const colTotals = new Map<string, number>();
+
+        // Denominator for a cell's share of its month. Deliberately buys-only: a sell is
+        // money coming back out, so folding it in would let one sell push the month's
+        // remaining rows past 100%.
+        const colBuyTotals = new Map<string, number>();
+
+        sortedSymbols.forEach(symbol => {
+            sortedMonths.forEach(month => {
+                const cell = matrix[symbol]?.[month];
+                if (!cell) return;
+                colTotals.set(month, (colTotals.get(month) || 0) + cell.totalAmount);
+                if (cell.totalAmount > 0) {
+                    colBuyTotals.set(month, (colBuyTotals.get(month) || 0) + cell.totalAmount);
+                }
+            });
+        });
+
+        return { sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals, held };
     }, [filteredTransactions, stocks]);
 
     // Header clicks open a whole row or column of the matrix; the modal sorts by date,
@@ -116,32 +162,32 @@ const MonthlyView: React.FC = () => {
     if (loading) {
         return (
             <SkeletonCard>
-                <div className="flex items-center justify-between mb-5">
-                    <div className="space-y-2">
-                        <SkeletonBar className="h-5 w-48" />
-                        <SkeletonBar className="h-2.5 w-32" />
-                    </div>
-                    <SkeletonBar className="h-11 w-28 rounded-lg" />
-                </div>
-                <SkeletonTableRows rows={6} cols={5} />
+                <SkeletonBar className="h-3 w-full mb-5" />
+                <SkeletonTableRows rows={8} cols={6} />
             </SkeletonCard>
         );
     }
 
     if (filteredTransactions.length === 0) {
         return (
-            <div className="bg-white rounded-xl border border-dashed border-slate-200 shadow-sm px-6 py-12 flex flex-col items-center text-center">
-                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
-                    <Table2 size={22} />
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-sky-400 ring-1 ring-slate-900/10">
+                    <Table2 size={20} />
                 </div>
-                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">No transactions yet</h3>
-                <p className="text-xs font-bold text-slate-400 mt-2 max-w-sm leading-relaxed">
-                    Every buy and sell you record shows up here as a symbol-by-month matrix.
+                <h3
+                    className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                    style={DISPLAY}
+                >
+                    No transactions yet
+                </h3>
+                <p className="mt-3 max-w-sm text-xs font-medium leading-relaxed text-slate-400">
+                    Every buy and sell you record shows up here as a symbol-by-month grid.
                     Record your first one in Monthly Entry.
                 </p>
                 <Link
                     href="/entry"
-                    className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors"
+                    style={DISPLAY}
+                    className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:bg-slate-800"
                 >
                     Go to Monthly Entry
                     <ArrowRight size={13} />
@@ -152,102 +198,213 @@ const MonthlyView: React.FC = () => {
 
     return (
         <>
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col group">
-                {/* Horizontal only, by design: the ledger must never grow its own vertical
-                    scrollbar. It grows as tall as it needs and the page scrolls instead.
+            <Panel flush>
+                {/* Horizontal only, by design: every month stays on one page and the grid
+                    must never grow a vertical scrollbar -- nor push the page into growing
+                    one. One line per cell is what keeps a full symbol list on screen.
                     (The header is sticky left, not top -- sticky-top only pays off inside a
                     vertical scroll container, which is exactly what we don't want here.) */}
-                <div className="overflow-x-auto overflow-y-hidden w-full max-w-full custom-scrollbar">
-                    <table className="w-full text-left border-collapse min-w-max border-spacing-0">
-                        <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 font-black text-[10px] uppercase tracking-widest">
-                            <tr>
-                                <th className="px-4 py-2.5 sticky left-0 bg-slate-50 z-30 border-r border-slate-100">
+                <div className="w-full max-w-full overflow-x-auto overflow-y-hidden custom-scrollbar">
+                    <table className="w-full min-w-max border-collapse border-spacing-0 text-left">
+                        <thead>
+                            <tr className="border-b border-slate-100">
+                                <th
+                                    style={DISPLAY}
+                                    className={clsx(HEAD, 'sticky left-0 z-30 border-r border-slate-100 bg-white pl-5 pr-4')}
+                                >
                                     Symbol
                                 </th>
                                 {sortedMonths.map(month => (
-                                    <th key={month} className="px-3 py-2.5 border-r border-slate-100 last:border-0 text-center min-w-[130px]">
-                                        <div className="flex items-center justify-center gap-2 group/month">
-                                            <button
-                                                onClick={() => openMonth(month)}
-                                                title={`All transactions in ${formatMonth(month)}`}
-                                                className="whitespace-nowrap hover:text-blue-600 transition-colors"
-                                            >
-                                                {formatMonth(month)}
-                                            </button>
+                                    <th
+                                        key={month}
+                                        onMouseEnter={() => setHoveredMonth(month)}
+                                        onMouseLeave={() => setHoveredMonth(null)}
+                                        className={clsx(
+                                            "min-w-[132px] border-r border-slate-100 px-3 py-2.5 text-right transition-colors last:border-r-0",
+                                            hoveredMonth === month && "bg-slate-50"
+                                        )}
+                                    >
+                                        {/* The delete button occupies no layout of its own until it is
+                                            wanted -- it sits over the label's left, which is empty space. */}
+                                        <div className="group/month relative inline-flex items-center justify-end">
                                             <button
                                                 onClick={() => handleDeleteMonth(month)}
                                                 title={`Delete all entries for ${formatMonth(month)}`}
-                                                className="p-1 rounded text-slate-300 hover:text-white hover:bg-rose-600 opacity-60 group-hover/month:opacity-100 transition-all"
+                                                className="absolute right-full mr-1 rounded p-0.5 text-slate-300 opacity-0 transition-all hover:text-rose-500 group-hover/month:opacity-100"
                                             >
-                                                <Trash2 size={12} />
+                                                <Trash2 size={11} />
+                                            </button>
+                                            {/* Month leads, year trails dimmed: down a long history the eye
+                                                only needs the month, and the years stop shouting in unison. */}
+                                            <button
+                                                onClick={() => openMonth(month)}
+                                                title={`All transactions in ${formatMonth(month)}`}
+                                                style={DISPLAY}
+                                                className={clsx(
+                                                    "whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-[0.18em] transition-colors hover:text-slate-900",
+                                                    hoveredMonth === month ? "text-slate-900" : "text-slate-400"
+                                                )}
+                                            >
+                                                {formatMonth(month).split(' ')[0]}
+                                                <span className="ml-1 font-normal text-slate-300">
+                                                    {formatMonth(month).split(' ')[1]}
+                                                </span>
                                             </button>
                                         </div>
                                     </th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {sortedSymbols.map((symbol, index) => (
-                                <tr key={symbol} className={clsx(
-                                    "transition-colors group/row",
-                                    index % 2 === 0 ? "bg-white":"bg-slate-50/20")}> <td className={clsx("px-4 py-1.5 font-black text-slate-900 sticky left-0 z-10 border-r border-slate-100 text-sm tracking-tight uppercase",
-                                        index % 2 === 0 ? "bg-white":"bg-[#FBFDFE]"
-                                    )}>
-                                        <button
-                                            onClick={() => openSymbol(symbol)}
-                                            title={`All transactions for ${symbol}`}
-                                            className="hover:text-blue-600 transition-colors"
-                                        >
-                                            {maskSymbol(symbol)}
-                                        </button>
-                                    </td>
-                                    {sortedMonths.map(month => {
-                                        const data = matrix[symbol][month];
-                                        if (!data || data.rawTransactions.length === 0) {
+
+                        <tbody>
+                            {sortedSymbols.map((symbol) => {
+                                // Nothing left on the books for this ticker: the position was
+                                // closed out, so the label is marked rather than just sorted down.
+                                const isExited = !held.has(symbol);
+
+                                return (
+                                    <tr key={symbol} className="group/row border-b border-slate-100 transition-colors last:border-0">
+                                        {/* Stays put as the months scroll past, so a row never loses its
+                                            label. It carries its own background for that reason. */}
+                                        <td className="sticky left-0 z-10 border-r border-slate-100 bg-white py-1.5 pl-5 pr-4 transition-colors group-hover/row:bg-slate-50">
+                                            <button
+                                                onClick={() => openSymbol(symbol)}
+                                                title={`All transactions for ${symbol}`}
+                                                style={DISPLAY}
+                                                className={clsx(
+                                                    "text-[12px] font-semibold uppercase leading-none tracking-tight transition-colors hover:text-sky-600",
+                                                    isExited ? "text-rose-600" : "text-slate-900"
+                                                )}
+                                            >
+                                                {maskSymbol(symbol)}
+                                            </button>
+                                        </td>
+
+
+                                        {sortedMonths.map(month => {
+                                            const data = matrix[symbol][month];
+                                            if (!data || data.rawTransactions.length === 0) {
+                                                return (
+                                                    <td
+                                                        key={month}
+                                                        onMouseEnter={() => setHoveredMonth(month)}
+                                                        onMouseLeave={() => setHoveredMonth(null)}
+                                                        className={clsx(
+                                                            "border-r border-slate-100 px-3 py-1.5 text-right text-slate-200 transition-colors last:border-r-0 group-hover/row:bg-slate-50",
+                                                            hoveredMonth === month && "bg-slate-50"
+                                                        )}
+                                                    >
+                                                        <span className="text-[11px] leading-none" style={NUMERIC}>·</span>
+                                                    </td>
+                                                );
+                                            }
+
+                                            // Always volume-weighted across the month's actual trades. Dividing the
+                                            // *net* amount by *net* shares breaks whenever a month both buys and
+                                            // sells: 100 @ 10 bought and 50 @ 20 sold nets to 50 shares for 0 rupees,
+                                            // which would price the row at 0.00.
+                                            const grossShares = data.rawTransactions.reduce((sum, t) => sum + t.shares, 0);
+                                            const grossAmount = data.rawTransactions.reduce((sum, t) => sum + t.totalAmount, 0);
+                                            const avgPrice = grossShares > 0 ? grossAmount / grossShares : 0;
+
+                                            const isSell = data.shares < 0 || (data.shares === 0 && data.hasSell);
+
+                                            // Share of that month's buying. Sells get none -- they are not part
+                                            // of how the month's money was split.
+                                            const monthBuys = colBuyTotals.get(month) ?? 0;
+                                            const share = !isSell && monthBuys > 0
+                                                ? (data.totalAmount / monthBuys) * 100
+                                                : null;
+
+
                                             return (
-                                                <td key={month} className="px-3 py-1.5 text-center text-slate-200 font-black text-sm border-r border-slate-50 last:border-0">
-                                                    —
+                                                <td
+                                                    key={month}
+                                                    onClick={() => setSelectedCell({ symbol, month, transactions: data.rawTransactions })}
+                                                    // The quantity and price the amount is built from stay one hover
+                                                    // away, and one click away in full, rather than costing every row
+                                                    // a second line.
+                                                    title={`${mask(Math.abs(data.shares).toLocaleString())} @ ${mask(avgPrice.toFixed(2))}`}
+                                                    onMouseEnter={() => setHoveredMonth(month)}
+                                                    onMouseLeave={() => setHoveredMonth(null)}
+                                                    className={clsx(
+                                                        "cursor-pointer border-r border-slate-100 px-3 py-1.5 text-right transition-colors last:border-r-0",
+                                                        "group-hover/row:bg-slate-50 hover:!bg-sky-50",
+                                                        hoveredMonth === month && "bg-slate-50"
+                                                    )}
+                                                >
+                                                    {/* Amount and its share of the month sit on one line: a second
+                                                        line would double every row and cost the grid its no-scroll
+                                                        fit. The share is dimmed so the rupee figure still leads. */}
+                                                    <span className="inline-flex items-baseline justify-end gap-1.5">
+                                                        <span
+                                                            className={clsx(
+                                                                "text-[12px] leading-none tabular-nums",
+                                                                isSell ? "text-rose-600" : "text-slate-700"
+                                                            )}
+                                                            style={NUMERIC}
+                                                        >
+                                                            {isSell ? '−' : ''}
+                                                            {formatCurrency(Math.round(Math.abs(data.totalAmount))).replace(/^Rs\s*/, '')}
+                                                        </span>
+                                                        {share != null && (
+                                                            <span
+                                                                className="w-8 text-right text-[10px] leading-none tabular-nums text-slate-400"
+                                                                style={NUMERIC}
+                                                            >
+                                                                {share.toFixed(0)}%
+                                                            </span>
+                                                        )}
+                                                    </span>
+
                                                 </td>
                                             );
-                                        }
-
-                                        // Always volume-weighted across the month's actual trades. Dividing the
-                                        // *net* amount by *net* shares breaks whenever a month both buys and
-                                        // sells: 100 @ 10 bought and 50 @ 20 sold nets to 50 shares for 0 rupees,
-                                        // which would price the row at 0.00.
-                                        const grossShares = data.rawTransactions.reduce((sum, t) => sum + t.shares, 0);
-                                        const grossAmount = data.rawTransactions.reduce((sum, t) => sum + t.totalAmount, 0);
-                                        const avgPrice = grossShares > 0 ? grossAmount / grossShares : 0;
-
-                                        const isSell = data.shares < 0 || (data.shares === 0 && data.hasSell);
-
-                                        return (
-                                            <td
-                                                key={month}
-                                                onClick={() => setSelectedCell({ symbol, month, transactions: data.rawTransactions })}
-                                                className="px-3 py-1.5 border-r border-slate-50 last:border-0 text-center group-hover/row:bg-blue-50/20 transition-colors cursor-pointer hover:!bg-blue-100/50"
-                                            >
-                                                <div className={clsx(
-                                                    "text-xs font-black tabular-nums leading-tight",
-                                                    isSell ? "text-rose-600" : "text-slate-900"
-                                                )}>
-                                                    {mask(Math.abs(data.shares).toLocaleString())} @ {mask(avgPrice.toFixed(2))}
-                                                </div>
-                                                <div className={clsx(
-                                                    "text-[11px] font-bold tabular-nums leading-tight",
-                                                    isSell ? "text-rose-500" : "text-slate-400"
-                                                )}>
-                                                    {formatCurrency(Math.abs(data.totalAmount)).split('.')[0]}
-                                                </div>
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
+                                        })}
+                                    </tr>
+                                );
+                            })}
                         </tbody>
+
+                        {/* Bottom margin: what each month cost, and what the book has taken in
+                            total. The grid closes on an answer rather than trailing off. */}
+                        <tfoot>
+                            <tr className="border-t border-slate-100 bg-slate-50/60">
+                                <td
+                                    style={DISPLAY}
+                                    className={clsx(HEAD, 'sticky left-0 z-20 border-r border-slate-100 bg-slate-50 pl-5 pr-4 text-slate-500')}
+                                >
+                                    Net
+                                </td>
+                                {sortedMonths.map(month => {
+                                    const net = colTotals.get(month) ?? 0;
+                                    return (
+                                        <td
+                                        key={month}
+                                        onMouseEnter={() => setHoveredMonth(month)}
+                                        onMouseLeave={() => setHoveredMonth(null)}
+                                        className={clsx(
+                                            "border-r border-slate-100 px-3 py-2.5 text-right transition-colors last:border-r-0",
+                                            hoveredMonth === month && "bg-slate-100/70"
+                                        )}
+                                    >
+                                            <span
+                                                className={clsx(
+                                                    'text-[12px] font-semibold leading-none tabular-nums',
+                                                    net < 0 ? 'text-rose-600' : 'text-slate-600'
+                                                )}
+                                                style={NUMERIC}
+                                            >
+                                                {net < 0 ? '−' : ''}
+                                                {formatCurrency(Math.round(Math.abs(net))).replace(/^Rs\s*/, '')}
+                                            </span>
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
-            </div>
+            </Panel>
 
             <TransactionDetailModal
                 isOpen={!!selectedCell}

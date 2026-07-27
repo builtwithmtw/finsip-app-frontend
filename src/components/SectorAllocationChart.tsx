@@ -5,6 +5,9 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency } from '../context/PrivacyContext';
 import { computeHoldings } from '../utils/holdings';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { DISPLAY, NUMERIC } from '../utils/typography';
+import { Panel, PanelHeader, MetricLabel } from './Panel';
+import { Amount } from './Amount';
 
 const INNER_RADIUS_RATIO = 0.68;
 const OUTER_RADIUS_RATIO = 0.92;
@@ -66,38 +69,37 @@ const SectorAllocationChart: React.FC = () => {
     const sectorSize = Math.min(hole * 0.17, usableWidth / Math.max(topSector.length * approxCharWidth, 1));
 
     const labelStyles = {
-        caption: { fontSize: `${Math.max(7, hole * 0.08)}px` },
-        sector: { fontSize: `${Math.max(9, sectorSize)}px`, maxWidth: `${usableWidth}px` },
-        percentage: { fontSize: `${Math.max(9, hole * 0.11)}px` },
+        caption: { ...DISPLAY, fontSize: `${Math.max(7, hole * 0.08)}px` },
+        sector: { ...DISPLAY, fontSize: `${Math.max(9, sectorSize)}px`, maxWidth: `${usableWidth}px` },
+        percentage: { ...NUMERIC, fontSize: `${Math.max(9, hole * 0.13)}px` },
     };
 
+    // Ordered so neighbouring arcs stay distinguishable rather than by hue wheel: the
+    // largest sector leads with the panel's own sky accent, and each following colour
+    // steps to a different part of the spectrum.
     const COLORS = [
-        '#3B82F6', // Blue 500
+        '#0EA5E9', // Sky 500
         '#10B981', // Emerald 500
         '#6366F1', // Indigo 500
         '#F59E0B', // Amber 500
-        '#EC4899', // Pink 500
+        '#14B8A6', // Teal 500
         '#8B5CF6', // Violet 500
-        '#06B6D4', // Cyan 500
         '#F43F5E', // Rose 500
+        '#64748B', // Slate 500
     ];
 
     if (data.length === 0) return null;
 
     return (
-        <div className="bg-white p-4 lg:p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col h-full">
-            <div className="flex items-center justify-between mb-4">
-                <div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Sector Exposure</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">By Invested Cost</p>
-                </div>
-                <div className="bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Invested</span>
-                    <span className="text-base font-black text-slate-900 tracking-tight">
-                        {formatCurrency(data.reduce((sum, item) => sum + item.value, 0)).split('.')[0]}
-                    </span>
-                </div>
-            </div>
+        <Panel className="flex h-full flex-col">
+            <PanelHeader title="Sector Exposure" caption="By Invested Cost">
+                <MetricLabel label="Invested" className="justify-end" />
+                <Amount
+                    value={formatCurrency(Math.round(data.reduce((sum, item) => sum + item.value, 0)))}
+                    size="text-lg"
+                    className="mt-2 justify-end text-slate-900"
+                />
+            </PanelHeader>
 
             {/* Chart Container - donut scales with whatever height the row gives us */}
             <div ref={chartRef} className="relative flex-1 min-h-[140px] mb-3">
@@ -125,44 +127,87 @@ const SectorAllocationChart: React.FC = () => {
                         <Tooltip
                             wrapperStyle={{ zIndex: 100 }}
                             contentStyle={{
-                                backgroundColor: '#0f172a',
+                                backgroundColor: '#020617',
                                 opacity: 1,
                                 color: '#fff',
-                                borderRadius: '16px',
-                                border: 'none',
-                                boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3)',
-                                padding: '12px 16px'
+                                borderRadius: '14px',
+                                border: '1px solid rgba(255,255,255,0.10)',
+                                boxShadow: '0 16px 40px -24px rgba(2,6,23,0.9)',
+                                padding: '10px 14px',
                             }}
-                            itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}
-                            formatter={(value: any, name: any) => [formatCurrency(Number(value || 0)).split('.')[0], name]}
+                            labelStyle={{ display: 'none' }}
+                            itemStyle={{
+                                ...NUMERIC,
+                                color: '#fff',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                            }}
+                            formatter={(value: any, name: any) => [formatCurrency(Math.round(Number(value || 0))), name]}
                         />
                     </PieChart>
                 </ResponsiveContainer>
 
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-0">
-                    <span style={labelStyles.caption} className="font-black text-slate-400 uppercase tracking-widest block mb-1 leading-none">Top Sector</span>
-                    <span style={labelStyles.sector} className="font-black text-slate-900 uppercase block leading-none mx-auto">{topSector}</span>
-                    <span style={labelStyles.percentage} className="font-black text-blue-600 uppercase mt-1.5 block leading-none">{data[0]?.percentage.toFixed(1)}%</span>
+                {/* Centre readout: caption and sector in the display face, the share in mono
+                    so it lines up with every other figure on the dashboard. */}
+                <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 text-center">
+                    <span
+                        style={labelStyles.caption}
+                        className="mb-1.5 block font-semibold uppercase leading-none tracking-[0.18em] text-slate-400"
+                    >
+                        Top Sector
+                    </span>
+                    <span
+                        style={labelStyles.sector}
+                        className="mx-auto block font-semibold uppercase leading-none tracking-tight text-slate-900"
+                    >
+                        {topSector}
+                    </span>
+                    <span
+                        style={labelStyles.percentage}
+                        className="mt-2 block font-semibold leading-none tabular-nums text-sky-600"
+                    >
+                        {data[0]?.percentage.toFixed(1)}%
+                    </span>
                 </div>
             </div>
 
-            {/* Scrollable Legend Area */}
-            <div className="shrink-0 max-h-[120px] overflow-y-auto custom-scrollbar pr-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                    {data.map((item, index) => (
-                        <div key={item.name} className="flex items-center justify-between group cursor-default">
-                            <div className="flex items-center gap-3 truncate">
-                                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                                <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-900 transition-colors truncate">{item.name}</span>
+            {/* Legend — a swatch, the name, and a share bar so it ranks the sectors on its
+                own rather than making you read the donut. No scroller of its own: the donut
+                above it flexes, so the legend simply takes the height it needs. */}
+            <div className="shrink-0">
+                <div className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2">
+                    {data.map((item, index) => {
+                        const color = COLORS[index % COLORS.length];
+                        return (
+                            <div key={item.name} className="group flex cursor-default items-center gap-3">
+                                <span
+                                    className="h-2 w-2 shrink-0 rounded-full"
+                                    style={{ backgroundColor: color }}
+                                />
+                                <span
+                                    className="flex-1 truncate text-[11px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-500 transition-colors group-hover:text-slate-900"
+                                    style={DISPLAY}
+                                >
+                                    {item.name}
+                                </span>
+                                <span className="h-1 w-8 shrink-0 overflow-hidden rounded-full bg-slate-100">
+                                    <span
+                                        className="block h-full rounded-full"
+                                        style={{ width: `${Math.min(item.percentage, 100)}%`, backgroundColor: color }}
+                                    />
+                                </span>
+                                <span
+                                    className="w-10 shrink-0 text-right text-[11px] font-semibold leading-none tabular-nums text-slate-900"
+                                    style={NUMERIC}
+                                >
+                                    {item.percentage.toFixed(1)}%
+                                </span>
                             </div>
-                            <div className="flex items-center gap-4 shrink-0">
-                                <span className="text-xs font-black text-slate-900">{item.percentage.toFixed(1)}%</span>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
-        </div>
+        </Panel>
     );
 };
 

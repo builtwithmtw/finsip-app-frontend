@@ -8,6 +8,8 @@ import { Plus, Trash2, Search, GripVertical, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import clsx from 'clsx';
 import { getSectorForSymbol } from '../data/psxSectors';
+import { DISPLAY, NUMERIC } from '../utils/typography';
+import { Panel, PanelHeader } from './Panel';
 
 const StockManager: React.FC = () => {
     const { stocks, addStock, removeStock, reorderStocks } = usePortfolio();
@@ -116,10 +118,21 @@ const StockManager: React.FC = () => {
     };
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-3 space-y-3">
-            <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
-                <div className="flex-1 relative group">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+        <Panel className="space-y-3.5 !p-4">
+            <PanelHeader title="Asset Master List" caption="Drag to reorder">
+                <span
+                    className="text-lg font-semibold leading-none tabular-nums text-slate-900"
+                    style={NUMERIC}
+                >
+                    {stocks.length}
+                </span>
+            </PanelHeader>
+
+            {/* Fields sit on a recessed slate fill with no border at all — the focus ring
+                is the only edge that ever appears, which keeps the row quiet until used. */}
+            <form onSubmit={handleAdd} className="flex flex-col gap-2 sm:flex-row">
+                <div className="group relative flex-1">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-sky-500">
                         <Search size={14} />
                     </div>
                     <input
@@ -127,32 +140,51 @@ const StockManager: React.FC = () => {
                         value={newStock}
                         onChange={(e) => setNewStock(e.target.value)}
                         placeholder="ADD SYMBOL, E.G. MEBL"
-                        className="w-full h-9 bg-slate-50 border-0 rounded-md pl-9 pr-3 text-slate-900 text-sm font-black placeholder:text-slate-300 placeholder:font-bold focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all uppercase"
+                        style={DISPLAY}
+                        className={clsx(
+                            'h-10 w-full rounded-xl border-0 bg-slate-100/70 pl-10 pr-3 uppercase',
+                            'text-[13px] font-semibold tracking-[0.06em] text-slate-900',
+                            'placeholder:font-medium placeholder:tracking-[0.14em] placeholder:text-slate-400',
+                            'transition-all focus:bg-white focus:ring-2 focus:ring-sky-500/25'
+                        )}
                     />
                 </div>
 
-                <div className="relative sm:w-40">
+                <div className="relative sm:w-44">
                     <select
                         value={selectedSector}
                         onChange={(e) => { setSelectedSector(e.target.value); setAutoDetected(false); }}
-                        className="h-9 w-full bg-slate-50 border-0 rounded-md px-3 text-slate-900 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all cursor-pointer"
+                        style={DISPLAY}
+                        className={clsx(
+                            'h-10 w-full cursor-pointer rounded-xl border-0 bg-slate-100/70 px-3.5',
+                            'text-[13px] font-semibold text-slate-700',
+                            'transition-all focus:bg-white focus:ring-2 focus:ring-sky-500/25'
+                        )}
                     >
                         {sectors.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                     {autoDetected && (
                         <span
                             title="Sector auto-detected from symbol"
-                            className="absolute right-7 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
+                            className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-emerald-500"
                         >
                             <Sparkles size={12} />
                         </span>
                     )}
                 </div>
 
+                {/* Slate rather than blue: the accent is spent on data across this dashboard,
+                    so the one action reads as material instead of another coloured surface. */}
                 <button
                     type="submit"
                     disabled={!newStock.trim()}
-                    className="h-9 bg-blue-600 hover:bg-blue-500 text-white px-5 rounded-md transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 active:scale-95 disabled:opacity-40 justify-center whitespace-nowrap"
+                    style={DISPLAY}
+                    className={clsx(
+                        'flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-5',
+                        'bg-slate-900 text-[10px] font-semibold uppercase tracking-[0.18em] text-white',
+                        'ring-1 ring-slate-900/10 transition-all hover:bg-slate-800 active:scale-95',
+                        'disabled:opacity-30'
+                    )}
                 >
                     <Plus size={14} />
                     Add
@@ -160,10 +192,15 @@ const StockManager: React.FC = () => {
             </form>
 
             {stocks.length === 0 ? (
-                <p className="text-slate-400 font-black uppercase tracking-widest text-[10px] py-2">No assets yet</p>
+                <p
+                    className="py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400"
+                    style={DISPLAY}
+                >
+                    No assets yet
+                </p>
             ) : (
                 // Caps its own height so the dashboard never grows a page scrollbar.
-                <div className="flex flex-wrap gap-1.5 max-h-[92px] overflow-y-auto scrollbar-hide-auto">
+                <div className="scrollbar-hide-auto flex max-h-[104px] flex-wrap gap-1.5 overflow-y-auto">
                     {displayed.map((stock, index) => (
                         <div
                             key={stock.id}
@@ -173,18 +210,29 @@ const StockManager: React.FC = () => {
                             onDragOver={(e) => e.preventDefault()}
                             onDragEnd={commitOrder}
                             className={clsx(
-                                'group bg-slate-50 hover:bg-white border rounded-md pl-1.5 pr-1 py-1 flex items-center gap-1.5 transition-colors cursor-grab active:cursor-grabbing',
+                                'group flex cursor-grab items-center gap-1.5 rounded-lg py-1.5 pl-1.5 pr-1',
+                                'ring-1 transition-all active:cursor-grabbing',
                                 dragIndex === index
-                                    ? 'border-blue-300 bg-white opacity-60'
-                                    : 'border-slate-100 hover:border-blue-100'
+                                    ? 'bg-white opacity-60 ring-sky-400/40'
+                                    : 'bg-slate-100/70 ring-transparent hover:bg-white hover:ring-slate-900/10'
                             )}
                         >
-                            <GripVertical size={12} className="text-slate-300 group-hover:text-slate-400 shrink-0" />
-                            <span className="text-xs font-black text-slate-900 uppercase">{maskSymbol(stock.symbol)}</span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">{stock.sector || 'Others'}</span>
+                            <GripVertical size={12} className="shrink-0 text-slate-300 group-hover:text-slate-400" />
+                            <span
+                                className="text-[12px] font-semibold uppercase leading-none tracking-tight text-slate-900"
+                                style={DISPLAY}
+                            >
+                                {maskSymbol(stock.symbol)}
+                            </span>
+                            <span
+                                className="text-[9px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-400"
+                                style={DISPLAY}
+                            >
+                                {stock.sector || 'Others'}
+                            </span>
                             <button
                                 onClick={() => handleRemove(stock.id, stock.symbol)}
-                                className="p-0.5 text-slate-300 hover:text-rose-500 rounded transition-all"
+                                className="rounded p-0.5 text-slate-300 transition-colors hover:text-rose-500"
                             >
                                 <Trash2 size={12} />
                             </button>
@@ -192,7 +240,7 @@ const StockManager: React.FC = () => {
                     ))}
                 </div>
             )}
-        </div>
+        </Panel>
     );
 };
 

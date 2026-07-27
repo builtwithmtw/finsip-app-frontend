@@ -27,6 +27,8 @@ interface PortfolioContextType {
     realizedLoading: boolean;
     // Live Market Data
     livePrices: Record<string, number>;
+    /** Percent move on the day, per symbol, from the same feed row as the price. */
+    liveChanges: Record<string, number>;
     isMarketLive: boolean;
     // True until the first market fetch settles, win or lose.
     marketLoading: boolean;
@@ -62,6 +64,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     // Centralized Live Market State
     const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+    const [liveChanges, setLiveChanges] = useState<Record<string, number>>({});
     const [isMarketLive, setIsMarketLive] = useState(false);
     const [marketLoading, setMarketLoading] = useState(true);
 
@@ -84,6 +87,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
 
             const json = await response.json();
             const prices: Record<string, number> = {};
+            const changes: Record<string, number> = {};
 
             const dataArray = (json && json.response?.data) ? json.response.data :
                 (json?.data) ? json.data :
@@ -95,11 +99,21 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                     const price = Number(item.curr || item.last_price || item.price || 0);
                     if (symbol && price > 0) {
                         prices[symbol] = price;
+
+                        // Day move rides along on the same row. It is stored separately
+                        // rather than folded into livePrices so nothing that already reads
+                        // that map has to care, and a feed that omits it simply leaves the
+                        // symbol absent rather than reporting a flat 0%.
+                        const change = Number(
+                            item.changePercent ?? item.change_percentage ?? item.changePercentage ?? NaN
+                        );
+                        if (Number.isFinite(change)) changes[symbol] = change;
                     }
                 });
 
                 if (Object.keys(prices).length > 0) {
                     setLivePrices(prices);
+                    setLiveChanges(changes);
                     setIsMarketLive(true);
                 }
             } else {
@@ -542,6 +556,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             transactionsLoading,
             realizedLoading,
             livePrices,
+            liveChanges,
             isMarketLive,
             marketLoading,
             refreshData: fetchData,
