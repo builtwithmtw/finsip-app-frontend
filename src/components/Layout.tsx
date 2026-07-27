@@ -23,6 +23,68 @@ const navItems = [
     { path: '/watchlist', label: 'Watchlist', icon: Star },
 ];
 
+/* ---- Worth panel typography -------------------------------------------------
+ * Space Grotesk and JetBrains Mono are already loaded app-wide by next/font as
+ * bare CSS variables; globals.css only binds them inside `.screener-root`, so the
+ * panel reaches for them directly. Labels get the geometric display face, every
+ * figure gets mono so digits hold their column as prices tick. */
+const DISPLAY = { fontFamily: 'var(--font-heading), sans-serif' } as const;
+const NUMERIC = { fontFamily: 'var(--font-mono), ui-monospace, monospace' } as const;
+
+// "Rs 1,234" -> ["Rs", "1,234"], so the symbol can sit small and dim beside the
+// number instead of competing with it. The privacy mask has no symbol to peel off.
+const splitAmount = (formatted: string): [string | null, string] => {
+    const match = formatted.match(/^Rs\s*(.*)$/);
+    return match ? ['Rs', match[1]] : [null, formatted];
+};
+
+const Amount: React.FC<{ value: string; size?: string; className?: string }> = ({
+    value,
+    size = 'text-[17px]',
+    className,
+}) => {
+    const [symbol, figure] = splitAmount(value);
+    return (
+        <span className={clsx('flex items-baseline gap-1', className)}>
+            {symbol && (
+                <span className="text-[9px] font-medium text-current opacity-45" style={DISPLAY}>
+                    {symbol}
+                </span>
+            )}
+            <span className={clsx(size, 'font-semibold leading-none tracking-tight tabular-nums')} style={NUMERIC}>
+                {figure}
+            </span>
+        </span>
+    );
+};
+
+// Micro-label stacked over its figure — reads as an instrument panel rather than a
+// sentence, and lets each metric keep a fixed column as values change width. A short
+// accent tick keys the label to its metric so the row scans by colour, not by reading.
+const Metric: React.FC<{ label: string; accent: string; children: React.ReactNode }> = ({
+    label,
+    accent,
+    children,
+}) => (
+    <div className="flex shrink-0 flex-col gap-2">
+        <span className="flex items-center gap-1.5">
+            <span aria-hidden className={clsx('h-2 w-0.5 rounded-full', accent)} />
+            <span
+                className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-300"
+                style={DISPLAY}
+            >
+                {label}
+            </span>
+        </span>
+        <div className="flex items-baseline gap-2">{children}</div>
+    </div>
+);
+
+// Hairline that fades out at both ends, so the separator never reads as a hard edge.
+const Rule: React.FC = () => (
+    <span aria-hidden className="h-8 w-px shrink-0 bg-gradient-to-b from-transparent via-white/15 to-transparent" />
+);
+
 // Took its children from <Outlet /> under react-router; the App Router hands the
 // active page in as `children` from the (app) route-group layout instead.
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -128,95 +190,150 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             </div>
                         </Link>
 
-                        {/* Worth */}
-                        <div className="order-last w-full overflow-x-auto scrollbar-none flex items-center gap-3 bg-slate-900 px-3 py-2 rounded-lg shadow-sm lg:order-none lg:w-auto lg:gap-5 lg:pl-5 lg:pr-3 lg:py-2.5">
-                            {marketLoading ? (
-                                <div className="flex items-center gap-2.5 py-0.5">
-                                    <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-blue-400 rounded-full animate-spin" />
-                                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">
-                                        Fetching Live Feed
-                                    </span>
+                        {/* Worth — one dark glass slab. Depth comes from a corner tint and two
+                            hairlines rather than from borders or heavy fills, so the figures are
+                            the only thing with real contrast on it. */}
+                        <div className="order-last w-full lg:order-none lg:w-auto">
+                            <div className="relative overflow-hidden rounded-2xl bg-slate-950 ring-1 ring-white/10 shadow-[0_16px_40px_-24px_rgba(2,6,23,0.9)]">
+                                <div
+                                    aria-hidden
+                                    className="pointer-events-none absolute inset-0 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(56,189,248,0.13),transparent_55%)]"
+                                />
+                                <div
+                                    aria-hidden
+                                    className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+                                />
+
+                                <div className="relative flex items-center gap-4 overflow-x-auto scrollbar-none px-4 py-2.5 lg:gap-5 lg:px-5">
+                                    {marketLoading ? (
+                                        <div className="flex items-center gap-3 py-1.5">
+                                            <span className="relative h-3.5 w-3.5 shrink-0">
+                                                <span className="absolute inset-0 rounded-full border border-white/10" />
+                                                <span className="absolute inset-0 animate-spin rounded-full border border-transparent border-t-sky-400" />
+                                            </span>
+                                            <span
+                                                className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300"
+                                                style={DISPLAY}
+                                            >
+                                                Syncing Feed
+                                            </span>
+                                        </div>
+                                    ) : (
+                                    <>
+                                    <Metric label="Portfolio Worth" accent="bg-sky-400">
+                                        <Amount value={formatCurrency(Math.round(displayWorth))} className="text-white" />
+                                    </Metric>
+
+                                    <Rule />
+
+                                    <Metric label="Total Cost" accent="bg-slate-600">
+                                        <Amount
+                                            value={formatCurrency(Math.round(totalInvestedCost))}
+                                            size="text-[15px]"
+                                            className="text-slate-300"
+                                        />
+                                    </Metric>
+
+                                    {hasValuation && (
+                                        <>
+                                            <Rule />
+                                            <Metric
+                                                label="Net Change"
+                                                accent={netChange >= 0 ? 'bg-emerald-400' : 'bg-rose-400'}
+                                            >
+                                                <span className={clsx(
+                                                    "flex items-baseline gap-1.5",
+                                                    netChange >= 0 ? "text-emerald-400" : "text-rose-400"
+                                                )}>
+                                                    <span className="text-[9px] leading-none" style={NUMERIC}>
+                                                        {netChange >= 0 ? '▲' : '▼'}
+                                                    </span>
+                                                    <Amount
+                                                        value={formatCurrency(Math.round(Math.abs(netChange)))}
+                                                        size="text-[15px]"
+                                                    />
+                                                </span>
+                                                <span
+                                                    className={clsx(
+                                                        "rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums",
+                                                        netChange >= 0
+                                                            ? "bg-emerald-400/10 text-emerald-400"
+                                                            : "bg-rose-400/10 text-rose-400"
+                                                    )}
+                                                    style={NUMERIC}
+                                                >
+                                                    {totalInvestedCost > 0
+                                                        ? `${netChange >= 0 ? '+' : '−'}${Math.abs(netChange / totalInvestedCost * 100).toFixed(2)}`
+                                                        : '0.00'}%
+                                                </span>
+                                            </Metric>
+                                        </>
+                                    )}
+
+                                    <Rule />
+
+                                    {/* One readout carries both facts: the PSX schedule (Market Open / Closed /
+                                        Pre-Open / Post-Close) and, while Open, whether the feed is actually
+                                        streaming ("Live") or has stalled ("Static"). Outside Open hours the
+                                        schedule label wins — there's nothing live to show. No chip fill here;
+                                        the dot and the colour do the work. */}
+                                    {marketState.isOpen ? (
+                                        <span className="flex shrink-0 items-center gap-2">
+                                            <span className="relative flex h-1.5 w-1.5">
+                                                {isLive && (
+                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                                )}
+                                                <span className={clsx(
+                                                    "relative inline-flex h-1.5 w-1.5 rounded-full",
+                                                    isLive ? "bg-emerald-400" : "bg-slate-500"
+                                                )} />
+                                            </span>
+                                            <span
+                                                className={clsx(
+                                                    "text-[10px] font-semibold uppercase tracking-[0.18em]",
+                                                    isLive ? "text-emerald-400" : "text-slate-400"
+                                                )}
+                                                style={DISPLAY}
+                                            >
+                                                {isLive ? 'Live' : 'Static'}
+                                            </span>
+                                        </span>
+                                    ) : marketState.phase === 'closed' ? (
+                                        <span className="flex shrink-0 items-center gap-2 text-slate-400">
+                                            <Moon size={11} className="fill-slate-500/30 text-slate-500" />
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
+                                                Market Closed
+                                            </span>
+                                        </span>
+                                    ) : (
+                                        // Pre-Open / Post-Close: market's in session but not trading yet — amber, gently pulsing.
+                                        <span className="flex shrink-0 items-center gap-2 text-amber-400">
+                                            <Clock size={11} className="animate-pulse" />
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
+                                                {marketState.label}
+                                            </span>
+                                        </span>
+                                    )}
+
+                                    {/* Feed is down while the market is Open: it retries on its own every few
+                                        seconds, but offer a manual nudge too. When the market is closed a dead
+                                        feed is expected, so we don't nag with a Retry button. */}
+                                    {marketState.isOpen && !isMarketLive && (
+                                        <button
+                                            onClick={() => retryFetch()}
+                                            title="Retry live feed"
+                                            className="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-amber-400 ring-1 ring-amber-400/20 transition-colors hover:bg-amber-400/10"
+                                        >
+                                            <RefreshCw size={11} className="transition-transform duration-500 group-active:rotate-180" />
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
+                                                Retry
+                                            </span>
+                                        </button>
+                                    )}
+                                    </>
+                                    )}
                                 </div>
-                            ) : (
-                            <>
-                            <div className="flex items-baseline gap-2.5 shrink-0">
-                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Portfolio Worth</span>
-                                <span className="text-base font-black text-white leading-none tracking-tight">
-                                    {formatCurrency(displayWorth).split('.')[0]}
-                                </span>
                             </div>
-
-                            <div className="flex items-baseline gap-2.5 border-l border-white/10 pl-3 lg:pl-5 shrink-0">
-                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Total Cost</span>
-                                <span className="text-base font-black text-white leading-none tracking-tight">
-                                    {formatCurrency(totalInvestedCost).split('.')[0]}
-                                </span>
-                            </div>
-
-                            {hasValuation && (
-                                <div className="flex items-baseline gap-2.5 border-l border-white/10 pl-3 lg:pl-5 shrink-0">
-                                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Net Change</span>
-                                    <span className={clsx(
-                                        "text-base font-black leading-none tracking-tight",
-                                        netChange >= 0 ? "text-emerald-400" : "text-rose-400"
-                                    )}>
-                                        {netChange >= 0 ? '+' : '-'}{formatCurrency(Math.abs(netChange)).split('.')[0]}
-                                    </span>
-                                    <span className={clsx(
-                                        "text-[10px] font-black px-2 py-0.5 rounded-lg",
-                                        netChange >= 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
-                                    )}>
-                                        {totalInvestedCost > 0 ? (netChange / totalInvestedCost * 100).toFixed(2) : '0.00'}%
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* One chip carries both facts: the PSX schedule (Market Open / Closed /
-                                Pre-Open / Post-Close) and, while Open, whether the feed is actually
-                                streaming ("Live") or has stalled ("Static"). Outside Open hours the
-                                schedule label wins — there's nothing live to show. */}
-                            {marketState.isOpen ? (
-                                <div className={clsx(
-                                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-500 shrink-0",
-                                    isLive ? "bg-emerald-500/10 border-emerald-500/20" : "bg-slate-500/10 border-slate-500/20"
-                                )}>
-                                    <span className={clsx("w-1.5 h-1.5 rounded-full", isLive ? "bg-emerald-500 animate-pulse" : "bg-slate-500")} />
-                                    <span className={clsx("text-[9px] font-black tracking-widest uppercase", isLive ? "text-emerald-500" : "text-slate-500")}>
-                                        {isLive ? 'Live' : 'Static'}
-                                    </span>
-                                </div>
-                            ) : marketState.phase === 'closed' ? (
-                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10 bg-white/5 shrink-0">
-                                    <Moon size={11} className="text-slate-300 fill-slate-300/30" />
-                                    <span className="text-[9px] font-black tracking-widest uppercase text-slate-200">
-                                        Market Closed
-                                    </span>
-                                </div>
-                            ) : (
-                                // Pre-Open / Post-Close: market's in session but not trading yet — amber, gently pulsing.
-                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-400/30 bg-amber-400/10 shrink-0">
-                                    <Clock size={11} className="text-amber-400 animate-pulse" />
-                                    <span className="text-[9px] font-black tracking-widest uppercase text-amber-400">
-                                        {marketState.label}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Feed is down while the market is Open: it retries on its own every few
-                                seconds, but offer a manual nudge too. When the market is closed a dead
-                                feed is expected, so we don't nag with a Retry button. */}
-                            {marketState.isOpen && !isMarketLive && (
-                                <button
-                                    onClick={() => retryFetch()}
-                                    title="Retry live feed"
-                                    className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors group"
-                                >
-                                    <RefreshCw size={11} className="group-active:rotate-180 transition-transform duration-500" />
-                                    <span className="text-[9px] font-black tracking-widest uppercase">Retry</span>
-                                </button>
-                            )}
-                            </>
-                            )}
                         </div>
 
                         {/* Feed status + gateway + lock */}
