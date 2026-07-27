@@ -77,10 +77,11 @@ const HoldingsTable: React.FC = () => {
                                         {mask(stock.totalShares.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }))}
                                     </td>
                                     <td className="px-4 py-2.5 text-right font-bold text-slate-600 text-sm tabular-nums">
-                                        {formatCurrency(stock.avgPrice).replace('Rs', '')}
+                                        {/* Rounded to whole rupees: the paisa on an average cost is noise. */}
+                                        {formatCurrency(Math.round(stock.avgPrice)).replace('Rs', '')}
                                     </td>
                                     <td className="px-4 py-2.5 text-right font-black text-blue-600 text-sm tabular-nums">
-                                        {formatCurrency(stock.totalInvested).replace('Rs', '')}
+                                        {formatCurrency(Math.round(stock.totalInvested)).replace('Rs', '')}
                                     </td>
                                     <td className="px-4 py-2.5 text-right">
                                         <div className="flex items-center justify-end gap-2">

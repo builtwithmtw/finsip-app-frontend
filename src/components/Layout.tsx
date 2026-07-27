@@ -93,7 +93,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // Prices only truly move while the market is Open; outside that window the feed
     // (if it responds at all) is just the last close, so we don't badge it "Live".
     const isLive = marketState.isOpen && isMarketLive && totalMarketValue > 0;
-    const displayWorth = isLive ? totalMarketValue : totalInvestedCost;
+
+    // Worth is a fact about the portfolio, not about the market's opening hours: once we
+    // have any valuation it stands, closed or not (outside Open it's the last close, which
+    // is still what the holdings are worth). Cost basis only stands in when the feed has
+    // given us nothing at all. Unpriced symbols are already held at cost inside
+    // summarizeLive, so totalMarketValue never understates the portfolio.
+    const hasValuation = totalMarketValue > 0;
+    const displayWorth = hasValuation ? totalMarketValue : totalInvestedCost;
 
     return (
         <div className="h-screen overflow-hidden bg-[#F8FAFC] font-sans flex flex-col">
@@ -146,7 +153,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                 </span>
                             </div>
 
-                            {isLive && (
+                            {hasValuation && (
                                 <div className="flex items-baseline gap-2.5 border-l border-white/10 pl-3 lg:pl-5 shrink-0">
                                     <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Net Change</span>
                                     <span className={clsx(
