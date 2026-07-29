@@ -187,13 +187,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                         </div>
                                     ) : (
                                     <>
-                                    <Metric label="Portfolio Worth">
+                                    <Metric label="Worth">
                                         <Amount value={formatCurrency(Math.round(displayWorth))} className="text-white" bare roll />
                                     </Metric>
 
                                     <Rule />
 
-                                    <Metric label="Total Cost">
+                                    <Metric label="Cost">
                                         <Amount
                                             value={formatCurrency(Math.round(totalInvestedCost))}
                                             size="text-[15px]"
@@ -206,7 +206,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                     {hasValuation && (
                                         <>
                                             <Rule />
-                                            <Metric label="Net Change">
+                                            <Metric label="Change">
                                                 <span className={clsx(
                                                     "flex items-baseline gap-1.5",
                                                     netChange >= 0 ? "text-emerald-400" : "text-rose-400"

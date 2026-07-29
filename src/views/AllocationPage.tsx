@@ -9,13 +9,16 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useIndexCompanies } from '../hooks/useIndexCompanies';
 import { useAllocations, MAX_ALLOCATION_HOLDINGS, type AllocationInput, type AllocationRow } from '../hooks/useAllocations';
 import AllocationTable from '../components/allocation/AllocationTable';
+import CurrentAllocationTable, { type CurrentAllocationRow } from '../components/allocation/CurrentAllocationTable';
+import { computeLiveHoldings } from '../utils/holdings';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 
-type AllocationView = 'KMI30' | 'MINE';
+type AllocationView = 'KMI30' | 'MINE' | 'CURRENT';
 
 const VIEWS: Array<{ id: AllocationView; label: string }> = [
     { id: 'KMI30', label: 'KMI 30' },
     { id: 'MINE', label: 'My Symbols' },
+    { id: 'CURRENT', label: 'Current Allocation' },
 ];
 
 // Footnotes under the table: same micro-label voice, only the colour changes.
@@ -193,6 +196,58 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
     );
 };
 
+/**
+ * What the portfolio actually looks like right now: the split it was bought at,
+ * the split the market has since made of it, and the drift between the two.
+ * Nothing here depends on the investment amount -- it reads the ledger, not a plan.
+ */
+const CurrentAllocationView: React.FC = () => {
+    const { transactions, transactionsLoading, livePrices } = usePortfolio();
+    const { companies } = useIndexCompanies('ALLSHR');
+
+    const rows: CurrentAllocationRow[] = useMemo(() => {
+        const logos = new Map(companies.map((c) => [c.name, c.logo]));
+        const holdings = computeLiveHoldings(transactions, livePrices);
+
+        const totalCost = holdings.reduce((sum, h) => sum + h.totalCostBasis, 0);
+        const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
+
+        return holdings
+            .map((h) => {
+                const investedShare = totalCost > 0 ? (h.totalCostBasis / totalCost) * 100 : 0;
+                const marketShare = totalValue > 0 ? (h.marketValue / totalValue) * 100 : 0;
+
+                return {
+                    symbol: h.symbol,
+                    logo: logos.get(h.symbol.toUpperCase()) ?? '',
+                    investedShare,
+                    marketShare,
+                    difference: marketShare - investedShare,
+                    isPriced: h.isPriced,
+                };
+            })
+            // Heaviest position first: the rows that move the portfolio most are the
+            // ones worth reading, and the drift on a 0.4% holding is noise.
+            .sort((a, b) => b.marketShare - a.marketShare);
+    }, [transactions, livePrices, companies]);
+
+    if (transactionsLoading) return <TableSkeleton />;
+
+    return (
+        <div className="flex flex-col gap-2">
+            <CurrentAllocationTable rows={rows} emptyMessage="No holdings yet" />
+
+            {rows.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+                    <p className={clsx(NOTE, 'ml-auto text-slate-300')} style={DISPLAY}>
+                        Difference is market share minus invested share
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const AllocationPage: React.FC = () => {
     const [view, setView] = useLocalStorage<AllocationView>('finsip:allocation-view', 'KMI30');
     const [investment, setInvestment] = useLocalStorage<number>('finsip:allocation-investment', 100000);
@@ -233,8 +288,9 @@ const AllocationPage: React.FC = () => {
                     </Link>
 
                     {/* The one input that drives every number in the table, so it gets the
-                        dark slab the running totals use everywhere else. */}
-                    <label className="relative flex items-center gap-2.5 overflow-hidden rounded-xl bg-slate-950 py-1.5 pl-3.5 pr-1.5 ring-1 ring-white/10">
+                        dark slab the running totals use everywhere else. Current Allocation
+                        reads the ledger instead of a plan, so there it would drive nothing. */}
+                    <label className={clsx(view === 'CURRENT' && 'hidden', 'relative flex items-center gap-2.5 overflow-hidden rounded-xl bg-slate-950 py-1.5 pl-3.5 pr-1.5 ring-1 ring-white/10')}>
                         <span
                             aria-hidden
                             className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
@@ -262,7 +318,13 @@ const AllocationPage: React.FC = () => {
                 </div>
             </div>
 
-            {view === 'MINE' ? <MySymbolsView investment={investment} /> : <IndexAllocationView investment={investment} />}
+            {view === 'CURRENT' ? (
+                <CurrentAllocationView />
+            ) : view === 'MINE' ? (
+                <MySymbolsView investment={investment} />
+            ) : (
+                <IndexAllocationView investment={investment} />
+            )}
         </div>
     );
 };
