@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Clock, Star } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Clock, Star, BarChart3 } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
@@ -47,7 +47,7 @@ const Rule: React.FC = () => (
 // Took its children from <Outlet /> under react-router; the App Router hands the
 // active page in as `children` from the (app) route-group layout instead.
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { transactions, livePrices, isMarketLive, marketLoading, selectedMonth, setSelectedMonth } = usePortfolio();
+    const { transactions, livePrices, isMarketLive, marketLoading, consecutiveFailures, selectedMonth, setSelectedMonth, showScoreLines, toggleScoreLines } = usePortfolio();
     const { selectedProxy, setShowModal, retryFetch } = useProxy();
     const { signOut, user } = useAuth();
     const { hidden, toggleHidden } = usePrivacy();
@@ -136,20 +136,24 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             it already names the link. */}
                         <Link
                             href="/"
-                            className="flex items-center gap-2.5 shrink-0 rounded-lg transition-opacity hover:opacity-70"
+                            className="flex items-center gap-1.5 shrink-0 rounded-lg transition-opacity hover:opacity-70"
                         >
                             <img src="/logo.svg" alt="" className="w-9 h-9 rounded-lg shrink-0" />
-                            {/* Wordmark and tagline share one optical block: the tagline is letter-spaced
-                                to sit flush with the right edge of FINSIP above it. */}
-                            <div className="flex flex-col justify-center leading-none">
+                            {/* Wordmark and tagline share one optical block. The mark is set in the
+                                mono face the prices use -- an instrument label rather than a
+                                logotype, which is the register the rest of this bar is already in.
+                                Both are tracked in rather than out: the old wide-spaced tagline was
+                                sized to fill the mark's width, so it takes a point back now that it
+                                no longer has to stretch. */}
+                            <div className="flex flex-col gap-0.5 justify-center leading-none">
                                 <span
-                                    className="text-[17px] font-semibold leading-none tracking-[0.06em] text-slate-900"
-                                    style={DISPLAY}
+                                    className="text-[17px] font-bold leading-none tracking-[-0.03em] text-slate-900"
+                                    style={NUMERIC}
                                 >
                                     FINSIP
                                 </span>
                                 <span
-                                    className="mt-1.5 text-[8px] font-semibold uppercase leading-none tracking-[0.3em] text-slate-400"
+                                    className="mt-0.5 text-[9px] font-semibold uppercase leading-none tracking-[-0.02em] text-slate-400"
                                     style={DISPLAY}
                                 >
                                     SIP Tracker
@@ -186,119 +190,120 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                             </span>
                                         </div>
                                     ) : (
-                                    <>
-                                    <Metric label="Worth">
-                                        <Amount value={formatCurrency(Math.round(displayWorth))} className="text-white" bare roll />
-                                    </Metric>
-
-                                    <Rule />
-
-                                    <Metric label="Cost">
-                                        <Amount
-                                            value={formatCurrency(Math.round(totalInvestedCost))}
-                                            size="text-[15px]"
-                                            className="text-slate-300"
-                                            bare
-                                            roll
-                                        />
-                                    </Metric>
-
-                                    {hasValuation && (
                                         <>
-                                            <Rule />
-                                            <Metric label="Change">
-                                                <span className={clsx(
-                                                    "flex items-baseline gap-1.5",
-                                                    netChange >= 0 ? "text-emerald-400" : "text-rose-400"
-                                                )}>
-                                                    <span className="text-[9px] leading-none" style={NUMERIC}>
-                                                        {netChange >= 0 ? '▲' : '▼'}
-                                                    </span>
-                                                    <Amount
-                                                        value={formatCurrency(Math.round(Math.abs(netChange)))}
-                                                        size="text-[15px]"
-                                                        bare
-                                                        roll
-                                                    />
-                                                </span>
-                                                <span
-                                                    className={clsx(
-                                                        "rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums",
-                                                        netChange >= 0
-                                                            ? "bg-emerald-400/10 text-emerald-400"
-                                                            : "bg-rose-400/10 text-rose-400"
-                                                    )}
-                                                    style={NUMERIC}
-                                                >
-                                                    {totalInvestedCost > 0
-                                                        ? `${netChange >= 0 ? '+' : '−'}${Math.abs(netChange / totalInvestedCost * 100).toFixed(2)}`
-                                                        : '0.00'}%
-                                                </span>
+                                            <Metric label="Worth">
+                                                <Amount value={formatCurrency(Math.round(displayWorth))} className="text-white" bare roll />
                                             </Metric>
-                                        </>
-                                    )}
 
-                                    <Rule />
+                                            <Rule />
 
-                                    {/* One readout carries both facts: the PSX schedule (Market Open / Closed /
+                                            <Metric label="Cost">
+                                                <Amount
+                                                    value={formatCurrency(Math.round(totalInvestedCost))}
+                                                    size="text-[15px]"
+                                                    className="text-slate-300"
+                                                    bare
+                                                    roll
+                                                />
+                                            </Metric>
+
+                                            {hasValuation && (
+                                                <>
+                                                    <Rule />
+                                                    <Metric label="Change">
+                                                        <span className={clsx(
+                                                            "flex items-baseline gap-1.5",
+                                                            netChange >= 0 ? "text-emerald-400" : "text-rose-400"
+                                                        )}>
+                                                            <span className="text-[9px] leading-none" style={NUMERIC}>
+                                                                {netChange >= 0 ? '▲' : '▼'}
+                                                            </span>
+                                                            <Amount
+                                                                value={formatCurrency(Math.round(Math.abs(netChange)))}
+                                                                size="text-[15px]"
+                                                                bare
+                                                                roll
+                                                            />
+                                                        </span>
+                                                        <span
+                                                            className={clsx(
+                                                                "rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums",
+                                                                netChange >= 0
+                                                                    ? "bg-emerald-400/10 text-emerald-400"
+                                                                    : "bg-rose-400/10 text-rose-400"
+                                                            )}
+                                                            style={NUMERIC}
+                                                        >
+                                                            {totalInvestedCost > 0
+                                                                ? `${netChange >= 0 ? '+' : '−'}${Math.abs(netChange / totalInvestedCost * 100).toFixed(2)}`
+                                                                : '0.00'}%
+                                                        </span>
+                                                    </Metric>
+                                                </>
+                                            )}
+
+                                            <Rule />
+
+                                            {/* One readout carries both facts: the PSX schedule (Market Open / Closed /
                                         Pre-Open / Post-Close) and, while Open, whether the feed is actually
                                         streaming ("Live") or has stalled ("Static"). Outside Open hours the
                                         schedule label wins — there's nothing live to show. No chip fill here;
                                         the dot and the colour do the work. */}
-                                    {marketState.isOpen ? (
-                                        <span className="flex shrink-0 items-center gap-2">
-                                            <span className="relative flex h-1.5 w-1.5">
-                                                {isLive && (
-                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                                                )}
-                                                <span className={clsx(
-                                                    "relative inline-flex h-1.5 w-1.5 rounded-full",
-                                                    isLive ? "bg-emerald-400" : "bg-slate-500"
-                                                )} />
-                                            </span>
-                                            <span
-                                                className={clsx(
-                                                    "text-[10px] font-semibold uppercase tracking-[0.18em]",
-                                                    isLive ? "text-emerald-400" : "text-slate-400"
-                                                )}
-                                                style={DISPLAY}
-                                            >
-                                                {isLive ? 'Live' : 'Static'}
-                                            </span>
-                                        </span>
-                                    ) : marketState.phase === 'closed' ? (
-                                        <span className="flex shrink-0 items-center gap-2 text-slate-400">
-                                            <Moon size={11} className="fill-slate-500/30 text-slate-500" />
-                                            <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
-                                                Market Closed
-                                            </span>
-                                        </span>
-                                    ) : (
-                                        // Pre-Open / Post-Close: market's in session but not trading yet — amber, gently pulsing.
-                                        <span className="flex shrink-0 items-center gap-2 text-amber-400">
-                                            <Clock size={11} className="animate-pulse" />
-                                            <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
-                                                {marketState.label}
-                                            </span>
-                                        </span>
-                                    )}
+                                            {marketState.isOpen ? (
+                                                <span className="flex shrink-0 items-center gap-2">
+                                                    <span className="relative flex h-1.5 w-1.5">
+                                                        {isLive && (
+                                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                                        )}
+                                                        <span className={clsx(
+                                                            "relative inline-flex h-1.5 w-1.5 rounded-full",
+                                                            isLive ? "bg-emerald-400" : "bg-slate-500"
+                                                        )} />
+                                                    </span>
+                                                    <span
+                                                        className={clsx(
+                                                            "text-[10px] font-semibold uppercase tracking-[0.18em]",
+                                                            isLive ? "text-emerald-400" : "text-slate-400"
+                                                        )}
+                                                        style={DISPLAY}
+                                                    >
+                                                        {isLive ? 'Live' : 'Static'}
+                                                    </span>
+                                                </span>
+                                            ) : marketState.phase === 'closed' ? (
+                                                <span className="flex shrink-0 items-center gap-2 text-slate-400">
+                                                    <Moon size={11} className="fill-slate-500/30 text-slate-500" />
+                                                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
+                                                        Market Closed
+                                                    </span>
+                                                </span>
+                                            ) : (
+                                                // Pre-Open / Post-Close: market's in session but not trading yet — amber, gently pulsing.
+                                                <span className="flex shrink-0 items-center gap-2 text-amber-400">
+                                                    <Clock size={11} className="animate-pulse" />
+                                                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
+                                                        {marketState.label}
+                                                    </span>
+                                                </span>
+                                            )}
 
-                                    {/* Feed is down while the market is Open: it retries on its own every few
-                                        seconds, but offer a manual nudge too. When the market is closed a dead
-                                        feed is expected, so we don't nag with a Retry button. */}
-                                    {marketState.isOpen && !isMarketLive && (
-                                        <button
-                                            onClick={() => retryFetch()}
-                                            title="Retry live feed"
-                                            className="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-amber-400 ring-1 ring-amber-400/20 transition-colors hover:bg-amber-400/10"
-                                        >
-                                            <RefreshCw size={11} className="transition-transform duration-500 group-active:rotate-180" />
-                                            <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
-                                                Retry
-                                            </span>
-                                        </button>
-                                    )}
-                                    </>
+                                            {/* Feed is down while the market is Open: it retries on its own every few
+                                        seconds, so we stay quiet through the first couple of misses and only
+                                        offer a manual nudge once it has failed repeatedly. When the market is
+                                        closed a dead feed is expected, so no Retry button at all. */}
+                                            {marketState.isOpen && !isMarketLive && consecutiveFailures >= 3 && (
+                                                <button
+                                                    onClick={() => retryFetch()}
+                                                    title="Retry live feed"
+                                                    className="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-amber-400 ring-1 ring-amber-400/20 transition-colors hover:bg-amber-400/10"
+                                                >
+                                                    <RefreshCw size={11} className="transition-transform duration-500 group-active:rotate-180" />
+                                                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
+                                                        Retry
+                                                    </span>
+                                                </button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -306,6 +311,32 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                         {/* Feed status + gateway + lock */}
                         <div className="flex items-center justify-end gap-3">
+                            {/* Only on the ledger, because that is the only grid it changes.
+                                It lives up here rather than on the panel: a control strip
+                                inside the grid cost it enough height to start a vertical
+                                scroller, which the ledger is built to never have. */}
+                            {pathname === '/ledger' && (
+                                <button
+                                    onClick={toggleScoreLines}
+                                    aria-pressed={showScoreLines}
+                                    title={
+                                        showScoreLines
+                                            ? 'Hide the per-symbol buying distribution'
+                                            : 'Show, under each amount, how much of that symbol was bought that month'
+                                    }
+                                    style={DISPLAY}
+                                    className={clsx(
+                                        'flex shrink-0 items-center gap-2 rounded-xl px-2.5 py-2 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] transition-colors',
+                                        showScoreLines
+                                            ? 'bg-sky-50 text-sky-600'
+                                            : 'bg-slate-100/70 text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                                    )}
+                                >
+                                    <BarChart3 size={12} />
+                                    <span className="max-lg:hidden">Score Lines</span>
+                                </button>
+                            )}
+
                             {/* Same recessed, borderless field as every other input in the app --
                                 the focus ring is the only edge that ever appears. */}
                             <input

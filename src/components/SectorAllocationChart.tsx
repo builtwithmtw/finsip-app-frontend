@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import clsx from 'clsx';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency } from '../context/PrivacyContext';
 import { computeHoldings } from '../utils/holdings';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Panel, PanelHeader, MetricLabel } from './Panel';
+import { useShariah } from '../hooks/useShariah';
 import { Amount } from './Amount';
 
 const INNER_RADIUS_RATIO = 0.68;
@@ -42,6 +44,39 @@ const SectorAllocationChart: React.FC = () => {
             }))
             .sort((a, b) => b.value - a.value);
     }, [transactions, stocks]);
+
+    /**
+     * Share of invested cost sitting in Shariah-compliant symbols, scored out of
+     * 100. Weighted by money rather than by symbol count -- one large haram
+     * position matters more than three small compliant ones.
+     *
+     * Compliance comes from the shared hook, which is the screener's own live
+     * KMIALLSHR membership, so this score and the 🕌 badges never disagree.
+     */
+    const { isShariah } = useShariah();
+
+    const shariah = useMemo(() => {
+        let compliantCost = 0;
+        let totalCost = 0;
+        let compliantCount = 0;
+        let totalCount = 0;
+
+        computeHoldings(transactions).forEach(holding => {
+            const cost = holding.totalCostBasis;
+            totalCost += cost;
+            totalCount += 1;
+            if (isShariah(holding.symbol)) {
+                compliantCost += cost;
+                compliantCount += 1;
+            }
+        });
+
+        return {
+            score: totalCost > 0 ? (compliantCost / totalCost) * 100 : 0,
+            compliantCount,
+            totalCount,
+        };
+    }, [transactions, isShariah]);
 
     const hasData = data.length > 0;
 
@@ -87,6 +122,13 @@ const SectorAllocationChart: React.FC = () => {
         '#F43F5E', // Rose 500
         '#64748B', // Slate 500
     ];
+
+    // Fully compliant reads as green; anything short of it is a flag, not a failure,
+    // so the middle band stays amber and only a mostly non-compliant book goes rose.
+    const shariahTone =
+        shariah.score >= 99.95 ? { text: 'text-emerald-600', bar: 'bg-emerald-500' }
+            : shariah.score >= 50 ? { text: 'text-amber-600', bar: 'bg-amber-500' }
+                : { text: 'text-rose-600', bar: 'bg-rose-500' };
 
     if (data.length === 0) return null;
 
@@ -173,10 +215,16 @@ const SectorAllocationChart: React.FC = () => {
 
             {/* Legend — a swatch, the name, and a share bar so it ranks the sectors on its
                 own rather than making you read the donut. No scroller of its own: the donut
-                above it flexes, so the legend simply takes the height it needs. */}
+                above it flexes, so the legend simply takes the height it needs.
+
+                The leader is skipped: the centre of the donut already names it and gives
+                its share, so repeating it here is a duplicate row. Colours still come from
+                the arc's own index, so every swatch matches its slice. */}
+            {data.length > 1 && (
             <div className="shrink-0">
                 <div className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2">
-                    {data.map((item, index) => {
+                    {data.slice(1).map((item, i) => {
+                        const index = i + 1;
                         const color = COLORS[index % COLORS.length];
                         return (
                             <div key={item.name} className="group flex cursor-default items-center gap-3">
@@ -206,6 +254,49 @@ const SectorAllocationChart: React.FC = () => {
                         );
                     })}
                 </div>
+            </div>
+            )}
+
+            {/* Shariah score — the one figure here that isn't about sectors, but it reads
+                off the same holdings and belongs next to them rather than in a card of
+                its own. Weighted by cost, so it answers "how much of my money", not
+                "how many of my tickers". */}
+            <div className="mt-4 shrink-0 border-t border-slate-100 pt-3.5">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <MetricLabel label="Shariah Compliance" />
+                        <p
+                            className="mt-1.5 text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
+                            style={DISPLAY}
+                        >
+                            {shariah.compliantCount} of {shariah.totalCount} symbols
+                        </p>
+                    </div>
+                    <span className="flex items-baseline gap-1">
+                        <span
+                            className={clsx(
+                                'text-[17px] font-semibold leading-none tabular-nums',
+                                shariahTone.text
+                            )}
+                            style={NUMERIC}
+                        >
+                            {shariah.score.toFixed(1)}
+                        </span>
+                        <span
+                            className="text-[10px] font-semibold leading-none tabular-nums text-slate-400"
+                            style={NUMERIC}
+                        >
+                            %
+                        </span>
+                    </span>
+                </div>
+
+                <span className="mt-2.5 block h-1 w-full overflow-hidden rounded-full bg-slate-100">
+                    <span
+                        className={clsx('block h-full rounded-full transition-[width] duration-500', shariahTone.bar)}
+                        style={{ width: `${Math.min(shariah.score, 100)}%` }}
+                    />
+                </span>
             </div>
         </Panel>
     );

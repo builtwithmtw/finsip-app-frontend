@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { X, Search, Plus, Loader2 } from "lucide-react";
 import type { Stock } from "@/lib/types";
 import clsx from "clsx";
+import { DISPLAY, NUMERIC } from "@/utils/typography";
 
 interface Props {
   isOpen: boolean;
@@ -68,29 +69,40 @@ const AddWatchlistModal: React.FC<Props> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]"
+        className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-[0_32px_64px_-32px_rgba(2,6,23,0.5)] ring-1 ring-slate-900/5 animate-in zoom-in-95 duration-200"
       >
-        <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px bg-gradient-to-r from-transparent via-slate-900/10 to-transparent"
+        />
+
+        <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-5">
           <div className="min-w-0">
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">
+            <h2
+              className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+              style={DISPLAY}
+            >
               Add to Watchlist
             </h2>
-            <p className="text-xs font-medium text-slate-400 mt-0.5">
-              Search a PSX symbol or sector, then tap to track it.
+            <p
+              className="mt-2 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400"
+              style={DISPLAY}
+            >
+              Search a symbol or sector
             </p>
           </div>
           <button
             onClick={onClose}
             title="Close"
-            className="shrink-0 -mr-2 -mt-1 p-2 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="-mr-1 -mt-1 shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900"
           >
-            <X size={18} />
+            <X size={17} />
           </button>
         </div>
 
-        <div className="px-6 pb-3">
-          <div className="relative group">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+        <div className="px-5 pb-3">
+          <div className="group relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-sky-500">
               <Search size={14} />
             </div>
             <input
@@ -105,21 +117,33 @@ const AddWatchlistModal: React.FC<Props> = ({
                   handleAdd(matches[0]);
                 }
               }}
-              placeholder="SEARCH SYMBOL, E.G. MEBL"
-              className="w-full h-10 bg-slate-50 border-0 rounded-md pl-9 pr-3 text-slate-900 text-sm font-black placeholder:text-slate-300 placeholder:font-bold focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all uppercase"
+              placeholder="Search symbol, e.g. MEBL"
+              style={DISPLAY}
+              className={clsx(
+                "h-10 w-full rounded-xl border-0 bg-slate-100/70 pl-9 pr-3 uppercase",
+                "text-[13px] font-semibold tracking-tight text-slate-900 outline-none",
+                "placeholder:font-semibold placeholder:tracking-[0.14em] placeholder:text-slate-400",
+                "transition-all hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-sky-500/25",
+              )}
             />
           </div>
         </div>
 
-        <div className="px-3 pb-4 overflow-y-auto custom-scrollbar min-h-[8rem]">
+        <div className="min-h-[8rem] overflow-y-auto border-t border-slate-100 px-2 py-2 custom-scrollbar">
           {stocksLoading ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-slate-400 text-sm font-semibold">
-              <Loader2 size={16} className="animate-spin" />
-              Loading PSX symbols…
+            <div
+              className="flex items-center justify-center gap-2 py-12 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400"
+              style={DISPLAY}
+            >
+              <Loader2 size={14} className="animate-spin text-sky-500" />
+              Loading PSX symbols
             </div>
           ) : matches.length === 0 ? (
-            <p className="text-center text-sm font-medium text-slate-400 py-12">
-              {query.trim() ? "No matching symbols." : "Nothing left to add."}
+            <p
+              className="py-12 text-center text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400"
+              style={DISPLAY}
+            >
+              {query.trim() ? "No matching symbols" : "Nothing left to add"}
             </p>
           ) : (
             <ul className="space-y-0.5">
@@ -129,22 +153,31 @@ const AddWatchlistModal: React.FC<Props> = ({
                     onClick={() => handleAdd(s)}
                     disabled={adding}
                     className={clsx(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors group",
-                      "hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed",
+                      "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                      "hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50",
                     )}
                   >
                     <div className="min-w-0 flex-1">
-                      <span className="text-sm font-black text-slate-900 uppercase">
+                      <span
+                        className="text-[13px] font-semibold uppercase leading-none tracking-tight text-slate-900"
+                        style={DISPLAY}
+                      >
                         {s.ticker}
                       </span>
-                      <span className="block truncate text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                      <span
+                        className="mt-1.5 block truncate text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400"
+                        style={DISPLAY}
+                      >
                         {s.sector}
                       </span>
                     </div>
-                    <span className="text-sm font-bold text-slate-500 tabular-nums shrink-0">
-                      {s.price == null ? "—" : `Rs ${priceFormatter.format(s.price)}`}
+                    <span
+                      className="shrink-0 text-[13px] font-semibold tabular-nums text-slate-500"
+                      style={NUMERIC}
+                    >
+                      {s.price == null ? "—" : priceFormatter.format(s.price)}
                     </span>
-                    <span className="shrink-0 text-slate-300 group-hover:text-blue-500 transition-colors">
+                    <span className="shrink-0 text-slate-300 transition-colors group-hover:text-sky-600">
                       {pending === s.ticker ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (

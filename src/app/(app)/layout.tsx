@@ -8,6 +8,7 @@ import { PrivacyProvider } from "@/context/PrivacyContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ProxyModal from "@/components/ProxyModal";
 import Layout from "@/components/Layout";
+import { Providers } from "@/app/providers";
 
 /**
  * The signed-in app: everything that needs a user.
@@ -20,19 +21,25 @@ export default function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <PrivacyProvider>
-      <ProxyProvider>
-        <PortfolioProvider>
-          <ConfirmProvider>
-            {/* ProxyModal stays mounted but only opens on demand; the changelog used to
-                auto-open on every new version and greeted users with a popup on launch. */}
-            <ProxyModal />
-            <ProtectedRoute>
-              <Layout>{children}</Layout>
-            </ProtectedRoute>
-          </ConfirmProvider>
-        </PortfolioProvider>
-      </ProxyProvider>
-    </PrivacyProvider>
+    /* react-query moves up from the individual pages that used it (watchlist,
+       screener) so the whole signed-in app shares one cache: the dashboard's
+       Shariah score and the screener's badges then read the same `/api/stocks`
+       response instead of fetching it once each. */
+    <Providers>
+      <PrivacyProvider>
+        <ProxyProvider>
+          <PortfolioProvider>
+            <ConfirmProvider>
+              {/* ProxyModal stays mounted but only opens on demand; the changelog used to
+                  auto-open on every new version and greeted users with a popup on launch. */}
+              <ProxyModal />
+              <ProtectedRoute>
+                <Layout>{children}</Layout>
+              </ProtectedRoute>
+            </ConfirmProvider>
+          </PortfolioProvider>
+        </ProxyProvider>
+      </PrivacyProvider>
+    </Providers>
   );
 }

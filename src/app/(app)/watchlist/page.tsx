@@ -1,13 +1,8 @@
-import { Providers } from "@/app/providers";
 import WatchlistPage from "@/views/WatchlistPage";
 
-// Wrapped in Providers for the react-query client useStocks needs: the (app)
-// route group doesn't mount one (only the public screener did), and the
-// watchlist is the first signed-in page to read the live feed via react-query.
+// No Providers wrapper here any more: the (app) layout mounts the react-query
+// client for the whole signed-in app, so nesting a second one would give this
+// page its own cache and re-fetch `/api/stocks` the dashboard already holds.
 export default function Page() {
-  return (
-    <Providers>
-      <WatchlistPage />
-    </Providers>
-  );
+  return <WatchlistPage />;
 }

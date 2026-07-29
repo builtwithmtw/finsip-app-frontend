@@ -23,6 +23,13 @@ interface Cell {
     totalAmount: number;
     hasSell: boolean;
     hasBuy: boolean;
+    /**
+     * Gross money in and gross money out, both positive. `totalAmount` is the net of
+     * the two and can't answer "how much was sold" in a month that also bought, which
+     * is exactly what the score lines need.
+     */
+    buyAmount: number;
+    sellAmount: number;
     rawTransactions: Transaction[];
 }
 
@@ -30,7 +37,7 @@ const MonthlyView: React.FC = () => {
     const formatCurrency = useCurrency();
     const mask = useMask();
     const maskSymbol = usePartialMask();
-    const { transactions, stocks, deleteMonthTransactions, loading } = usePortfolio();
+    const { transactions, stocks, deleteMonthTransactions, loading, selectedMonth, showScoreLines } = usePortfolio();
     const { confirm } = useConfirm();
 
     // State for the detail modal. A missing symbol means a whole month was opened;
@@ -51,7 +58,10 @@ const MonthlyView: React.FC = () => {
         [transactions]
     );
 
-    const { sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals, held } = useMemo(() => {
+    const {
+        sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals,
+        rowBuyTotals, rowBuyPeaks, rowSellTotals, rowSellPeaks, held,
+    } = useMemo(() => {
         const monthsSet = new Set<string>();
         const symbolsSet = new Set<string>();
 
@@ -84,7 +94,15 @@ const MonthlyView: React.FC = () => {
         filteredTransactions.forEach(t => {
             if (!matrix[t.symbol]) matrix[t.symbol] = {};
             if (!matrix[t.symbol][t.month]) {
-                matrix[t.symbol][t.month] = { shares: 0, totalAmount: 0, hasSell: false, hasBuy: false, rawTransactions: [] };
+                matrix[t.symbol][t.month] = {
+                    shares: 0,
+                    totalAmount: 0,
+                    hasSell: false,
+                    hasBuy: false,
+                    buyAmount: 0,
+                    sellAmount: 0,
+                    rawTransactions: [],
+                };
             }
 
             const existing = matrix[t.symbol][t.month];
@@ -97,8 +115,13 @@ const MonthlyView: React.FC = () => {
             existing.shares += sign * t.shares;
             existing.totalAmount += sign * t.totalAmount;
 
-            if (t.type === 'sell') existing.hasSell = true;
-            else existing.hasBuy = true;
+            if (t.type === 'sell') {
+                existing.hasSell = true;
+                existing.sellAmount += t.totalAmount;
+            } else {
+                existing.hasBuy = true;
+                existing.buyAmount += t.totalAmount;
+            }
         });
 
         // Per-month net, for the footer.
@@ -109,6 +132,20 @@ const MonthlyView: React.FC = () => {
         // remaining rows past 100%.
         const colBuyTotals = new Map<string, number>();
 
+        // The same idea turned sideways: everything ever put into one symbol, and the
+        // single biggest month it went in. The first is what each month's score line is
+        // a percentage of; the second is what fills that line, so the heaviest month in
+        // a row runs full and the rest read against it.
+        //
+        // Selling is tracked on its own scale rather than against the buying, because
+        // the question the red line answers is "which month did I take the most out",
+        // and a book that sells a fraction of what it buys would otherwise draw every
+        // sell as an invisible sliver.
+        const rowBuyTotals = new Map<string, number>();
+        const rowBuyPeaks = new Map<string, number>();
+        const rowSellTotals = new Map<string, number>();
+        const rowSellPeaks = new Map<string, number>();
+
         sortedSymbols.forEach(symbol => {
             sortedMonths.forEach(month => {
                 const cell = matrix[symbol]?.[month];
@@ -117,10 +154,21 @@ const MonthlyView: React.FC = () => {
                 if (cell.totalAmount > 0) {
                     colBuyTotals.set(month, (colBuyTotals.get(month) || 0) + cell.totalAmount);
                 }
+                if (cell.buyAmount > 0) {
+                    rowBuyTotals.set(symbol, (rowBuyTotals.get(symbol) || 0) + cell.buyAmount);
+                    rowBuyPeaks.set(symbol, Math.max(rowBuyPeaks.get(symbol) || 0, cell.buyAmount));
+                }
+                if (cell.sellAmount > 0) {
+                    rowSellTotals.set(symbol, (rowSellTotals.get(symbol) || 0) + cell.sellAmount);
+                    rowSellPeaks.set(symbol, Math.max(rowSellPeaks.get(symbol) || 0, cell.sellAmount));
+                }
             });
         });
 
-        return { sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals, held };
+        return {
+            sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals,
+            rowBuyTotals, rowBuyPeaks, rowSellTotals, rowSellPeaks, held,
+        };
     }, [filteredTransactions, stocks]);
 
     // Header clicks open a whole row or column of the matrix; the modal sorts by date,
@@ -242,7 +290,12 @@ const MonthlyView: React.FC = () => {
                                                 style={DISPLAY}
                                                 className={clsx(
                                                     "whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-[0.18em] transition-colors hover:text-slate-900",
-                                                    hoveredMonth === month ? "text-slate-900" : "text-slate-400"
+                                                    // The selected month's label carries the same sky as the
+                                                    // cells below it, so the highlighted column reads as
+                                                    // deliberate rather than as a stuck hover.
+                                                    month === selectedMonth
+                                                        ? "text-sky-600"
+                                                        : hoveredMonth === month ? "text-slate-900" : "text-slate-400"
                                                 )}
                                             >
                                                 {formatMonth(month).split(' ')[0]}
@@ -309,6 +362,45 @@ const MonthlyView: React.FC = () => {
 
                                             const isSell = data.shares < 0 || (data.shares === 0 && data.hasSell);
 
+                                            // This month's buying reads as already selected -- the same sky
+                                            // wash a cell takes on hover -- so the column you are actually
+                                            // working in stands out of a long history without being clicked.
+                                            // Sells are left alone: the highlight is about where the money
+                                            // went this month.
+                                            const isCurrentBuy = month === selectedMonth && !isSell;
+
+                                            // Score line: this month's share of everything ever bought in
+                                            // *this symbol*, which is the other axis from the % beside the
+                                            // amount (that one is the month's split across symbols).
+                                            //
+                                            // The bar is drawn against the row's own biggest month rather
+                                            // than against 100, because a symbol bought across two years
+                                            // would otherwise be twenty near-empty slivers. Full bar = the
+                                            // month you put the most into; the tooltip carries the true
+                                            // percentage.
+                                            //
+                                            // Buys and sells are scored separately and drawn as their own
+                                            // line, so a month that did both -- topped up and trimmed the
+                                            // same position -- shows green over red instead of one bar that
+                                            // nets them out and says nothing about either.
+                                            const symbolBuys = rowBuyTotals.get(symbol) ?? 0;
+                                            const symbolBuyPeak = rowBuyPeaks.get(symbol) ?? 0;
+                                            const buyShare = data.buyAmount > 0 && symbolBuys > 0
+                                                ? (data.buyAmount / symbolBuys) * 100
+                                                : null;
+                                            const buyFill = buyShare != null && symbolBuyPeak > 0
+                                                ? (data.buyAmount / symbolBuyPeak) * 100
+                                                : 0;
+
+                                            const symbolSells = rowSellTotals.get(symbol) ?? 0;
+                                            const symbolSellPeak = rowSellPeaks.get(symbol) ?? 0;
+                                            const sellShare = data.sellAmount > 0 && symbolSells > 0
+                                                ? (data.sellAmount / symbolSells) * 100
+                                                : null;
+                                            const sellFill = sellShare != null && symbolSellPeak > 0
+                                                ? (data.sellAmount / symbolSellPeak) * 100
+                                                : 0;
+
                                             // Share of that month's buying. Sells get none -- they are not part
                                             // of how the month's money was split.
                                             const monthBuys = colBuyTotals.get(month) ?? 0;
@@ -324,13 +416,22 @@ const MonthlyView: React.FC = () => {
                                                     // The quantity and price the amount is built from stay one hover
                                                     // away, and one click away in full, rather than costing every row
                                                     // a second line.
-                                                    title={`${mask(Math.abs(data.shares).toLocaleString())} @ ${mask(avgPrice.toFixed(2))}`}
+                                                    title={clsx(
+                                                        `${mask(Math.abs(data.shares).toLocaleString())} @ ${mask(avgPrice.toFixed(2))}`,
+                                                        buyShare != null &&
+                                                            `· ${buyShare.toFixed(1)}% of all ${maskSymbol(symbol)} buying`,
+                                                        sellShare != null &&
+                                                            `· ${sellShare.toFixed(1)}% of all ${maskSymbol(symbol)} selling`
+                                                    )}
                                                     onMouseEnter={() => setHoveredMonth(month)}
                                                     onMouseLeave={() => setHoveredMonth(null)}
                                                     className={clsx(
                                                         "cursor-pointer border-r border-slate-100 px-3 py-1.5 text-right transition-colors last:border-r-0",
                                                         "group-hover/row:bg-slate-50 hover:!bg-sky-50",
-                                                        hoveredMonth === month && "bg-slate-50"
+                                                        hoveredMonth === month && "bg-slate-50",
+                                                        // Beats the row and column washes, and still yields to
+                                                        // the hover rule, which Tailwind emits after it.
+                                                        isCurrentBuy && "!bg-sky-50"
                                                     )}
                                                 >
                                                     {/* Amount and its share of the month sit on one line: a second
@@ -357,6 +458,27 @@ const MonthlyView: React.FC = () => {
                                                         )}
                                                     </span>
 
+                                                    {/* Hairlines under the figure, so a row can be read across as a
+                                                        bar chart of when this symbol was accumulated and when it
+                                                        was trimmed. Green in, red out. 3px tall on a 3px gap:
+                                                        enough to see, not enough to cost the grid its
+                                                        no-vertical-scroll fit. */}
+                                                    {showScoreLines && buyShare != null && (
+                                                        <span className="mt-[3px] block h-[3px] w-full overflow-hidden rounded-full bg-slate-100">
+                                                            <span
+                                                                className="block h-full rounded-full bg-emerald-500 transition-[width] duration-500"
+                                                                style={{ width: `${Math.max(buyFill, 4)}%` }}
+                                                            />
+                                                        </span>
+                                                    )}
+                                                    {showScoreLines && sellShare != null && (
+                                                        <span className="mt-[3px] block h-[3px] w-full overflow-hidden rounded-full bg-slate-100">
+                                                            <span
+                                                                className="block h-full rounded-full bg-rose-500 transition-[width] duration-500"
+                                                                style={{ width: `${Math.max(sellFill, 4)}%` }}
+                                                            />
+                                                        </span>
+                                                    )}
                                                 </td>
                                             );
                                         })}
@@ -383,7 +505,7 @@ const MonthlyView: React.FC = () => {
                                         onMouseEnter={() => setHoveredMonth(month)}
                                         onMouseLeave={() => setHoveredMonth(null)}
                                         className={clsx(
-                                            "border-r border-slate-100 px-3 py-2.5 text-right transition-colors last:border-r-0",
+                                            "border-r border-slate-100 px-3 py-2.5 text-center transition-colors last:border-r-0",
                                             hoveredMonth === month && "bg-slate-100/70"
                                         )}
                                     >
