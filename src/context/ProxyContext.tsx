@@ -14,6 +14,13 @@ export interface Proxy {
 interface ProxyContextType {
     selectedProxy: Proxy;
     proxies: Proxy[];
+    /**
+     * True once we know which gateway to route market requests through -- or that
+     * there isn't one. The boot gate waits for this before pulling anything that
+     * goes through a proxy, and treats an empty `selectedProxy.url` at that point
+     * as "no feed available" rather than something still on its way.
+     */
+    proxiesSettled: boolean;
     showModal: boolean;
     setShowModal: (show: boolean) => void;
     selectProxy: (proxy: Proxy) => void;
@@ -61,6 +68,9 @@ export const ProxyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const [showModal, setShowModal] = useState(false);
     const [retryFetchFn, setRetryFetchFn] = useState<() => void>(() => () => { });
 
+    // Whether the Supabase read has come back, win or lose.
+    const [proxiesFetched, setProxiesFetched] = useState(false);
+
     // Fetch System Proxies from Supabase
     useEffect(() => {
         const fetchProxies = async () => {
@@ -79,8 +89,13 @@ export const ProxyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 }
             } catch (err) {
                 console.error("Failed to fetch proxies:", err);
-                // Fallback if DB fails? 
+                // Fallback if DB fails?
                 // For now, we just rely on what we have or custom ones.
+            } finally {
+                // Settled either way: a failed read means we go with whatever the
+                // saved selection and the custom list give us, and the boot gate
+                // must not wait on a request that is never coming back.
+                setProxiesFetched(true);
             }
         };
 
@@ -157,10 +172,17 @@ export const ProxyProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         toast.success('Gateway Removed');
     };
 
+    // The placeholder id survives until the effect above picks a real gateway, so
+    // it -- not the fetch flag alone -- is what says the selection is resolved.
+    // With no DB rows there is nothing left to resolve to, and waiting further
+    // would hang the boot gate on a list that will stay empty.
+    const proxiesSettled = proxiesFetched && (selectedProxy.id !== 'loading' || dbProxies.length === 0);
+
     return (
         <ProxyContext.Provider value={{
             selectedProxy,
             proxies,
+            proxiesSettled,
             showModal,
             setShowModal,
             selectProxy,

@@ -9,6 +9,7 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
 import { usePrivacy, useCurrency } from '../context/PrivacyContext';
+import { useAppRefresh } from '../hooks/useAppRefresh';
 import { getInitials } from '../utils/formatters';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
 import { getPsxMarketState } from '../utils/marketSchedule';
@@ -49,6 +50,7 @@ const Rule: React.FC = () => (
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { transactions, livePrices, isMarketLive, marketLoading, consecutiveFailures, selectedMonth, setSelectedMonth, showScoreLines, toggleScoreLines } = usePortfolio();
     const { selectedProxy, setShowModal, retryFetch } = useProxy();
+    const { refreshAll, refreshing } = useAppRefresh();
     const { signOut, user } = useAuth();
     const { hidden, toggleHidden } = usePrivacy();
     const formatCurrency = useCurrency();
@@ -104,6 +106,49 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         document.title = currentNav ? `${currentNav.label} | FINSIP` : 'FINSIP';
     }, [pathname]);
 
+    /**
+     * Left/Right step through the tabs in nav-bar order, wrapping at both ends.
+     *
+     * Worth having now that a tab switch costs nothing: the data for all six is
+     * already in memory, so this walks the app rather than firing six loads.
+     *
+     * Three things it deliberately stays out of the way of:
+     *  - typing, including the month field in this very bar, where Left/Right
+     *    move the caret between day/month segments;
+     *  - modifier chords, so Cmd/Alt+Left is still browser Back;
+     *  - an open modal -- every one of them is a `fixed inset-0` overlay that
+     *    unmounts when closed, and switching tabs out from under a confirm
+     *    prompt would strand it over the next page.
+     */
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+            const target = e.target as HTMLElement | null;
+            const isTyping = target?.isContentEditable
+                || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '');
+            if (isTyping) return;
+
+            if (document.querySelector('.fixed.inset-0')) return;
+
+            const current = navItems.findIndex(item => item.path === pathname);
+            // On a page that isn't one of the tabs (nothing routes there today,
+            // but /delete-account is one import away): step in from the start
+            // rather than from -1, which would land on the last tab going right.
+            const step = e.key === 'ArrowRight' ? 1 : -1;
+            const next = current === -1
+                ? (step === 1 ? 0 : navItems.length - 1)
+                : (current + step + navItems.length) % navItems.length;
+
+            e.preventDefault();
+            router.push(navItems[next].path);
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [pathname, router]);
+
     // Unpriced symbols are held at cost inside summarizeLive, so a gap in the feed can no
     // longer shrink the portfolio or report the missing position's whole cost as a loss.
     const { totalValue: totalMarketValue, totalCost: totalInvestedCost, totalPL: netChange } = useMemo(
@@ -133,10 +178,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     <div className="flex flex-wrap items-center justify-between gap-2 py-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-4">
                         {/* The mark is the way back out to the public site, as it is on the
                             screener's own header. `alt` is empty because the wordmark beside
-                            it already names the link. */}
+                            it already names the link.
+
+                            `justify-self-start` is what keeps the link the width of the mark.
+                            As a grid item it otherwise stretches to fill its 1fr column, which
+                            made the whole left third of the bar -- all the empty space beside
+                            the wordmark, right up to the worth panel -- a link to the public
+                            site. `shrink-0` does not prevent that: it governs flex shrinking,
+                            not grid stretching. */}
                         <Link
                             href="/"
-                            className="flex items-center gap-1.5 shrink-0 rounded-lg transition-opacity hover:opacity-70"
+                            className="flex w-fit items-center gap-1.5 shrink-0 justify-self-start rounded-lg transition-opacity hover:opacity-70"
                         >
                             <img src="/logo.svg" alt="" className="w-9 h-9 rounded-lg shrink-0" />
                             {/* Wordmark and tagline share one optical block. The mark is set in the
@@ -372,6 +424,24 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                     <Activity size={16} />
                                 </button>
                             </div>
+
+                            {/* The one way to get current numbers. Nothing in the app
+                                refetches on its own any more -- that is what makes tab
+                                switching instant -- so this has to be reachable from
+                                every screen, not buried in the menu. */}
+                            <button
+                                onClick={() => refreshAll()}
+                                disabled={refreshing}
+                                title={refreshing ? 'Refreshing…' : 'Refresh all data'}
+                                className={clsx(
+                                    "rounded-xl p-2 ring-1 ring-slate-900/5 transition-all",
+                                    refreshing
+                                        ? "text-sky-500"
+                                        : "text-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                                )}
+                            >
+                                <RefreshCw size={15} className={clsx(refreshing && "animate-spin")} />
+                            </button>
 
                             {/* Stays out of the menu on purpose: hiding amounts is a panic
                                 action and has to be one click away. */}

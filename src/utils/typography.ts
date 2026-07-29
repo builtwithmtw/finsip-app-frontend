@@ -9,3 +9,9 @@
  */
 export const DISPLAY = { fontFamily: 'var(--font-heading), sans-serif' } as const;
 export const NUMERIC = { fontFamily: 'var(--font-mono), ui-monospace, monospace' } as const;
+
+/**
+ * The FINSIP wordmark, and nothing else. Sora, loaded at 700/800 only -- setting
+ * body copy in it would undo the point of having a face reserved for the mark.
+ */
+export const WORDMARK = { fontFamily: 'var(--font-wordmark), sans-serif' } as const;

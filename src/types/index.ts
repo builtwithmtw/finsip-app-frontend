@@ -67,6 +67,16 @@ export interface RealizedProfit {
   createdAt: string;
 }
 
+/**
+ * A saved set of per-symbol quantities the user can recall into a fresh month.
+ * Lives here rather than beside its hook so `lib/queries.ts` can type the
+ * fetcher without importing a hook.
+ */
+export type RememberedEntries = Record<
+  string,
+  { shares: string; type: "buy" | "sell" }
+>;
+
 /** A company as returned by an index feed. */
 export interface IndexCompany {
   name: string;

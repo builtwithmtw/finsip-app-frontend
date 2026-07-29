@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import LoginPage from '../views/LoginPage';
 
 interface ProtectedRouteProps {
     children: ReactNode;
@@ -61,15 +61,29 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
         return <>{children}</>;
     }
 
-    // There is no /login route: signed-out visitors get the login form in place
-    // of whatever protected page they asked for, and land on it once they
-    // authenticate. The public pages -- "/" and /screener -- sit outside the
-    // (app) group and never reach this.
+    // The sign-in form lives on "/" and nowhere else, so a signed-out visitor is
+    // sent there rather than shown a second copy of it in place. Signing in from
+    // there lands on /dashboard.
+    //
+    // The redirect is an effect, not a render-time `router.replace`: navigating
+    // during render is a React no-no, and the loader below covers the tick or two
+    // between deciding and arriving. The public pages -- "/" and /screener -- sit
+    // outside the (app) group and never reach this.
     if (!isAuthenticated) {
-        return <LoginPage />;
+        return <RedirectHome />;
     }
 
     return <>{children}</>;
+};
+
+const RedirectHome: React.FC = () => {
+    const router = useRouter();
+
+    useEffect(() => {
+        router.replace('/');
+    }, [router]);
+
+    return <AuthLoader />;
 };
 
 export default ProtectedRoute;

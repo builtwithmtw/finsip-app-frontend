@@ -6,6 +6,8 @@ import { ConfirmProvider } from "@/context/ConfirmContext";
 import { ProxyProvider } from "@/context/ProxyContext";
 import { PrivacyProvider } from "@/context/PrivacyContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppBootGate from "@/components/AppBootGate";
+import QueryCacheReset from "@/components/QueryCacheReset";
 import ProxyModal from "@/components/ProxyModal";
 import Layout from "@/components/Layout";
 import { Providers } from "@/app/providers";
@@ -26,6 +28,9 @@ export default function AppLayout({
        Shariah score and the screener's badges then read the same `/api/stocks`
        response instead of fetching it once each. */
     <Providers>
+      {/* Outside ProtectedRoute so it survives the sign-out that unmounts
+          everything below it -- that transition is the one it exists to catch. */}
+      <QueryCacheReset />
       <PrivacyProvider>
         <ProxyProvider>
           <PortfolioProvider>
@@ -34,7 +39,12 @@ export default function AppLayout({
                   auto-open on every new version and greeted users with a popup on launch. */}
               <ProxyModal />
               <ProtectedRoute>
-                <Layout>{children}</Layout>
+                {/* Inside ProtectedRoute so it only ever gates a signed-in user,
+                    and outside Layout so the nav bar appears with the data
+                    rather than above a set of empty panels. */}
+                <AppBootGate>
+                  <Layout>{children}</Layout>
+                </AppBootGate>
               </ProtectedRoute>
             </ConfirmProvider>
           </PortfolioProvider>

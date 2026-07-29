@@ -96,6 +96,12 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const { selectedProxy, setShowModal, setRetryFetch } = useProxy();
 
     const fetchMarketData = useCallback(async () => {
+        // No gateway resolved yet: an empty prefix would send this at our own
+        // origin, 404, and burn a failure the retry logic then has to walk back.
+        // `marketLoading` deliberately stays true -- the feed hasn't been tried,
+        // and reporting it as settled would let the boot gate through early.
+        if (!selectedProxy.url) return;
+
         try {
             const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/ALLSHR/companies?page=1&limit=500";
             const proxyUrl = selectedProxy.url + encodeURIComponent(targetUrl);
@@ -180,6 +186,9 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     }, []);
 
     useEffect(() => {
+        // Nothing to poll through yet; the effect re-runs when a gateway lands.
+        if (!selectedProxy.url) return;
+
         const period = !marketOpen
             ? CLOSED_REFRESH_MS
             : isMarketLive
@@ -196,7 +205,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         run();
         const interval = setInterval(run, period);
         return () => clearInterval(interval);
-    }, [fetchMarketData, isMarketLive, marketOpen]);
+    }, [fetchMarketData, isMarketLive, marketOpen, selectedProxy.url]);
 
     /**
      * The three tables are fetched as independent requests, each clearing its own
@@ -204,11 +213,18 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
      * meant the slowest of the three decided when *any* of the dashboard could
      * render -- a stalled realized-P&L query blanked the holdings table too.
      */
-    const fetchData = async () => {
+    /**
+     * `silent` re-reads the tables without flipping the loading flags, which is
+     * what a mid-session refresh wants: the screens are already showing real
+     * numbers, and raising the flags would swap them for skeletons and blank the
+     * page the user is looking at. The first load is never silent -- there an
+     * empty table genuinely means "not here yet".
+     */
+    const fetchData = async ({ silent = false }: { silent?: boolean } = {}) => {
         if (!user) return;
 
         const fetchStocks = async () => {
-            setStocksLoading(true);
+            if (!silent) setStocksLoading(true);
             try {
                 const { data: stocksData } = await supabase
                     .from('stocks')
@@ -248,7 +264,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         };
 
         const fetchTransactions = async () => {
-            setTransactionsLoading(true);
+            if (!silent) setTransactionsLoading(true);
             try {
                 const { data: transData } = await supabase
                     .from('transactions')
@@ -276,7 +292,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         };
 
         const fetchRealized = async () => {
-            setRealizedLoading(true);
+            if (!silent) setRealizedLoading(true);
             try {
                 const { data: pnlData } = await supabase
                     .from('realized_pnl')
@@ -613,7 +629,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             marketLoading,
             consecutiveFailures,
             nextRefreshAt,
-            refreshData: fetchData,
+            // Silent by design: every caller is a refresh of data already on screen.
+            refreshData: () => fetchData({ silent: true }),
             addTransaction,
             updateTransaction,
             deleteTransaction,

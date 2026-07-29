@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Manrope, Space_Grotesk, JetBrains_Mono, Sora } from "next/font/google";
 import "./globals.css";
 import { RootProviders } from "./root-providers";
 import { SITE_URL } from "@/lib/site";
@@ -21,6 +21,16 @@ const fontHeading = Space_Grotesk({
 const fontMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
+});
+
+// The wordmark only. Sora is geometric and closed-aperture, so FINSIP set in it
+// holds together as a single shape at large sizes -- Space Grotesk's wider,
+// quirkier caps read as a sentence in a heading rather than as a logotype. Only
+// the two heaviest weights are pulled: nothing sets body copy in this.
+const fontWordmark = Sora({
+  variable: "--font-wordmark",
+  subsets: ["latin"],
+  weight: ["700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -101,7 +111,7 @@ export default function RootLayout({
     // No pre-paint theme script and no `dark` class: the app is light-only.
     <html
       lang="en"
-      className={`${fontScreenerSans.variable} ${fontHeading.variable} ${fontMono.variable} h-full antialiased`}
+      className={`${fontScreenerSans.variable} ${fontHeading.variable} ${fontMono.variable} ${fontWordmark.variable} h-full antialiased`}
     >
       <body className="flex h-full flex-col overflow-hidden">
         <RootProviders>{children}</RootProviders>
