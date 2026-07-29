@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Trash2, ArrowUp, ArrowDown, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import clsx from "clsx";
+import { DISPLAY, NUMERIC } from "@/utils/typography";
+import { Panel } from "@/components/Panel";
 
 const PAGE_SIZE = 10;
 
@@ -54,26 +56,28 @@ const Num: React.FC<{ value: number | null; format: (v: number) => string; title
   title,
 }) => (
   <span
-    className={clsx("text-sm tabular-nums", value == null ? "text-slate-300" : "font-semibold text-slate-800")}
+    className={clsx("text-[13px] tabular-nums", value == null ? "text-slate-300" : "font-semibold text-slate-700")}
     title={title}
+    style={NUMERIC}
   >
     {value == null ? "—" : format(value)}
   </span>
 );
 
 const ChangePill: React.FC<{ value: number | null }> = ({ value }) => {
-  if (value == null) return <span className="text-sm text-slate-300">—</span>;
+  if (value == null) return <span className="text-[13px] text-slate-300" style={NUMERIC}>—</span>;
   return (
     <span
       className={clsx(
-        "inline-block rounded-md px-2 py-0.5 text-sm font-bold tabular-nums",
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] font-semibold leading-none tabular-nums",
         value > 0 && "bg-emerald-500/10 text-emerald-600",
         value < 0 && "bg-rose-500/10 text-rose-600",
         value === 0 && "text-slate-400",
       )}
+      style={NUMERIC}
     >
-      {value > 0 ? "+" : ""}
-      {value.toFixed(2)}%
+      {value !== 0 && <span className="text-[8px]">{value > 0 ? "\u25B2" : "\u25BC"}</span>}
+      {Math.abs(value).toFixed(2)}%
     </span>
   );
 };
@@ -125,7 +129,7 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
   const pageRows = sorted.slice(start, start + PAGE_SIZE);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+    <Panel flush>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse">
           <thead>
@@ -136,28 +140,30 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
                   <th
                     key={col.key}
                     className={clsx(
-                      "px-4 py-3 text-[10px] font-black uppercase tracking-widest whitespace-nowrap",
+                      "whitespace-nowrap px-4 py-3",
                       col.align === "left" ? "text-left" : "text-right",
                     )}
                   >
                     <button
                       type="button"
                       onClick={() => toggleSort(col)}
+                      style={DISPLAY}
                       className={clsx(
-                        "inline-flex items-center gap-1 transition-colors hover:text-slate-700",
+                        "inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase leading-none",
+                        "tracking-[0.18em] transition-colors hover:text-slate-900",
                         col.align === "right" && "flex-row-reverse",
-                        active ? "text-blue-600" : "text-slate-400",
+                        active ? "text-slate-900" : "text-slate-400",
                       )}
                     >
                       {col.label}
                       {active ? (
                         sort!.dir === "asc" ? (
-                          <ArrowUp size={12} />
+                          <ArrowUp size={11} />
                         ) : (
-                          <ArrowDown size={12} />
+                          <ArrowDown size={11} />
                         )
                       ) : (
-                        <ChevronsUpDown size={12} className="opacity-40" />
+                        <ChevronsUpDown size={11} className="opacity-30" />
                       )}
                     </button>
                   </th>
@@ -170,44 +176,59 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
             {pageRows.map((row) => (
               <tr
                 key={row.id}
-                className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
+                className="group border-b border-slate-100/70 transition-colors last:border-0 hover:bg-slate-50/70"
               >
-                <td className="px-4 py-3">
-                  <span className="text-sm font-black text-slate-900 uppercase">{row.symbol}</span>
+                {/* The accent rail only paints on hover, so the resting table stays flat
+                    and the pointer has something to track. */}
+                <td className="relative px-4 py-2.5">
+                  <span
+                    aria-hidden
+                    className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
+                  />
+                  <span
+                    className="text-[13px] font-semibold uppercase tracking-tight text-slate-900"
+                    style={DISPLAY}
+                  >
+                    {row.symbol}
+                  </span>
                 </td>
-                <td className="px-4 py-3">
-                  <span className="text-xs font-semibold text-slate-500 truncate" title={row.sector}>
+                <td className="px-4 py-2.5">
+                  <span
+                    className="inline-flex max-w-[10rem] truncate rounded-md bg-slate-100 px-1.5 py-1 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-500"
+                    title={row.sector}
+                    style={DISPLAY}
+                  >
                     {row.sector}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-2.5 text-right">
                   <Num value={row.price} format={(v) => priceFormatter.format(v)} />
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-2.5 text-right">
                   <ChangePill value={row.d1} />
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-2.5 text-right">
                   <Num
                     value={row.marketCap}
                     format={formatMarketCap}
                     title={row.marketCap == null ? undefined : `PKR ${Math.round(row.marketCap).toLocaleString("en-US")}`}
                   />
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-2.5 text-right">
                   <Num
                     value={row.volume}
                     format={formatVolume}
                     title={row.volume == null ? undefined : row.volume.toLocaleString("en-US")}
                   />
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-2.5 text-right">
                   <button
                     onClick={() => onRemove(row.id, row.symbol)}
                     title={`Remove ${row.symbol} from watchlist`}
                     aria-label={`Remove ${row.symbol} from watchlist`}
-                    className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors"
+                    className="rounded-md p-1.5 text-slate-300 opacity-0 transition-all hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100 focus-visible:opacity-100"
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={14} />
                   </button>
                 </td>
               </tr>
@@ -218,11 +239,11 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
 
       {sorted.length > PAGE_SIZE && (
         <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-2.5">
-          <span className="text-[11px] font-bold text-slate-400 tabular-nums">
+          <span className="text-[11px] tabular-nums text-slate-400" style={NUMERIC}>
             {start + 1}–{Math.min(start + PAGE_SIZE, sorted.length)} of {sorted.length}
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-400 tabular-nums">
+            <span className="text-[11px] tabular-nums text-slate-400" style={NUMERIC}>
               Page {page + 1} of {pageCount}
             </span>
             <button
@@ -230,7 +251,7 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
               aria-label="Previous page"
-              className="inline-flex size-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors enabled:hover:bg-slate-50 disabled:opacity-40"
+              className="inline-flex size-7 items-center justify-center rounded-lg text-slate-500 ring-1 ring-slate-900/10 transition-colors enabled:hover:bg-slate-50 enabled:hover:text-slate-900 disabled:opacity-30"
             >
               <ChevronLeft size={15} />
             </button>
@@ -239,14 +260,14 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={page >= pageCount - 1}
               aria-label="Next page"
-              className="inline-flex size-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors enabled:hover:bg-slate-50 disabled:opacity-40"
+              className="inline-flex size-7 items-center justify-center rounded-lg text-slate-500 ring-1 ring-slate-900/10 transition-colors enabled:hover:bg-slate-50 enabled:hover:text-slate-900 disabled:opacity-30"
             >
               <ChevronRight size={15} />
             </button>
           </div>
         </div>
       )}
-    </div>
+    </Panel>
   );
 };
 

@@ -11,6 +11,34 @@ import { useRememberedEntries } from '../hooks/useRememberedEntries';
 import BoughtSummaryModal, { type SummaryRow } from './BoughtSummaryModal';
 import { SkeletonBar, SkeletonCard, SkeletonTableRows } from './DashboardSkeleton';
 import clsx from 'clsx';
+import { DISPLAY, NUMERIC } from '../utils/typography';
+import { Panel, MetricLabel } from './Panel';
+import { Amount } from './Amount';
+
+const HEADERS: { label: string; align: 'left' | 'center' | 'right' }[] = [
+    { label: 'Asset Symbol', align: 'left' },
+    { label: 'Type', align: 'center' },
+    { label: 'Quantity', align: 'left' },
+    { label: 'Price per Share', align: 'left' },
+    { label: 'Total Value', align: 'right' },
+    { label: 'Final %', align: 'right' },
+];
+
+// Every control on this screen sits on the same recessed fill with no border — the
+// focus ring is the only edge that ever appears, so a form of 20 rows stays quiet.
+const FIELD = [
+    'w-full rounded-lg border-0 bg-slate-100/70 px-3 py-2 text-[13px] font-semibold tabular-nums',
+    'placeholder:font-normal placeholder:text-slate-300',
+    'transition-all focus:bg-white focus:ring-2 focus:ring-sky-500/25',
+].join(' ');
+
+// Ghost action on the dark bar. The primary commit button opts out of this.
+const BAR_BUTTON = [
+    'flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 sm:flex-none',
+    'text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300',
+    'ring-1 ring-white/10 transition-all hover:bg-white/10 hover:text-white',
+    'active:scale-95 disabled:pointer-events-none disabled:opacity-30',
+].join(' ');
 
 const BulkTransactionForm: React.FC = () => {
     const formatCurrency = useCurrency();
@@ -281,8 +309,8 @@ const BulkTransactionForm: React.FC = () => {
         return (
             <div className="space-y-6">
                 <SkeletonCard>
-                    <SkeletonBar className="h-5 w-48 mb-5" />
-                    <SkeletonTableRows rows={6} cols={5} />
+                    <SkeletonBar className="h-3 w-full mb-5" />
+                    <SkeletonTableRows rows={7} cols={6} />
                 </SkeletonCard>
             </div>
         );
@@ -291,20 +319,26 @@ const BulkTransactionForm: React.FC = () => {
     if (stocks.length === 0) {
         return (
             <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow-sm border border-slate-100 p-12 text-center">
-                    <div className="max-w-md mx-auto">
-                        <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <TrendingUp className="text-slate-400" size={40} />
-                        </div>
-                        <h3 className="text-xl font-black text-slate-900 mb-3">No Stocks Added Yet</h3>
-                        <p className="text-slate-500 font-medium mb-6">
-                            Before you can record monthly transactions, you need to add stocks to your portfolio.
-                            Head over to the "Manage Stocks" page to get started.
-                        </p>
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold border border-blue-100">
-                            <Info size={16} />
-                            <span>Add stocks first, then return here to log your SIP entries</span>
-                        </div>
+                <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-sky-400 ring-1 ring-slate-900/10">
+                        <TrendingUp size={20} />
+                    </div>
+                    <h3
+                        className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                        style={DISPLAY}
+                    >
+                        No Stocks Added Yet
+                    </h3>
+                    <p className="mt-3 max-w-md text-xs font-medium leading-relaxed text-slate-400">
+                        Before you can record monthly transactions, you need to add stocks to your portfolio.
+                        Head over to the &quot;Manage Stocks&quot; page to get started.
+                    </p>
+                    <div
+                        className="mt-6 inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+                        style={DISPLAY}
+                    >
+                        <Info size={13} className="text-sky-500" />
+                        Add stocks first, then log your SIP entries
                     </div>
                 </div>
             </div>
@@ -313,20 +347,27 @@ const BulkTransactionForm: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm  border border-slate-100 overflow-hidden">
+            <Panel flush>
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[720px] text-left border-collapse">
                         <thead>
-                            <tr className="bg-slate-50/80 border-b border-slate-100">
-                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Asset Symbol</th>
-                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Type</th>
-                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Quantity</th>
-                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Price per Share</th>
-                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total Value</th>
-                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Final %</th>
+                            <tr className="border-b border-slate-100 bg-slate-50/60">
+                                {HEADERS.map(h => (
+                                    <th
+                                        key={h.label}
+                                        style={DISPLAY}
+                                        className={clsx(
+                                            "px-4 py-3 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400",
+                                            h.align === 'right' && "text-right",
+                                            h.align === 'center' && "text-center"
+                                        )}
+                                    >
+                                        {h.label}
+                                    </th>
+                                ))}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody className="divide-y divide-slate-100/70">
                             {stocks.map(stock => {
                                 const entry = inputs[stock.symbol] || { type: 'buy' as const, shares: '' };
                                 const priceValue = priceFor(stock.symbol);
@@ -337,24 +378,55 @@ const BulkTransactionForm: React.FC = () => {
                                 const allocation = allocationsFor(stock.symbol, total, entry.type);
 
                                 return (
-                                    <tr key={stock.id} className="group hover:bg-blue-50/30 transition-all duration-300">
-                                        <td className="px-4 py-1.5">
-                                            <div className="flex items-baseline gap-2">
-                                                <span className="font-black text-slate-900 text-sm group-hover:text-blue-600 transition-colors uppercase">{maskSymbol(stock.symbol)}</span>
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{stock.sector || 'Others'}</span>
+                                    <tr key={stock.id} className="group transition-colors hover:bg-slate-50/70">
+                                        {/* The accent rail only paints on hover, so a long entry form stays
+                                            flat and the pointer has something to track down the column. */}
+                                        <td className="relative px-4 py-2">
+                                            <span
+                                                aria-hidden
+                                                className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
+                                            />
+                                            <div className="flex items-center gap-2">
+                                                <span
+                                                    className="text-[13px] font-semibold uppercase tracking-tight text-slate-900"
+                                                    style={DISPLAY}
+                                                >
+                                                    {maskSymbol(stock.symbol)}
+                                                </span>
+                                                <span
+                                                    className="inline-flex rounded-md bg-slate-100 px-1.5 py-1 text-[9px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-500"
+                                                    style={DISPLAY}
+                                                >
+                                                    {stock.sector || 'Others'}
+                                                </span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-1.5">
+                                        {/* Segmented control: one recessed track, the active side lifted on a
+                                            white pill. Colour lands only on the selected side. */}
+                                        <td className="px-4 py-2">
                                             <div className="flex justify-center">
-                                                <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 ">
+                                                <div className="inline-flex rounded-lg bg-slate-100/80 p-0.5">
                                                     <button
                                                         onClick={() => handleInputChange(stock.symbol, 'type', 'buy')}
+                                                        style={DISPLAY}
                                                         className={clsx(
-                                                            "flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all duration-300",
+                                                            "flex items-center gap-1 rounded-md px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] transition-all",
                                                             entry.type === 'buy'
-                                                                ? "bg-white text-emerald-600 shadow-md transform scale-105":"text-slate-400 hover:text-slate-600")} > <TrendingUp size={12} /> Buy </button> <button onClick={() => handleInputChange(stock.symbol, 'type', 'sell')} className={clsx("flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all duration-300",
+                                                                ? "bg-white text-emerald-600 shadow-sm ring-1 ring-slate-900/5"
+                                                                : "text-slate-400 hover:text-slate-600"
+                                                        )}
+                                                    >
+                                                        <TrendingUp size={12} />
+                                                        Buy
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleInputChange(stock.symbol, 'type', 'sell')}
+                                                        style={DISPLAY}
+                                                        className={clsx(
+                                                            "flex items-center gap-1 rounded-md px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] transition-all",
                                                             entry.type === 'sell'
-                                                                ? "bg-white text-rose-500 shadow-md transform scale-105":"text-slate-400 hover:text-slate-600"
+                                                                ? "bg-white text-rose-500 shadow-sm ring-1 ring-slate-900/5"
+                                                                : "text-slate-400 hover:text-slate-600"
                                                         )}
                                                     >
                                                         <TrendingDown size={12} />
@@ -363,8 +435,8 @@ const BulkTransactionForm: React.FC = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-1.5">
-                                            <div className="relative group/input max-w-[120px]">
+                                        <td className="px-4 py-2">
+                                            <div className="max-w-[120px]">
                                                 <input
                                                     ref={(el) => { sharesRefs.current[stock.symbol] = el; }}
                                                     type="number"
@@ -373,57 +445,86 @@ const BulkTransactionForm: React.FC = () => {
                                                     value={entry.shares}
                                                     onChange={(e) => handleInputChange(stock.symbol, 'shares', e.target.value)}
                                                     onKeyDown={(e) => handleSharesKeyDown(e, stock.symbol)}
-                                                    className="w-full bg-slate-50 border-0 rounded-md px-3 py-1.5 text-slate-900 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all text-sm"
+                                                    style={NUMERIC}
+                                                    className={clsx(FIELD, 'text-right text-slate-900')}
                                                     placeholder="0"
                                                 />
                                             </div>
                                         </td>
-                                        <td className="px-4 py-1.5">
+                                        <td className="px-4 py-2">
                                             <div className="relative max-w-[160px]">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 font-black text-[10px]">Rs.</span>
+                                                <span
+                                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400"
+                                                    style={DISPLAY}
+                                                >
+                                                    Rs
+                                                </span>
                                                 <input
                                                     type="number"
                                                     min="0"
                                                     step="any"
                                                     value={priceValue}
                                                     onChange={(e) => handleInputChange(stock.symbol, 'price', e.target.value)}
+                                                    style={NUMERIC}
                                                     className={clsx(
-                                                        "w-full bg-slate-50 border-0 rounded-md pl-9 pr-3 py-1.5 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all text-sm",
-                                                        fromLiveFeed ? "text-blue-600" : "text-slate-900"
+                                                        FIELD,
+                                                        'pl-8 pr-7 text-right',
+                                                        fromLiveFeed ? "text-sky-600" : "text-slate-900"
                                                     )}
                                                     placeholder="0.00"
                                                 />
+                                                {/* A price the user never typed came from the feed. The dot says so
+                                                    without a word of chrome — colour alone was doing that job before. */}
+                                                {fromLiveFeed && (
+                                                    <span
+                                                        title="Price from the live feed — type to override"
+                                                        className="pointer-events-none absolute right-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-sky-400"
+                                                    />
+                                                )}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-1.5 text-right">
-                                            <div className={clsx(
-                                                "font-black text-sm transition-all duration-300",
-                                                total > 0 ? (entry.type === 'sell' ? "text-rose-500":"text-emerald-500") : "text-slate-200"
-                                            )}>
-                                                {total > 0 && (entry.type === 'sell' ? '-' : '')}
-                                                {formatCurrency(total).split('.')[0]}
+                                        <td className="px-4 py-2 text-right">
+                                            <div
+                                                className={clsx(
+                                                    "text-[13px] font-semibold tabular-nums transition-colors",
+                                                    total > 0
+                                                        ? (entry.type === 'sell' ? "text-rose-600" : "text-emerald-600")
+                                                        : "text-slate-300"
+                                                )}
+                                                style={NUMERIC}
+                                            >
+                                                {total > 0 && (entry.type === 'sell' ? '−' : '+')}
+                                                {formatCurrency(Math.round(total)).replace(/^Rs\s*/, '')}
                                             </div>
                                         </td>
                                         {/* Where this symbol lands once the month is committed. The delta against
                                             today's allocation is what makes the number actionable. */}
-                                        <td className="px-4 py-1.5 text-right">
+                                        <td className="px-4 py-2 text-right">
                                             {total > 0 || allocation.current > 0 ? (
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <span className="font-black text-slate-900 text-xs tabular-nums w-12 text-right">
+                                                    <span
+                                                        className="w-12 text-right text-[13px] font-semibold tabular-nums text-slate-900"
+                                                        style={NUMERIC}
+                                                    >
                                                         {allocation.projected.toFixed(1)}%
                                                     </span>
                                                     {total > 0 && (
-                                                        <span className={clsx(
-                                                            "text-[9px] font-black tabular-nums w-10 text-right",
-                                                            allocation.projected >= allocation.current ? "text-emerald-500" : "text-rose-500"
-                                                        )}>
-                                                            {allocation.projected >= allocation.current ? '+' : ''}
-                                                            {(allocation.projected - allocation.current).toFixed(1)}
+                                                        <span
+                                                            className={clsx(
+                                                                "inline-flex w-12 justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold leading-none tabular-nums",
+                                                                allocation.projected >= allocation.current
+                                                                    ? "bg-emerald-500/10 text-emerald-600"
+                                                                    : "bg-rose-500/10 text-rose-600"
+                                                            )}
+                                                            style={NUMERIC}
+                                                        >
+                                                            {allocation.projected >= allocation.current ? '+' : '−'}
+                                                            {Math.abs(allocation.projected - allocation.current).toFixed(1)}
                                                         </span>
                                                     )}
                                                 </div>
                                             ) : (
-                                                <span className="font-black text-slate-200 text-xs tabular-nums">—</span>
+                                                <span className="text-[13px] tabular-nums text-slate-300" style={NUMERIC}>—</span>
                                             )}
                                         </td>
                                     </tr>
@@ -433,89 +534,114 @@ const BulkTransactionForm: React.FC = () => {
                     </table>
                 </div>
 
-                <div className="bg-slate-900 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                            <div className="p-1.5 bg-blue-500/10 rounded-md">
-                                <Calculator className="text-blue-400" size={14} />
-                            </div>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Assets Impacted</span>
-                                <span className="text-white font-black text-sm tabular-nums">{activeEntriesCount} / {stocks.length}</span>
-                            </div>
-                        </div>
+                {/* Action bar — the same dark slab as the navbar panel, mounted flush to the
+                    foot of the form so the running totals sit next to the commit. */}
+                <div className="relative overflow-hidden bg-slate-950">
+                    <div
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_160%_at_0%_0%,rgba(56,189,248,0.12),transparent_55%)]"
+                    />
+                    <div
+                        aria-hidden
+                        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                    />
 
-                        <div className="w-px h-6 bg-slate-800 hidden sm:block" />
-
-                        <div className="flex items-center gap-2">
-                            <div className={clsx(
-                                "p-1.5 rounded-md",
-                                totalMonthlyInvestment >= 0 ? "bg-emerald-500/10" : "bg-rose-500/10"
-                            )}>
-                                {totalMonthlyInvestment >= 0 ? <TrendingUp className="text-emerald-400" size={14} /> : <TrendingDown className="text-rose-400" size={14} />}
+                    <div className="relative flex flex-col items-center justify-between gap-3 px-4 py-3 sm:flex-row">
+                        <div className="flex items-center gap-4 lg:gap-5">
+                            <div className="flex flex-col gap-2">
+                                <MetricLabel label="Assets Impacted" tone="dark" />
+                                <span
+                                    className="text-[15px] font-semibold leading-none tabular-nums text-white"
+                                    style={NUMERIC}
+                                >
+                                    {activeEntriesCount}
+                                    <span className="text-slate-500"> / {stocks.length}</span>
+                                </span>
                             </div>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Net Monthly Value</span>
+
+                            <span
+                                aria-hidden
+                                className="h-8 w-px shrink-0 bg-gradient-to-b from-transparent via-white/15 to-transparent"
+                            />
+
+                            <div className="flex flex-col gap-2">
+<MetricLabel label="Net Monthly Value" tone="dark" />
                                 <span className={clsx(
-                                    "font-black text-sm tracking-tight tabular-nums",
+                                    "flex items-baseline gap-1.5",
                                     totalMonthlyInvestment >= 0 ? "text-emerald-400" : "text-rose-400"
                                 )}>
-                                    {formatCurrency(totalMonthlyInvestment)}
+                                    <span className="text-[9px] leading-none" style={NUMERIC}>
+                                        {totalMonthlyInvestment >= 0 ? '▲' : '▼'}
+                                    </span>
+                                    <Amount
+                                        value={formatCurrency(Math.round(Math.abs(totalMonthlyInvestment)))}
+                                        size="text-[15px]"
+                                    />
                                 </span>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="flex w-full sm:w-auto items-center gap-2">
-                        <button
-                            onClick={fillFromRecent}
-                            disabled={recentEntries.size === 0}
-                            title={
-                                recentMonth
-                                    ? `Copy quantities from ${formatMonth(recentMonth)}`
-                                    : 'No earlier entries to copy from'
-                            }
-                            className="flex-1 sm:flex-none bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 px-4 py-2 rounded-md transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap"
-                        >
-                            <CopyPlus size={14} />
-                            Fill Recent
-                        </button>
+                        <div className="flex w-full items-center gap-2 sm:w-auto">
+                            <button
+                                onClick={fillFromRecent}
+                                disabled={recentEntries.size === 0}
+                                title={
+                                    recentMonth
+                                        ? `Copy quantities from ${formatMonth(recentMonth)}`
+                                        : 'No earlier entries to copy from'
+                                }
+                                style={DISPLAY}
+                                className={BAR_BUTTON}
+                            >
+                                <CopyPlus size={14} />
+                                Fill Recent
+                            </button>
 
-                        <button
-                            onClick={rememberOrRecall}
-                            disabled={rememberSaving || (!hasQuantities && rememberedCount === 0)}
-                            title={
-                                hasQuantities
-                                    ? 'Remember the quantities currently entered'
-                                    : rememberedCount > 0
-                                        ? `Fill ${rememberedCount} remembered quantities`
-                                        : 'Enter quantities first, then Remember them'
-                            }
-                            className="flex-1 sm:flex-none bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 px-4 py-2 rounded-md transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap"
-                        >
-                            {hasQuantities ? <Bookmark size={14} /> : <BookmarkCheck size={14} />}
-                            {hasQuantities ? 'Remember' : 'Recall'}
-                        </button>
+                            <button
+                                onClick={rememberOrRecall}
+                                disabled={rememberSaving || (!hasQuantities && rememberedCount === 0)}
+                                title={
+                                    hasQuantities
+                                        ? 'Remember the quantities currently entered'
+                                        : rememberedCount > 0
+                                            ? `Fill ${rememberedCount} remembered quantities`
+                                            : 'Enter quantities first, then Remember them'
+                                }
+                                style={DISPLAY}
+                                className={BAR_BUTTON}
+                            >
+                                {hasQuantities ? <Bookmark size={14} /> : <BookmarkCheck size={14} />}
+                                {hasQuantities ? 'Remember' : 'Recall'}
+                            </button>
 
-                        <button
-                            onClick={() => { setCommittedRows(null); setShowSummary(true); }}
-                            title={`Shareable summary of what you bought in ${formatMonth(month)}`}
-                            className="flex-1 sm:flex-none bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 px-4 py-2 rounded-md transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 whitespace-nowrap"
-                        >
-                            <Share2 size={14} />
-                            Summary
-                        </button>
+                            <button
+                                onClick={() => { setCommittedRows(null); setShowSummary(true); }}
+                                title={`Shareable summary of what you bought in ${formatMonth(month)}`}
+                                style={DISPLAY}
+                                className={BAR_BUTTON}
+                            >
+                                <Share2 size={14} />
+                                Summary
+                            </button>
 
-                        <button
-                            onClick={handleBulkSave}
-                            className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-md transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 whitespace-nowrap"
-                        >
-                            <Save size={14} />
-                            Commit All Transactions
-                        </button>
+                            {/* White on the dark bar: the strongest contrast available here, and it
+                                keeps the one committing action from reading as just another chip. */}
+                            <button
+                                onClick={handleBulkSave}
+                                style={DISPLAY}
+                                className={clsx(
+                                    "flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2 sm:flex-none",
+                                    "bg-white text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-900",
+                                    "transition-all hover:bg-slate-100 active:scale-95"
+                                )}
+                            >
+                                <Save size={14} />
+                                Commit All Transactions
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </Panel>
 
             <BoughtSummaryModal
                 isOpen={showSummary}
@@ -524,10 +650,13 @@ const BulkTransactionForm: React.FC = () => {
                 month={month}
             />
 
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-md border border-blue-100">
-                <Info size={13} className="text-blue-600 flex-shrink-0" />
-                <p className="text-[11px] text-blue-700 font-medium">
-                    Entries with zero quantity or price will be ignored during save. "Sell" transactions will be subtracted from your total invested amount.
+            {/* Footnote, not an alert — it says the same thing in a neutral voice instead of
+                spending a coloured panel on it. */}
+            <div className="flex items-center gap-2.5 rounded-xl bg-slate-100/70 px-3.5 py-2.5">
+                <Info size={13} className="shrink-0 text-slate-400" />
+                <p className="text-[11px] font-medium leading-relaxed text-slate-500">
+                    Entries with zero quantity or price will be ignored during save. &quot;Sell&quot; transactions
+                    will be subtracted from your total invested amount.
                 </p>
             </div>
         </div>

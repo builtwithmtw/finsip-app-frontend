@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { LogIn, LayoutDashboard } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { NUMERIC } from "@/utils/typography";
 
 /**
  * The standalone app's header, with ThemeToggle swapped for the way into FINSIP
@@ -21,9 +22,18 @@ export function Header() {
         {/* FINSIP's own mark, shared with the signed-in app's nav bar, so the
             homepage and the portfolio read as one product rather than two. */}
         <Link href="/" className="flex items-center gap-2.5">
-          <img src="/logo.svg" alt="" className="size-8 shrink-0 rounded-lg" />
+          <img src="/logo.svg" alt="" className="size-4 shrink-0 rounded-lg" />
           <div className="leading-tight">
-            <p className="text-sm font-semibold tracking-tight">FinSIP Screener</p>
+
+            <p className="text-sm font-semibold tracking-tight">
+              <span
+                className="text-[13px] font-bold leading-none tracking-[-0.03em]"
+                style={NUMERIC}
+              >
+                FINSIP
+              </span>{" "}
+              Screener
+            </p>
             <p className="text-[11px] text-muted-foreground">
               Pakistan Stock Exchange
             </p>

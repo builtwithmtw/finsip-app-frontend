@@ -9,6 +9,7 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { toast } from 'sonner';
 import clsx from 'clsx';
+import { DISPLAY, NUMERIC } from '../utils/typography';
 
 /**
  * Three ways in, all sorted by date:
@@ -23,6 +24,16 @@ interface TransactionDetailModalProps {
     symbol?: string;
     month?: string;
 }
+
+const HEAD = 'py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
+
+// Edit fields match the recessed, borderless fields used across the app: the focus
+// ring is the only edge that ever appears.
+const FIELD = [
+    'no-spinner w-full max-w-[92px] rounded-lg border-0 bg-slate-100/70 px-2.5 py-1.5',
+    'text-right text-[13px] font-semibold tabular-nums text-slate-900 outline-none',
+    'transition-all focus:bg-white focus:ring-2 focus:ring-sky-500/25',
+].join(' ');
 
 const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen, onClose, transactions, symbol, month }) => {
     const formatCurrency = useCurrency();
@@ -76,18 +87,28 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
     return (
         <div
             onClick={onClose}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-200"
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+                className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-[0_32px_64px_-32px_rgba(2,6,23,0.5)] ring-1 ring-slate-900/5 animate-in zoom-in-95 duration-200"
             >
-                <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4">
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px bg-gradient-to-r from-transparent via-slate-900/10 to-transparent"
+                />
+
+                <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-5">
                     <div className="min-w-0">
-                        <h2 className="text-base font-bold text-slate-900 tracking-tight truncate">
+                        <h2
+                            className="truncate text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                            style={DISPLAY}
+                        >
                             {symbol && month ? (
                                 <>
-                                    {maskSymbol(symbol)} <span className="text-slate-300 font-normal">·</span> <span className="text-slate-500 font-normal">{formatMonth(month)}</span>
+                                    {maskSymbol(symbol)}
+                                    <span className="mx-1.5 text-slate-300">·</span>
+                                    <span className="text-slate-400">{formatMonth(month)}</span>
                                 </>
                             ) : symbol ? (
                                 maskSymbol(symbol)
@@ -97,24 +118,52 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                                 'Transactions'
                             )}
                         </h2>
-                        <p className="text-xs font-medium text-slate-400 mt-0.5">
-                            {symbol && !month && <>All months<span className="text-slate-300"> · </span></>}
-                            {transactions.length} {transactions.length === 1 ? 'transaction' : 'transactions'}
-                            <span className="text-slate-300"> · </span>
-                            net {formatCurrency(Math.abs(total)).split('.')[0]}
-                        </p>
+
+                        {/* Count and net in the same label/figure grammar as every other
+                            readout in the app, rather than a run-on sentence. */}
+                        <div className="mt-2.5 flex items-center gap-3">
+                            <span className="flex items-center">
+                                <span
+                                    className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-500"
+                                    style={DISPLAY}
+                                >
+                                    {symbol && !month ? 'All months · ' : ''}
+                                    {transactions.length} {transactions.length === 1 ? 'entry' : 'entries'}
+                                </span>
+                            </span>
+                            <span aria-hidden className="h-3 w-px bg-slate-200" />
+                            <span className="flex items-center gap-1.5">
+                                <span
+                                    className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-500"
+                                    style={DISPLAY}
+                                >
+                                    Net
+                                </span>
+                                <span
+                                    className={clsx(
+                                        'text-[13px] font-semibold leading-none tabular-nums',
+                                        total >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                                    )}
+                                    style={NUMERIC}
+                                >
+                                    {formatCurrency(Math.round(Math.abs(total))).replace(/^Rs\s*/, '')}
+                                </span>
+                            </span>
+                        </div>
                     </div>
                     <button
                         onClick={onClose}
                         title="Close"
-                        className="shrink-0 -mr-2 -mt-1 p-2 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                        className="-mr-1 -mt-1 shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900"
                     >
-                        <X size={18} />
+                        <X size={17} />
                     </button>
                 </div>
 
-                <div className="max-h-[60vh] overflow-y-auto overflow-x-auto custom-scrollbar border-t border-slate-100">
-                    <table className="w-full min-w-[560px] text-left border-collapse">
+                {/* The one place a vertical scroller is right: a symbol can carry years of
+                    entries, and the dialog still has to fit the window. */}
+                <div className="max-h-[60vh] overflow-x-auto overflow-y-auto border-t border-slate-100 custom-scrollbar">
+                    <table className="w-full min-w-[560px] border-collapse text-left">
                         {/* The last column is w-px: it shrinks to exactly the width of the two
                             buttons instead of reserving a wide, mostly-empty gutter on the right. */}
                         <colgroup>
@@ -127,99 +176,123 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                             <col className="w-px" />
                         </colgroup>
 
-                        <thead className="sticky top-0 bg-white">
-                            <tr className="border-b border-slate-100 text-[11px] font-semibold text-slate-400">
-                                {!symbol && <th className="px-6 py-2.5 font-semibold">Symbol</th>}
-                                <th className={clsx('py-2.5 font-semibold', symbol ? 'px-6' : 'px-4')}>Date</th>
-                                <th className="px-4 py-2.5 font-semibold">Type</th>
-                                <th className="px-4 py-2.5 font-semibold text-right">Shares</th>
-                                <th className="px-4 py-2.5 font-semibold text-right">Price</th>
-                                <th className="px-4 py-2.5 font-semibold text-right">Amount</th>
-                                <th className="w-px pl-2 pr-5 py-2.5" />
+                        <thead className="sticky top-0 z-10 bg-white/90 backdrop-blur">
+                            <tr className="border-b border-slate-100">
+                                {!symbol && <th className={clsx(HEAD, 'px-5')} style={DISPLAY}>Symbol</th>}
+                                <th className={clsx(HEAD, symbol ? 'px-5' : 'px-4')} style={DISPLAY}>Date</th>
+                                <th className={clsx(HEAD, 'px-4')} style={DISPLAY}>Type</th>
+                                <th className={clsx(HEAD, 'px-4 text-right')} style={DISPLAY}>Shares</th>
+                                <th className={clsx(HEAD, 'px-4 text-right')} style={DISPLAY}>Price</th>
+                                <th className={clsx(HEAD, 'px-4 text-right')} style={DISPLAY}>Amount</th>
+                                <th className="w-px py-2.5 pl-2 pr-5" />
                             </tr>
                         </thead>
 
                         <tbody>
                             {ordered.map((t) => {
                                 const isEditing = editingId === t.id;
+                                const isBuy = t.type === 'buy';
 
                                 return (
                                     <tr
                                         key={t.id}
-                                        className="group relative border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors"
+                                        className="group relative border-b border-slate-100/70 transition-colors last:border-0 hover:bg-slate-50/70"
                                     >
                                         {!symbol && (
-                                            <td className="px-6 py-3 text-sm font-bold text-slate-900 uppercase tracking-tight">
-                                                {maskSymbol(t.symbol)}
+                                            <td className="px-5 py-2.5">
+                                                <span
+                                                    className="text-[13px] font-semibold uppercase tracking-tight text-slate-900"
+                                                    style={DISPLAY}
+                                                >
+                                                    {maskSymbol(t.symbol)}
+                                                </span>
                                             </td>
                                         )}
 
-                                        <td className={clsx('py-3 text-sm font-medium text-slate-500 whitespace-nowrap', symbol ? 'px-6' : 'px-4')}>
+                                        <td
+                                            className={clsx('whitespace-nowrap py-2.5 text-[13px] text-slate-500', symbol ? 'px-5' : 'px-4')}
+                                            style={NUMERIC}
+                                        >
                                             {new Date(t.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
                                         </td>
 
-                                        <td className="px-4 py-3">
-                                            <span className={clsx(
-                                                'inline-flex items-center gap-1.5 text-xs font-semibold capitalize',
-                                                t.type === 'buy' ? 'text-emerald-600' : 'text-rose-600'
-                                            )}>
-                                                <span className={clsx(
-                                                    'w-1.5 h-1.5 rounded-full',
-                                                    t.type === 'buy' ? 'bg-emerald-500' : 'bg-rose-500'
-                                                )} />
+                                        <td className="px-4 py-2.5">
+                                            <span
+                                                className={clsx(
+                                                    'inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase leading-none tracking-[0.14em]',
+                                                    isBuy ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'
+                                                )}
+                                                style={DISPLAY}
+                                            >
+                                                <span className="text-[8px]">{isBuy ? '\u25B2' : '\u25BC'}</span>
                                                 {t.type}
                                             </span>
                                         </td>
 
-                                        <td className="px-4 py-3 text-right text-sm font-semibold text-slate-900 tabular-nums">
+                                        <td className="px-4 py-2.5 text-right">
                                             {isEditing ? (
                                                 <input
                                                     type="number"
                                                     value={editData.shares}
                                                     onChange={(e) => setEditData({ ...editData, shares: Number(e.target.value) })}
-                                                    className="w-full max-w-[90px] px-2 py-1 border border-slate-200 rounded-md text-right text-sm tabular-nums focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
+                                                    style={NUMERIC}
+                                                    className={FIELD}
                                                 />
                                             ) : (
-                                                mask(t.shares.toLocaleString())
+                                                <span className="text-[13px] font-semibold tabular-nums text-slate-900" style={NUMERIC}>
+                                                    {mask(t.shares.toLocaleString())}
+                                                </span>
                                             )}
                                         </td>
 
-                                        <td className="px-4 py-3 text-right text-sm font-medium text-slate-500 tabular-nums">
+                                        <td className="px-4 py-2.5 text-right">
                                             {isEditing ? (
                                                 <input
                                                     type="number"
                                                     value={editData.pricePerShare}
                                                     onChange={(e) => setEditData({ ...editData, pricePerShare: Number(e.target.value) })}
-                                                    className="w-full max-w-[90px] px-2 py-1 border border-slate-200 rounded-md text-right text-sm tabular-nums focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
+                                                    style={NUMERIC}
+                                                    className={FIELD}
                                                 />
                                             ) : (
-                                                formatCurrency(t.pricePerShare).replace('Rs', '').trim()
+                                                <span className="text-[13px] tabular-nums text-slate-500" style={NUMERIC}>
+                                                    {formatCurrency(t.pricePerShare).replace(/^Rs\s*/, '')}
+                                                </span>
                                             )}
                                         </td>
 
-                                        <td className="px-4 py-3 text-right text-sm font-bold text-slate-900 tabular-nums whitespace-nowrap">
+                                        <td
+                                            className="whitespace-nowrap px-4 py-2.5 text-right text-[13px] font-semibold tabular-nums text-slate-900"
+                                            style={NUMERIC}
+                                        >
                                             {isEditing
-                                                ? formatCurrency(editData.shares * editData.pricePerShare).split('.')[0]
-                                                : formatCurrency(t.totalAmount).split('.')[0]}
+                                                ? formatCurrency(Math.round(editData.shares * editData.pricePerShare)).replace(/^Rs\s*/, '')
+                                                : formatCurrency(Math.round(t.totalAmount)).replace(/^Rs\s*/, '')}
                                         </td>
 
                                         {/* Sized to the buttons (w-px + nowrap collapses it to its content),
-                                            so the actions never hold a wide empty column open. */}
-                                        <td className="w-px whitespace-nowrap pl-2 pr-5 py-3">
-                                            <div className="flex items-center justify-end gap-1">
+                                            so the actions never hold a wide empty column open. Editing pins
+                                            them visible; otherwise they wait for the row to be hovered. */}
+                                        <td className="w-px whitespace-nowrap py-2.5 pl-2 pr-5">
+                                            <div
+                                                className={clsx(
+                                                    'flex items-center justify-end gap-1 transition-opacity',
+                                                    isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+                                                )}
+                                            >
                                                 {isEditing ? (
                                                     <>
                                                         <button
                                                             onClick={() => handleSaveEdit(t.id)}
                                                             title="Save"
-                                                            className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                                            className="rounded-lg p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50"
                                                         >
                                                             <Check size={15} />
                                                         </button>
                                                         <button
                                                             onClick={() => setEditingId(null)}
                                                             title="Cancel"
-                                                            className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 transition-colors"
+                                                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100"
                                                         >
                                                             <ArrowLeft size={15} />
                                                         </button>
@@ -229,16 +302,16 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                                                         <button
                                                             onClick={() => handleStartEdit(t)}
                                                             title="Edit"
-                                                            className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-sky-50 hover:text-sky-600"
                                                         >
-                                                            <Edit2 size={15} />
+                                                            <Edit2 size={14} />
                                                         </button>
                                                         <button
                                                             onClick={() => handleDelete(t.id)}
                                                             title="Delete"
-                                                            className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
                                                         >
-                                                            <Trash2 size={15} />
+                                                            <Trash2 size={14} />
                                                         </button>
                                                     </>
                                                 )}
@@ -252,15 +325,22 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                         <tfoot>
                             <tr className="border-t border-slate-100 bg-slate-50/60">
                                 <td
-                                    className={clsx('py-3 text-xs font-semibold text-slate-400', symbol ? 'px-6' : 'px-4')}
+                                    className={clsx(
+                                        'py-3 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-500',
+                                        symbol ? 'px-5' : 'px-4'
+                                    )}
+                                    style={DISPLAY}
                                     colSpan={symbol ? 4 : 5}
                                 >
                                     Net {total >= 0 ? 'invested' : 'realised'}
                                 </td>
-                                <td className="px-4 py-3 text-right text-sm font-bold text-slate-900 tabular-nums whitespace-nowrap">
-                                    {formatCurrency(Math.abs(total)).split('.')[0]}
+                                <td
+                                    className="whitespace-nowrap px-4 py-3 text-right text-[13px] font-semibold tabular-nums text-slate-900"
+                                    style={NUMERIC}
+                                >
+                                    {formatCurrency(Math.round(Math.abs(total))).replace(/^Rs\s*/, '')}
                                 </td>
-                                <td className="w-px pl-2 pr-5 py-3" />
+                                <td className="w-px py-3 pl-2 pr-5" />
                             </tr>
                         </tfoot>
                     </table>

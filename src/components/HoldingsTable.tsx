@@ -4,8 +4,17 @@ import React, { useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask } from '../context/PrivacyContext';
 import { computeHoldings } from '../utils/holdings';
+import { DISPLAY, NUMERIC } from '../utils/typography';
+import { Panel, PanelHeader } from './Panel';
 
-
+const HEADERS: { label: string; align: 'left' | 'right' }[] = [
+    { label: 'Asset Symbol', align: 'left' },
+    { label: 'Sector', align: 'left' },
+    { label: 'Shares', align: 'right' },
+    { label: 'Avg Cost', align: 'right' },
+    { label: 'Invested', align: 'right' },
+    { label: 'Portfolio %', align: 'right' },
+];
 
 const HoldingsTable: React.FC = () => {
     const formatCurrency = useCurrency();
@@ -31,67 +40,90 @@ const HoldingsTable: React.FC = () => {
     if (holdings.length === 0) return null;
 
     return (
-        <div className="bg-white p-4 lg:p-5 rounded-xl border border-slate-100 shadow-sm h-full flex flex-col">
-            <div className="flex items-center justify-between mb-2">
-                <div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Asset Allocation</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">By Invested Cost</p>
-                </div>
-                <div className="bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Total Invested</span>
-                    <span className="text-base font-black text-slate-900 tracking-tight">
-                        {formatCurrency(totalPortfolioValue).split('.')[0]}
-                    </span>
-                </div>
+        <Panel flush className="flex h-full flex-col">
+            <div className="px-4 pt-4 lg:px-5 lg:pt-5">
+                <PanelHeader title="Asset Allocation" caption="By Invested Cost" />
             </div>
 
-
-            <div className="flex-1 overflow-y-auto overflow-x-auto scrollbar-hide-auto">
-                <table className="w-full min-w-[620px] text-left border-collapse">
-                    <thead className="bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10">
+            <div className="scrollbar-hide-auto flex-1 overflow-x-auto overflow-y-auto">
+                <table className="w-full min-w-[620px] border-collapse text-left">
+                    {/* Sticky inside this pane's own scroller, so the headers stay put as a
+                        long holdings list runs past them. */}
+                    <thead className="sticky top-0 z-10 border-b border-slate-100 bg-white/85 backdrop-blur">
                         <tr>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Asset Symbol</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Sector</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Shares</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Avg Cost</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Invested</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Portfolio %</th>
+                            {HEADERS.map(h => (
+                                <th
+                                    key={h.label}
+                                    style={DISPLAY}
+                                    className={[
+                                        'px-4 py-3 text-[10px] font-semibold uppercase leading-none',
+                                        'tracking-[0.18em] text-slate-400',
+                                        h.align === 'right' ? 'text-right' : 'text-left',
+                                    ].join(' ')}
+                                >
+                                    {h.label}
+                                </th>
+                            ))}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y divide-slate-100/70">
                         {holdings.map((stock) => {
                             const allocation = totalPortfolioValue > 0
                                 ? (stock.totalInvested / totalPortfolioValue) * 100
                                 : 0;
 
                             return (
-                                <tr key={stock.symbol} className="hover:bg-blue-50/30 transition-all duration-300 group">
-                                    <td className="px-4 py-2.5">
-                                        <div className="font-black text-slate-900 text-sm uppercase tracking-tight group-hover:text-blue-600 transition-colors">{mask(stock.symbol)}</div>
+                                <tr key={stock.symbol} className="group transition-colors hover:bg-slate-50/70">
+                                    {/* The accent rail only paints on hover, so the resting table stays
+                                        flat and the pointer has something to track. */}
+                                    <td className="relative py-2.5 pl-4 pr-4">
+                                        <span
+                                            aria-hidden
+                                            className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
+                                        />
+                                        <span
+                                            className="text-[13px] font-semibold uppercase tracking-tight text-slate-900"
+                                            style={DISPLAY}
+                                        >
+                                            {mask(stock.symbol)}
+                                        </span>
                                     </td>
                                     {/* Sector isn't masked -- it's a market classification, not a position. */}
                                     <td className="px-4 py-2.5">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stock.sector}</span>
+                                        <span
+                                            className="inline-flex rounded-md bg-slate-100 px-1.5 py-1 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-500"
+                                            style={DISPLAY}
+                                        >
+                                            {stock.sector}
+                                        </span>
                                     </td>
-                                    <td className="px-4 py-2.5 text-right font-bold text-slate-600 text-sm tabular-nums">
+                                    <td className="px-4 py-2.5 text-right text-[13px] tabular-nums text-slate-500" style={NUMERIC}>
                                         {mask(stock.totalShares.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }))}
                                     </td>
-                                    <td className="px-4 py-2.5 text-right font-bold text-slate-600 text-sm tabular-nums">
-                                        {/* Rounded to whole rupees: the paisa on an average cost is noise. */}
-                                        {formatCurrency(Math.round(stock.avgPrice)).replace('Rs', '')}
+                                    {/* Rounded to whole rupees: the paisa on an average cost is noise. */}
+                                    <td className="px-4 py-2.5 text-right text-[13px] tabular-nums text-slate-500" style={NUMERIC}>
+                                        {formatCurrency(Math.round(stock.avgPrice)).replace(/^Rs\s*/, '')}
                                     </td>
-                                    <td className="px-4 py-2.5 text-right font-black text-blue-600 text-sm tabular-nums">
-                                        {formatCurrency(Math.round(stock.totalInvested)).replace('Rs', '')}
+                                    <td
+                                        className="px-4 py-2.5 text-right text-[13px] font-semibold tabular-nums text-slate-900"
+                                        style={NUMERIC}
+                                    >
+                                        {formatCurrency(Math.round(stock.totalInvested)).replace(/^Rs\s*/, '')}
                                     </td>
-                                    <td className="px-4 py-2.5 text-right">
+                                    <td className="px-4 py-2.5">
                                         <div className="flex items-center justify-end gap-2">
-                                            <div className="w-14 h-1 bg-slate-100 rounded-full overflow-hidden ">
-                                                <div
-                                                    className="h-full bg-blue-600 rounded-full"
-                                                    style={{ width: `${allocation}%` }}
+                                            <span className="h-1 w-14 shrink-0 overflow-hidden rounded-full bg-slate-100">
+                                                <span
+                                                    className="block h-full rounded-full bg-sky-500"
+                                                    style={{ width: `${Math.min(allocation, 100)}%` }}
                                                 />
-                                            </div>
-                                            <span className="font-black text-slate-900 text-xs tabular-nums w-12 text-right">{allocation.toFixed(1)}%</span>
+                                            </span>
+                                            <span
+                                                className="w-12 text-right text-[13px] font-semibold tabular-nums text-slate-700"
+                                                style={NUMERIC}
+                                            >
+                                                {allocation.toFixed(1)}%
+                                            </span>
                                         </div>
                                     </td>
                                 </tr>
@@ -100,7 +132,7 @@ const HoldingsTable: React.FC = () => {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </Panel>
     );
 };
 

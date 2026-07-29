@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import AddWatchlistModal from "@/components/watchlist/AddWatchlistModal";
 import WatchlistTable, { type WatchlistRow } from "@/components/watchlist/WatchlistTable";
 import WatchlistTableSkeleton from "@/components/watchlist/WatchlistTableSkeleton";
+import { DISPLAY } from "@/utils/typography";
 
 const WatchlistPage: React.FC = () => {
   const { items, loading, adding, addItem, removeItem } = useWatchlist();
@@ -61,21 +62,32 @@ const WatchlistPage: React.FC = () => {
   return (
     <div className="animate-in fade-in duration-500 space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-            <Star size={18} className="text-blue-600" />
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-sky-400 ring-1 ring-slate-900/10">
+            <Star size={17} />
           </div>
           <div>
-            <h1 className="text-base font-black text-slate-900 tracking-tight leading-none">Watchlist</h1>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-              {items.length} {items.length === 1 ? "symbol" : "symbols"} tracked
+            <h1
+              className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+              style={DISPLAY}
+            >
+              Watchlist
+            </h1>
+            <p className="mt-2 flex items-center">
+              <span
+                className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-500"
+                style={DISPLAY}
+              >
+                {items.length} {items.length === 1 ? "symbol" : "symbols"} tracked
+              </span>
             </p>
           </div>
         </div>
 
         <button
           onClick={() => setModalOpen(true)}
-          className="h-9 bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-md transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 active:scale-95 shrink-0"
+          style={DISPLAY}
+          className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-white ring-1 ring-slate-900/10 transition-all hover:bg-slate-800 active:scale-95"
         >
           <Plus size={14} />
           Add Item
@@ -92,17 +104,23 @@ const WatchlistPage: React.FC = () => {
         // already in, so the placeholder is the right height.
         <WatchlistTableSkeleton rows={items.length > 0 ? Math.min(items.length, 10) : 8} />
       ) : rows.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 px-6 py-16 text-center">
-          <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
-            <Star size={22} className="text-slate-300" />
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+            <Star size={20} />
           </div>
-          <p className="text-sm font-bold text-slate-600">Your watchlist is empty</p>
-          <p className="text-xs font-medium text-slate-400 mt-1">
+          <p
+            className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+            style={DISPLAY}
+          >
+            Your watchlist is empty
+          </p>
+          <p className="mt-3 max-w-sm text-xs font-medium leading-relaxed text-slate-400">
             Add a PSX symbol to start tracking its price and daily move.
           </p>
           <button
             onClick={() => setModalOpen(true)}
-            className="mt-5 inline-flex items-center gap-1.5 h-9 bg-slate-900 hover:bg-slate-800 text-white px-4 rounded-md transition-all font-black text-[10px] uppercase tracking-widest active:scale-95"
+            style={DISPLAY}
+            className="mt-6 inline-flex h-10 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition-all hover:bg-slate-800 active:scale-95"
           >
             <Plus size={14} />
             Add your first symbol

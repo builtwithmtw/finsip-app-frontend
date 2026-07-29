@@ -11,8 +11,15 @@ export const SkeletonBar: React.FC<{ className?: string }> = ({ className }) => 
     <div className={clsx('bg-slate-100 rounded animate-pulse', className)} />
 );
 
+// Matches Panel's resting shape — same radius, same hairline ring — so the real card
+// swaps in without the outline moving.
 export const SkeletonCard: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-    <div className={clsx('bg-white p-4 lg:p-5 rounded-xl border border-slate-100 shadow-sm', className)}>
+    <div
+        className={clsx(
+            'bg-white p-4 lg:p-5 rounded-2xl ring-1 ring-slate-900/5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]',
+            className
+        )}
+    >
         {children}
     </div>
 );
@@ -45,7 +52,7 @@ export const HoldingsCardSkeleton: React.FC = () => (
                 <SkeletonBar className="h-5 w-44" />
                 <SkeletonBar className="h-2.5 w-28" />
             </div>
-            <SkeletonBar className="h-11 w-28 rounded-lg" />
+            <SkeletonBar className="h-11 w-28 rounded-xl" />
         </div>
         <SkeletonTableRows rows={5} cols={5} />
     </SkeletonCard>
@@ -58,7 +65,7 @@ export const AllocationCardSkeleton: React.FC = () => (
                 <SkeletonBar className="h-5 w-40" />
                 <SkeletonBar className="h-2.5 w-32" />
             </div>
-            <SkeletonBar className="h-11 w-28 rounded-lg" />
+            <SkeletonBar className="h-11 w-28 rounded-xl" />
         </div>
         <SkeletonBar className="w-44 h-44 rounded-full shrink-0" />
         <div className="w-full mt-6 space-y-2.5">
@@ -70,7 +77,7 @@ export const AllocationCardSkeleton: React.FC = () => (
 
 export const StockManagerSkeleton: React.FC = () => (
     <SkeletonCard>
-        <SkeletonBar className="h-10 w-full rounded-lg" />
+        <SkeletonBar className="h-10 w-full rounded-xl" />
     </SkeletonCard>
 );
 

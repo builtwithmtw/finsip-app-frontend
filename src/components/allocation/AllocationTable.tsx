@@ -4,6 +4,8 @@ import React from 'react';
 import clsx from 'clsx';
 import { useCurrency, useMask } from '../../context/PrivacyContext';
 import type { AllocationResult, AllocationRow } from '../../hooks/useAllocations';
+import { DISPLAY, NUMERIC } from '../../utils/typography';
+import { Panel } from '../Panel';
 
 interface AllocationTableProps {
     rows: AllocationRow[];
@@ -22,9 +24,9 @@ interface AllocationTableProps {
 
 // Sized so a full 15-row allocation clears the fold on a laptop without its own scroller.
 // Anything tighter than this reads as cramped rather than dense.
-const headCell = 'px-3.5 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest';
-const bodyCell = 'px-3.5 py-1.5 text-xs tabular-nums';
-const footCell = 'px-3.5 py-2 text-right text-xs font-black tabular-nums';
+const headCell = 'px-3.5 py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
+const bodyCell = 'px-3.5 py-2 text-[13px] tabular-nums';
+const footCell = 'px-3.5 py-2.5 text-right text-[13px] font-semibold tabular-nums';
 
 const AllocationTable: React.FC<AllocationTableProps> = ({
     rows,
@@ -39,34 +41,41 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
     const mask = useMask();
 
     return (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <Panel flush>
             <div className="overflow-x-auto scrollbar-hide-auto">
                 <table className="w-full min-w-[560px] text-left border-collapse">
-                    <thead className="bg-slate-50/80 border-b border-slate-100">
+                    <thead className="border-b border-slate-100 bg-slate-50/60">
                         <tr>
-                            <th className={headCell}>Equity</th>
-                            <th className={clsx(headCell, 'text-right')}>Price</th>
-                            <th className={clsx(headCell, 'text-right')}>Weight %</th>
-                            <th className={clsx(headCell, 'text-right')}>Norm %</th>
-                            <th className={clsx(headCell, 'text-right')}>Amount</th>
-                            <th className={clsx(headCell, 'text-right')}>Shares</th>
+                            <th className={headCell} style={DISPLAY}>Equity</th>
+                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Price</th>
+                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Weight %</th>
+                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Norm %</th>
+                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Amount</th>
+                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Shares</th>
                         </tr>
                     </thead>
 
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y divide-slate-100/70">
                         {rows.length === 0 ? (
                             <tr>
                                 <td
                                     colSpan={6}
-                                    className="px-3.5 py-10 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest"
+                                    style={DISPLAY}
+                                    className="px-3.5 py-12 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400"
                                 >
                                     {emptyMessage}
                                 </td>
                             </tr>
                         ) : (
                             rows.map((r) => (
-                                <tr key={r.name} className="group hover:bg-blue-50/30 transition-colors duration-150">
-                                    <td className={bodyCell}>
+                                <tr key={r.name} className="group transition-colors hover:bg-slate-50/70">
+                                    <td className={clsx(bodyCell, 'relative')}>
+                                        {/* The accent rail only paints on hover, so the resting table stays
+                                            flat and the pointer has something to track. */}
+                                        <span
+                                            aria-hidden
+                                            className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
+                                        />
                                         <div className="flex items-center gap-2">
                                             {r.logo && (
                                                 <img
@@ -79,14 +88,17 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 />
                                             )}
-                                            <span className="font-black text-slate-900 uppercase tracking-tight group-hover:text-blue-600 transition-colors">
+                                            <span
+                                                className="font-semibold uppercase tracking-tight text-slate-900"
+                                                style={DISPLAY}
+                                            >
                                                 {mask(r.name)}
                                             </span>
                                         </div>
                                     </td>
 
-                                    <td className={clsx(bodyCell, 'text-right font-bold text-slate-600')}>
-                                        {r.price > 0 ? formatCurrency(r.price).replace('Rs', '') : '—'}
+                                    <td className={clsx(bodyCell, 'text-right text-slate-500')} style={NUMERIC}>
+                                        {r.price > 0 ? formatCurrency(r.price).replace(/^Rs\s*/, '') : '—'}
                                     </td>
 
                                     <td className={clsx(bodyCell, 'text-right')}>
@@ -107,29 +119,32 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                                                     // replaced far more often than they get edited.
                                                     onFocus={(e) => e.currentTarget.select()}
                                                     placeholder="0"
+                                                    style={NUMERIC}
                                                     className={clsx(
-                                                        'no-spinner w-[4.5rem] rounded-md py-1 pl-2.5 pr-5 text-xs font-black tabular-nums text-right outline-none transition-all',
-                                                        'bg-slate-50 border border-transparent text-slate-900 placeholder:text-slate-300 placeholder:font-bold',
-                                                        'hover:border-slate-200 hover:bg-white',
-                                                        'focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10'
+                                                        'no-spinner w-[4.75rem] rounded-lg py-1.5 pl-2.5 pr-5 text-[13px] font-semibold tabular-nums text-right outline-none transition-all',
+                                                        'border-0 bg-slate-100/70 text-slate-900 placeholder:font-normal placeholder:text-slate-300',
+                                                        'hover:bg-slate-100',
+                                                        'focus:bg-white focus:ring-2 focus:ring-sky-500/25'
                                                     )}
                                                 />
-                                                <span className="absolute right-2 text-[9px] font-black text-slate-300 pointer-events-none transition-colors group-focus-within/input:text-blue-400">
+                                                <span className="pointer-events-none absolute right-2 text-[10px] font-semibold text-slate-300 transition-colors group-focus-within/input:text-sky-500">
                                                     %
                                                 </span>
                                             </div>
                                         ) : (
-                                            <span className="font-bold text-slate-600">{r.weight.toFixed(2)}</span>
+                                            <span className="text-slate-500" style={NUMERIC}>{r.weight.toFixed(2)}</span>
                                         )}
                                     </td>
 
-                                    <td className={clsx(bodyCell, 'text-right font-bold text-slate-600')}>
+                                    <td className={clsx(bodyCell, 'text-right text-slate-500')} style={NUMERIC}>
                                         {r.normalizedWeight.toFixed(2)}
                                     </td>
-                                    <td className={clsx(bodyCell, 'text-right font-black text-blue-600')}>
-                                        {formatCurrency(r.finalAmount).split('.')[0].replace('Rs', '')}
+                                    {/* Amount and shares are what the page exists to produce, so they carry
+                                        the weight the reference columns give up. */}
+                                    <td className={clsx(bodyCell, 'text-right font-semibold text-slate-700')} style={NUMERIC}>
+                                        {formatCurrency(Math.round(r.finalAmount)).replace(/^Rs\s*/, '')}
                                     </td>
-                                    <td className={clsx(bodyCell, 'text-right font-black text-slate-900')}>
+                                    <td className={clsx(bodyCell, 'text-right font-semibold text-slate-900')} style={NUMERIC}>
                                         {mask(r.shares.toLocaleString())}
                                     </td>
                                 </tr>
@@ -138,22 +153,25 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                     </tbody>
 
                     {rows.length > 0 && (
-                        <tfoot className="border-t border-slate-100 bg-slate-50/80">
+                        <tfoot className="border-t border-slate-100 bg-slate-50/60">
                             <tr>
-                                <td className="px-3.5 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                <td
+                                    style={DISPLAY}
+                                    className="px-3.5 py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-500"
+                                >
                                     Total
                                 </td>
                                 <td />
-                                <td className={clsx(footCell, 'text-slate-900')}>
+                                <td className={clsx(footCell, 'text-slate-900')} style={NUMERIC}>
                                     {summary.topTotalWeights.toFixed(0)}%
                                 </td>
-                                <td className={clsx(footCell, 'text-slate-900')}>
+                                <td className={clsx(footCell, 'text-slate-900')} style={NUMERIC}>
                                     {summary.topTotalNormalizedWeights.toFixed(0)}%
                                 </td>
-                                <td className={clsx(footCell, 'text-blue-600')}>
-                                    {formatCurrency(summary.topTotalAmount).split('.')[0].replace('Rs', '')}
+                                <td className={clsx(footCell, 'text-slate-900')} style={NUMERIC}>
+                                    {formatCurrency(Math.round(summary.topTotalAmount)).replace(/^Rs\s*/, '')}
                                 </td>
-                                <td className={clsx(footCell, 'text-slate-900')}>
+                                <td className={clsx(footCell, 'text-slate-900')} style={NUMERIC}>
                                     {mask(summary.topTotalShares.toLocaleString())}
                                 </td>
                             </tr>
@@ -161,7 +179,7 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                     )}
                 </table>
             </div>
-        </div>
+        </Panel>
     );
 };
 

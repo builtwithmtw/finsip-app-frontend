@@ -7,6 +7,7 @@ import type { Transaction, Stock, RealizedProfit } from '../types';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
 import { avgBuyPriceFor } from '../utils/holdings';
+import { getPsxMarketState } from '../utils/marketSchedule';
 
 interface PortfolioContextType {
     transactions: Transaction[];
@@ -15,6 +16,14 @@ interface PortfolioContextType {
     // Month the entry form writes to; picked in the nav bar.
     selectedMonth: string;
     setSelectedMonth: (month: string) => void;
+    /**
+     * Whether the ledger draws its per-symbol buying distribution under each cell.
+     * Owned here rather than by the grid because the switch lives in the nav bar --
+     * putting it inside the panel gave the grid a control strip, and that strip was
+     * enough to push the page into a vertical scroller.
+     */
+    showScoreLines: boolean;
+    toggleScoreLines: () => void;
     /**
      * True while *anything* the portfolio needs is still in flight, including the
      * auth session. Kept for screens that genuinely need all three tables before
@@ -27,9 +36,19 @@ interface PortfolioContextType {
     realizedLoading: boolean;
     // Live Market Data
     livePrices: Record<string, number>;
+    /** Percent move on the day, per symbol, from the same feed row as the price. */
+    liveChanges: Record<string, number>;
     isMarketLive: boolean;
     // True until the first market fetch settles, win or lose.
     marketLoading: boolean;
+    /**
+     * How many market fetches have failed back-to-back. Reset to 0 by the first
+     * one that lands. The nav bar waits for a few of these before offering a
+     * Retry button -- a single blip recovers on its own and isn't worth a nag.
+     */
+    consecutiveFailures: number;
+    /** Epoch ms of the next scheduled auto-refresh, for the countdown readout. */
+    nextRefreshAt: number | null;
 
     refreshData: () => Promise<void>;
     addTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt' | 'totalAmount'>) => Promise<void>;
@@ -60,14 +79,29 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const [realizedLoading, setRealizedLoading] = useState(true);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
+    // Off on every load: the bars are a second reading of figures the grid already
+    // gives, so they're something you switch on to answer a question, not the
+    // default view.
+    const [showScoreLines, setShowScoreLines] = useState(false);
+    const toggleScoreLines = useCallback(() => setShowScoreLines(v => !v), []);
+
     // Centralized Live Market State
     const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+    const [liveChanges, setLiveChanges] = useState<Record<string, number>>({});
     const [isMarketLive, setIsMarketLive] = useState(false);
     const [marketLoading, setMarketLoading] = useState(true);
+    const [consecutiveFailures, setConsecutiveFailures] = useState(0);
+    const [nextRefreshAt, setNextRefreshAt] = useState<number | null>(null);
 
     const { selectedProxy, setShowModal, setRetryFetch } = useProxy();
 
     const fetchMarketData = useCallback(async () => {
+        // No gateway resolved yet: an empty prefix would send this at our own
+        // origin, 404, and burn a failure the retry logic then has to walk back.
+        // `marketLoading` deliberately stays true -- the feed hasn't been tried,
+        // and reporting it as settled would let the boot gate through early.
+        if (!selectedProxy.url) return;
+
         try {
             const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/ALLSHR/companies?page=1&limit=500";
             const proxyUrl = selectedProxy.url + encodeURIComponent(targetUrl);
@@ -84,6 +118,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
 
             const json = await response.json();
             const prices: Record<string, number> = {};
+            const changes: Record<string, number> = {};
 
             const dataArray = (json && json.response?.data) ? json.response.data :
                 (json?.data) ? json.data :
@@ -95,12 +130,23 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                     const price = Number(item.curr || item.last_price || item.price || 0);
                     if (symbol && price > 0) {
                         prices[symbol] = price;
+
+                        // Day move rides along on the same row. It is stored separately
+                        // rather than folded into livePrices so nothing that already reads
+                        // that map has to care, and a feed that omits it simply leaves the
+                        // symbol absent rather than reporting a flat 0%.
+                        const change = Number(
+                            item.changePercent ?? item.change_percentage ?? item.changePercentage ?? NaN
+                        );
+                        if (Number.isFinite(change)) changes[symbol] = change;
                     }
                 });
 
                 if (Object.keys(prices).length > 0) {
                     setLivePrices(prices);
+                    setLiveChanges(changes);
                     setIsMarketLive(true);
+                    setConsecutiveFailures(0);
                 }
             } else {
                 throw new Error("Empty data response");
@@ -108,6 +154,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         } catch (err) {
             console.error("[PortfolioContext] Market Data Fetch Warning:", err);
             setIsMarketLive(false);
+            setConsecutiveFailures((n) => n + 1);
             // setShowModal(true);
             // toast.error(`Connection failed via ${selectedProxy.name}. Please select another gateway.`);
         } finally {
@@ -120,19 +167,45 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         setRetryFetch(() => fetchMarketData);
     }, [fetchMarketData, setRetryFetch]);
 
-    // Poll fast while the feed is down so it recovers on its own, and back off to a
-    // normal refresh cadence once it is live.
-    const LIVE_REFRESH_MS = 5 * 60 * 1000;
+    // Cadence follows the PSX session: prices only move while the market is open,
+    // so a closed market gets a slow keep-alive. While it is open we refresh on a
+    // half-minute, and poll faster than that when the feed is down so it recovers
+    // on its own.
+    const LIVE_REFRESH_MS = 30 * 1000;
+    const CLOSED_REFRESH_MS = 5 * 60 * 1000;
     const RECONNECT_RETRY_MS = 12 * 1000;
 
+    // Re-derived on a timer so the cadence switches at the session's boundaries
+    // (e.g. Open at 09:32) without a page reload.
+    const [marketOpen, setMarketOpen] = useState(() => getPsxMarketState().isOpen);
     useEffect(() => {
-        fetchMarketData();
-        const interval = setInterval(
-            fetchMarketData,
-            isMarketLive ? LIVE_REFRESH_MS : RECONNECT_RETRY_MS
-        );
+        const tick = () => setMarketOpen(getPsxMarketState().isOpen);
+        tick();
+        const id = setInterval(tick, 30_000);
+        return () => clearInterval(id);
+    }, []);
+
+    useEffect(() => {
+        // Nothing to poll through yet; the effect re-runs when a gateway lands.
+        if (!selectedProxy.url) return;
+
+        const period = !marketOpen
+            ? CLOSED_REFRESH_MS
+            : isMarketLive
+                ? LIVE_REFRESH_MS
+                : RECONNECT_RETRY_MS;
+
+        // The deadline is published rather than a live seconds count so only the
+        // components that actually draw a countdown have to tick every second.
+        const run = () => {
+            fetchMarketData();
+            setNextRefreshAt(Date.now() + period);
+        };
+
+        run();
+        const interval = setInterval(run, period);
         return () => clearInterval(interval);
-    }, [fetchMarketData, isMarketLive]);
+    }, [fetchMarketData, isMarketLive, marketOpen, selectedProxy.url]);
 
     /**
      * The three tables are fetched as independent requests, each clearing its own
@@ -140,11 +213,18 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
      * meant the slowest of the three decided when *any* of the dashboard could
      * render -- a stalled realized-P&L query blanked the holdings table too.
      */
-    const fetchData = async () => {
+    /**
+     * `silent` re-reads the tables without flipping the loading flags, which is
+     * what a mid-session refresh wants: the screens are already showing real
+     * numbers, and raising the flags would swap them for skeletons and blank the
+     * page the user is looking at. The first load is never silent -- there an
+     * empty table genuinely means "not here yet".
+     */
+    const fetchData = async ({ silent = false }: { silent?: boolean } = {}) => {
         if (!user) return;
 
         const fetchStocks = async () => {
-            setStocksLoading(true);
+            if (!silent) setStocksLoading(true);
             try {
                 const { data: stocksData } = await supabase
                     .from('stocks')
@@ -184,7 +264,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         };
 
         const fetchTransactions = async () => {
-            setTransactionsLoading(true);
+            if (!silent) setTransactionsLoading(true);
             try {
                 const { data: transData } = await supabase
                     .from('transactions')
@@ -212,7 +292,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         };
 
         const fetchRealized = async () => {
-            setRealizedLoading(true);
+            if (!silent) setRealizedLoading(true);
             try {
                 const { data: pnlData } = await supabase
                     .from('realized_pnl')
@@ -537,14 +617,20 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             realizedProfits,
             selectedMonth,
             setSelectedMonth,
+            showScoreLines,
+            toggleScoreLines,
             loading: authLoading || stocksLoading || transactionsLoading || realizedLoading,
             stocksLoading,
             transactionsLoading,
             realizedLoading,
             livePrices,
+            liveChanges,
             isMarketLive,
             marketLoading,
-            refreshData: fetchData,
+            consecutiveFailures,
+            nextRefreshAt,
+            // Silent by design: every caller is a refresh of data already on screen.
+            refreshData: () => fetchData({ silent: true }),
             addTransaction,
             updateTransaction,
             deleteTransaction,
