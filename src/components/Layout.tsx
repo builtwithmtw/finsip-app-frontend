@@ -13,7 +13,7 @@ import { useAppRefresh } from '../hooks/useAppRefresh';
 import { getInitials } from '../utils/formatters';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
 import { getPsxMarketState } from '../utils/marketSchedule';
-import { DISPLAY, NUMERIC } from '../utils/typography';
+import { DISPLAY, NUMERIC, WORDMARK } from '../utils/typography';
 import { Amount } from './Amount';
 import clsx from 'clsx';
 
@@ -200,7 +200,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             <div className="flex flex-col gap-0.5 justify-center leading-none">
                                 <span
                                     className="text-[17px] font-bold leading-none tracking-[-0.03em] text-slate-900"
-                                    style={NUMERIC}
+                                    style={WORDMARK}
                                 >
                                     FINSIP
                                 </span>

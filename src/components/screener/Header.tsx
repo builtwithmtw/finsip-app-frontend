@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { LogIn, LayoutDashboard } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { NUMERIC } from "@/utils/typography";
+import { NUMERIC, WORDMARK } from "@/utils/typography";
 
 /**
  * The standalone app's header, with ThemeToggle swapped for the way into FINSIP
@@ -28,7 +28,7 @@ export function Header() {
             <p className="text-sm font-semibold tracking-tight">
               <span
                 className="text-[13px] font-bold leading-none tracking-[-0.03em]"
-                style={NUMERIC}
+                style={WORDMARK}
               >
                 FINSIP
               </span>{" "}
