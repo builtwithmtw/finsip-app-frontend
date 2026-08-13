@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { useMask } from '../../context/PrivacyContext';
 import { DISPLAY, NUMERIC } from '../../utils/typography';
 import { Panel } from '../Panel';
+import { SortHeader, sortRows, useTableSort } from './sorting';
 
 export interface CurrentAllocationRow {
     symbol: string;
@@ -24,15 +25,24 @@ interface CurrentAllocationTableProps {
     emptyMessage?: string;
 }
 
-const headCell = 'px-3.5 py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
 const bodyCell = 'px-3.5 py-2 text-[13px] tabular-nums';
 const footCell = 'px-3.5 py-2.5 text-right text-[13px] font-semibold tabular-nums';
+
+type SortKey = 'symbol' | 'investedShare' | 'marketShare' | 'difference';
 
 const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
     rows,
     emptyMessage = 'No holdings yet',
 }) => {
     const mask = useMask();
+
+    // Opens on the heaviest position, which is the order the tab arrives in.
+    const { sort, toggle } = useTableSort<SortKey>({ key: 'marketShare', direction: 'desc' });
+
+    const sorted = React.useMemo(
+        () => sortRows(rows, sort, (row, key) => row[key]),
+        [rows, sort]
+    );
 
     const totalInvested = rows.reduce((sum, r) => sum + r.investedShare, 0);
     const totalMarket = rows.reduce((sum, r) => sum + r.marketShare, 0);
@@ -43,10 +53,10 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                 <table className="w-full min-w-[560px] text-left border-collapse">
                     <thead className="border-b border-slate-100 bg-slate-50/60">
                         <tr>
-                            <th className={headCell} style={DISPLAY}>Equity</th>
-                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Invested Allocation</th>
-                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Market Price Allocation</th>
-                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Difference</th>
+                            <SortHeader label="Equity" sortKey="symbol" sort={sort} onToggle={toggle} naturalDirection="asc" align="left" />
+                            <SortHeader label="Invested Allocation" sortKey="investedShare" sort={sort} onToggle={toggle} />
+                            <SortHeader label="Market Price Allocation" sortKey="marketShare" sort={sort} onToggle={toggle} />
+                            <SortHeader label="Difference" sortKey="difference" sort={sort} onToggle={toggle} />
                         </tr>
                     </thead>
 
@@ -62,7 +72,7 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                                 </td>
                             </tr>
                         ) : (
-                            rows.map((r) => (
+                            sorted.map((r) => (
                                 <tr key={r.symbol} className="group transition-colors hover:bg-slate-50/70">
                                     <td className={clsx(bodyCell, 'relative')}>
                                         {/* The accent rail only paints on hover, so the resting table stays

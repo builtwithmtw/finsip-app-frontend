@@ -2,15 +2,18 @@
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { RefreshCw, LineChart } from 'lucide-react';
+import { RefreshCw, LineChart, Scale } from 'lucide-react';
 import clsx from 'clsx';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useCurrency } from '../context/PrivacyContext';
 import { useIndexCompanies } from '../hooks/useIndexCompanies';
 import { useAllocations, MAX_ALLOCATION_HOLDINGS, type AllocationInput, type AllocationRow } from '../hooks/useAllocations';
 import AllocationTable from '../components/allocation/AllocationTable';
 import CurrentAllocationTable, { type CurrentAllocationRow } from '../components/allocation/CurrentAllocationTable';
+import RebalanceTable from '../components/allocation/RebalanceTable';
 import { computeLiveHoldings } from '../utils/holdings';
+import { computeRebalance } from '../utils/rebalance';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 
 type AllocationView = 'KMI30' | 'MINE' | 'CURRENT';
@@ -201,13 +204,38 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
  * the split the market has since made of it, and the drift between the two.
  * Nothing here depends on the investment amount -- it reads the ledger, not a plan.
  */
-const CurrentAllocationView: React.FC = () => {
-    const { transactions, transactionsLoading, livePrices } = usePortfolio();
+const CurrentAllocationView: React.FC<{ rebalancing: boolean }> = ({ rebalancing }) => {
+    const { transactions, transactionsLoading, livePrices, stocks } = usePortfolio();
     const { companies } = useIndexCompanies('ALLSHR');
+    const currency = useCurrency();
+
+    const logos = useMemo(
+        () => new Map(companies.map((c) => [c.name, c.logo])),
+        [companies]
+    );
+
+    const holdings = useMemo(
+        () => computeLiveHoldings(transactions, livePrices),
+        [transactions, livePrices]
+    );
+
+    // The plan to rebalance onto is exactly what My Symbols funds -- the same leading
+    // slice in the same Overview order -- so the two tabs can't disagree about the target.
+    const plan = useMemo(
+        () =>
+            computeRebalance(
+                holdings,
+                stocks.slice(0, MAX_ALLOCATION_HOLDINGS).map((s) => ({
+                    symbol: s.symbol.toUpperCase(),
+                    weight: s.allocationWeight ?? 0,
+                })),
+                livePrices,
+                logos
+            ),
+        [holdings, stocks, livePrices, logos]
+    );
 
     const rows: CurrentAllocationRow[] = useMemo(() => {
-        const logos = new Map(companies.map((c) => [c.name, c.logo]));
-        const holdings = computeLiveHoldings(transactions, livePrices);
 
         const totalCost = holdings.reduce((sum, h) => sum + h.totalCostBasis, 0);
         const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
@@ -229,20 +257,60 @@ const CurrentAllocationView: React.FC = () => {
             // Heaviest position first: the rows that move the portfolio most are the
             // ones worth reading, and the drift on a 0.4% holding is noise.
             .sort((a, b) => b.marketShare - a.marketShare);
-    }, [transactions, livePrices, companies]);
+    }, [holdings, logos]);
 
     if (transactionsLoading) return <TableSkeleton />;
 
     return (
         <div className="flex flex-col gap-2">
-            <CurrentAllocationTable rows={rows} emptyMessage="No holdings yet" />
+            {rebalancing && rows.length > 0 ? (
+                plan.unweighted ? (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center">
+                        <p
+                            className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                            style={DISPLAY}
+                        >
+                            No target weights
+                        </p>
+                        <p className="mt-3 text-xs font-medium text-slate-400">
+                            Set a weight on the My Symbols tab — that&apos;s the allocation this
+                            rebalances back onto.
+                        </p>
+                    </div>
+                ) : (
+                    <>
+                        <RebalanceTable plan={plan} />
 
-            {rows.length > 0 && (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
-                    <p className={clsx(NOTE, 'ml-auto text-slate-300')} style={DISPLAY}>
-                        Difference is market share minus invested share
-                    </p>
-                </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+                            {plan.cashLeft >= 1 && (
+                                <p className={clsx(NOTE, 'text-slate-500')} style={DISPLAY}>
+                                    Cash left over: {currency(plan.cashLeft)}
+                                </p>
+                            )}
+                            {plan.unpriced.length > 0 && (
+                                <p className={clsx(NOTE, 'flex items-center gap-1.5 text-amber-600')} style={DISPLAY}>
+                                    <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                    Not traded, no live price: {plan.unpriced.join(', ')}
+                                </p>
+                            )}
+                            <p className={clsx(NOTE, 'ml-auto text-slate-300')} style={DISPLAY}>
+                                Sales fund the buys — whole shares only
+                            </p>
+                        </div>
+                    </>
+                )
+            ) : (
+                <>
+                    <CurrentAllocationTable rows={rows} emptyMessage="No holdings yet" />
+
+                    {rows.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+                            <p className={clsx(NOTE, 'ml-auto text-slate-300')} style={DISPLAY}>
+                                Difference is market share minus invested share
+                            </p>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
@@ -251,6 +319,11 @@ const CurrentAllocationView: React.FC = () => {
 const AllocationPage: React.FC = () => {
     const [view, setView] = useLocalStorage<AllocationView>('finsip:allocation-view', 'KMI30');
     const [investment, setInvestment] = useLocalStorage<number>('finsip:allocation-investment', 100000);
+
+    // Lives up here rather than inside the view so the toggle can share the header row
+    // with Screener. Off by default: the drift table is the thing being read, and the
+    // trade list is the follow-up question you ask of it.
+    const [rebalancing, setRebalancing] = useState(false);
 
     return (
         <div className="flex flex-col gap-2 pb-2">
@@ -276,6 +349,24 @@ const AllocationPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Only Current Allocation has a live split to pull back onto a plan;
+                        on the other two tabs the plan *is* the table. */}
+                    {view === 'CURRENT' && (
+                        <button
+                            onClick={() => setRebalancing((prev) => !prev)}
+                            style={DISPLAY}
+                            className={clsx(
+                                'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] ring-1 transition-colors',
+                                rebalancing
+                                    ? 'bg-slate-900 text-white ring-slate-900'
+                                    : 'bg-white text-slate-500 ring-slate-900/5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] hover:text-slate-900'
+                            )}
+                        >
+                            <Scale size={13} />
+                            Rebalance
+                        </button>
+                    )}
+
                     {/* Deciding what to hold is the step before deciding how much of
                         it to hold, and the screener is where that happens. */}
                     <Link
@@ -319,7 +410,7 @@ const AllocationPage: React.FC = () => {
             </div>
 
             {view === 'CURRENT' ? (
-                <CurrentAllocationView />
+                <CurrentAllocationView rebalancing={rebalancing} />
             ) : view === 'MINE' ? (
                 <MySymbolsView investment={investment} />
             ) : (

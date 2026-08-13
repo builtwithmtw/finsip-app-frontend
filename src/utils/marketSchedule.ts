@@ -6,20 +6,16 @@
  * so the navbar reads the same for a user in Karachi or in New York.
  *
  * Source: PSX Market State — the Regular Market row of the trading schedule.
- *   Mon–Thu:  Pre-Open 09:15–09:30, Break 09:30–09:32, Open 09:32–15:30,
- *             Close 15:30, Post-Close 15:35–15:50.
- *   Friday:   two sessions —
- *             1st: Pre-Open 09:00–09:15, Break 09:15–09:17, Open 09:17–12:00, Close 12:00.
- *             2nd: Pre-Open 14:15–14:30, Break 14:30–14:32, Open 14:32–16:30, Close 16:30,
- *                  Post-Close 16:35–16:50.
+ *   Mon–Thu:  Open 09:32–15:30.
+ *   Friday:   two sessions — Open 09:17–12:00 and Open 14:32–16:30.
  *   Sat/Sun:  Closed.
  *
- * The intervening Break (order matching & confirmation) minutes are folded into
- * the surrounding Pre-Open window: for the navbar's purposes the market is not
- * yet Open during them.
+ * Only Open matters here. The exchange's Pre-Open, Break and Post-Close windows
+ * are all folded into Closed: prices don't move during them, so a separate state
+ * bought a third label in the navbar without changing anything downstream.
  */
 
-export type MarketPhase = 'pre-open' | 'open' | 'post-close' | 'closed';
+export type MarketPhase = 'open' | 'closed';
 
 export interface MarketState {
     phase: MarketPhase;
@@ -34,29 +30,21 @@ const min = (h: number, m: number) => h * 60 + m;
 interface Window {
     start: number; // minutes from midnight, inclusive
     end: number;   // minutes from midnight, exclusive
-    phase: Exclude<MarketPhase, 'closed'>;
 }
 
 // Monday–Thursday (single session).
 const MON_THU: Window[] = [
-    { start: min(9, 15), end: min(9, 32), phase: 'pre-open' },
-    { start: min(9, 32), end: min(15, 30), phase: 'open' },
-    { start: min(15, 35), end: min(15, 50), phase: 'post-close' },
+    { start: min(9, 32), end: min(15, 30) },
 ];
 
 // Friday (two sessions with a midday break).
 const FRIDAY: Window[] = [
-    { start: min(9, 0), end: min(9, 17), phase: 'pre-open' },
-    { start: min(9, 17), end: min(12, 0), phase: 'open' },
-    { start: min(14, 15), end: min(14, 32), phase: 'pre-open' },
-    { start: min(14, 32), end: min(16, 30), phase: 'open' },
-    { start: min(16, 35), end: min(16, 50), phase: 'post-close' },
+    { start: min(9, 17), end: min(12, 0) },
+    { start: min(14, 32), end: min(16, 30) },
 ];
 
 const LABELS: Record<MarketPhase, string> = {
-    'pre-open': 'Pre-Open',
     open: 'Market Open',
-    'post-close': 'Post-Close',
     closed: 'Market Closed',
 };
 
@@ -89,8 +77,8 @@ export function getPsxMarketState(now: Date = new Date()): MarketState {
     // Saturday (6) and Sunday (0): closed all day.
     const schedule = day === 5 ? FRIDAY : day >= 1 && day <= 4 ? MON_THU : [];
 
-    const active = schedule.find((w) => minutes >= w.start && minutes < w.end);
-    const phase: MarketPhase = active ? active.phase : 'closed';
+    const active = schedule.some((w) => minutes >= w.start && minutes < w.end);
+    const phase: MarketPhase = active ? 'open' : 'closed';
 
     return { phase, isOpen: phase === 'open', label: LABELS[phase] };
 }

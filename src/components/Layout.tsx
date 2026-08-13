@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Clock, Star, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, BarChart3 } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
@@ -296,10 +296,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                                             <Rule />
 
-                                            {/* One readout carries both facts: the PSX schedule (Market Open / Closed /
-                                        Pre-Open / Post-Close) and, while Open, whether the feed is actually
-                                        streaming ("Live") or has stalled ("Static"). Outside Open hours the
-                                        schedule label wins — there's nothing live to show. No chip fill here;
+                                            {/* One readout carries both facts: the PSX schedule (Market Open /
+                                        Closed) and, while Open, whether the feed is actually streaming
+                                        ("Live") or has stalled ("Static"). Outside Open hours the schedule
+                                        label wins — there's nothing live to show. No chip fill here;
                                         the dot and the colour do the work. */}
                                             {marketState.isOpen ? (
                                                 <span className="flex shrink-0 items-center gap-2">
@@ -322,17 +322,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                                         {isLive ? 'Live' : 'Static'}
                                                     </span>
                                                 </span>
-                                            ) : marketState.phase === 'closed' ? (
+                                            ) : (
                                                 <span className="flex shrink-0 items-center gap-2 text-slate-400">
                                                     <Moon size={11} className="fill-slate-500/30 text-slate-500" />
-                                                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
-                                                        Market Closed
-                                                    </span>
-                                                </span>
-                                            ) : (
-                                                // Pre-Open / Post-Close: market's in session but not trading yet — amber, gently pulsing.
-                                                <span className="flex shrink-0 items-center gap-2 text-amber-400">
-                                                    <Clock size={11} className="animate-pulse" />
                                                     <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
                                                         {marketState.label}
                                                     </span>
@@ -395,7 +387,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                 type="month"
                                 value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(e.target.value)}
-                                style={NUMERIC}
+                                style={WORDMARK}
                                 className={clsx(
                                     "cursor-pointer rounded-xl border-0 bg-slate-100/70 px-2.5 py-2 lg:px-3",
                                     "text-[12px] font-semibold tabular-nums text-slate-700 outline-none",
