@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { formatMonth } from '../utils/formatters';
@@ -15,6 +15,7 @@ import type { Transaction } from '../types';
 import { computeHoldings } from '../utils/holdings';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Panel } from './Panel';
+import useLocalStorage from '../hooks/useLocalStorage';
 
 const HEAD = 'py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
 
@@ -23,13 +24,6 @@ interface Cell {
     totalAmount: number;
     hasSell: boolean;
     hasBuy: boolean;
-    /**
-     * Gross money in and gross money out, both positive. `totalAmount` is the net of
-     * the two and can't answer "how much was sold" in a month that also bought, which
-     * is exactly what the score lines need.
-     */
-    buyAmount: number;
-    sellAmount: number;
     rawTransactions: Transaction[];
 }
 
@@ -37,7 +31,7 @@ const MonthlyView: React.FC = () => {
     const formatCurrency = useCurrency();
     const mask = useMask();
     const maskSymbol = usePartialMask();
-    const { transactions, stocks, deleteMonthTransactions, loading, selectedMonth, showScoreLines } = usePortfolio();
+    const { transactions, stocks, deleteMonthTransactions, loading, selectedMonth } = usePortfolio();
     const { confirm } = useConfirm();
 
     // State for the detail modal. A missing symbol means a whole month was opened;
@@ -47,6 +41,11 @@ const MonthlyView: React.FC = () => {
         month?: string;
         transactions: Transaction[];
     } | null>(null);
+
+    // The share-of-month figure beside each amount. On by default -- it's the reading
+    // the grid is built around -- but it doubles the width of every cell, so a wide
+    // history can trade it away for months on screen. Remembered across sessions.
+    const [showPercentages, setShowPercentages] = useLocalStorage<boolean>('finsip:ledger-percentages', true);
 
     // Which month column the pointer is over. Rows already light up on their own via
     // the group; this is the other half of the crosshair, and it is what makes a wide
@@ -58,10 +57,37 @@ const MonthlyView: React.FC = () => {
         [transactions]
     );
 
-    const {
-        sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals,
-        rowBuyTotals, rowBuyPeaks, rowSellTotals, rowSellPeaks, held,
-    } = useMemo(() => {
+    // The grid scrolls sideways and nothing else, so a normal wheel over it should move
+    // it sideways -- otherwise reaching last year means hunting for the scrollbar or a
+    // shift key. Only claimed while there is actually room left to travel: at either end
+    // the event falls through untouched and the page scrolls as usual.
+    const scrollerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const el = scrollerRef.current;
+        if (!el) return;
+
+        const onWheel = (e: WheelEvent) => {
+            // A trackpad's own horizontal gesture is already doing the right thing.
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+            const max = el.scrollWidth - el.clientWidth;
+            if (max <= 0) return;
+
+            const next = el.scrollLeft + e.deltaY;
+            if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max)) return;
+
+            // Non-passive, so this is allowed to take the event off the page.
+            e.preventDefault();
+            el.scrollLeft = Math.max(0, Math.min(next, max));
+        };
+
+        el.addEventListener('wheel', onWheel, { passive: false });
+        return () => el.removeEventListener('wheel', onWheel);
+        // The container only exists once the grid does, so re-attach when it appears.
+    }, [loading, filteredTransactions.length]);
+
+    const { sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals, held } = useMemo(() => {
         const monthsSet = new Set<string>();
         const symbolsSet = new Set<string>();
 
@@ -99,8 +125,6 @@ const MonthlyView: React.FC = () => {
                     totalAmount: 0,
                     hasSell: false,
                     hasBuy: false,
-                    buyAmount: 0,
-                    sellAmount: 0,
                     rawTransactions: [],
                 };
             }
@@ -117,10 +141,8 @@ const MonthlyView: React.FC = () => {
 
             if (t.type === 'sell') {
                 existing.hasSell = true;
-                existing.sellAmount += t.totalAmount;
             } else {
                 existing.hasBuy = true;
-                existing.buyAmount += t.totalAmount;
             }
         });
 
@@ -132,20 +154,6 @@ const MonthlyView: React.FC = () => {
         // remaining rows past 100%.
         const colBuyTotals = new Map<string, number>();
 
-        // The same idea turned sideways: everything ever put into one symbol, and the
-        // single biggest month it went in. The first is what each month's score line is
-        // a percentage of; the second is what fills that line, so the heaviest month in
-        // a row runs full and the rest read against it.
-        //
-        // Selling is tracked on its own scale rather than against the buying, because
-        // the question the red line answers is "which month did I take the most out",
-        // and a book that sells a fraction of what it buys would otherwise draw every
-        // sell as an invisible sliver.
-        const rowBuyTotals = new Map<string, number>();
-        const rowBuyPeaks = new Map<string, number>();
-        const rowSellTotals = new Map<string, number>();
-        const rowSellPeaks = new Map<string, number>();
-
         sortedSymbols.forEach(symbol => {
             sortedMonths.forEach(month => {
                 const cell = matrix[symbol]?.[month];
@@ -154,21 +162,10 @@ const MonthlyView: React.FC = () => {
                 if (cell.totalAmount > 0) {
                     colBuyTotals.set(month, (colBuyTotals.get(month) || 0) + cell.totalAmount);
                 }
-                if (cell.buyAmount > 0) {
-                    rowBuyTotals.set(symbol, (rowBuyTotals.get(symbol) || 0) + cell.buyAmount);
-                    rowBuyPeaks.set(symbol, Math.max(rowBuyPeaks.get(symbol) || 0, cell.buyAmount));
-                }
-                if (cell.sellAmount > 0) {
-                    rowSellTotals.set(symbol, (rowSellTotals.get(symbol) || 0) + cell.sellAmount);
-                    rowSellPeaks.set(symbol, Math.max(rowSellPeaks.get(symbol) || 0, cell.sellAmount));
-                }
             });
         });
 
-        return {
-            sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals,
-            rowBuyTotals, rowBuyPeaks, rowSellTotals, rowSellPeaks, held,
-        };
+        return { sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals, held };
     }, [filteredTransactions, stocks]);
 
     // Header clicks open a whole row or column of the matrix; the modal sorts by date,
@@ -252,7 +249,7 @@ const MonthlyView: React.FC = () => {
                     one. One line per cell is what keeps a full symbol list on screen.
                     (The header is sticky left, not top -- sticky-top only pays off inside a
                     vertical scroll container, which is exactly what we don't want here.) */}
-                <div className="w-full max-w-full overflow-x-auto overflow-y-hidden custom-scrollbar">
+                <div ref={scrollerRef} className="w-full max-w-full overflow-x-auto overflow-y-hidden custom-scrollbar">
                     <table className="w-full min-w-max border-collapse border-spacing-0 text-left">
                         <thead>
                             <tr className="border-b border-slate-100">
@@ -260,7 +257,31 @@ const MonthlyView: React.FC = () => {
                                     style={DISPLAY}
                                     className={clsx(HEAD, 'sticky left-0 z-30 border-r border-slate-100 bg-white pl-5 pr-4')}
                                 >
-                                    Symbol
+                                    {/* The switch rides in the header cell rather than on a strip
+                                        above the grid: a strip costs the panel enough height to
+                                        start the vertical scroller this table is built to never
+                                        have. Here it adds none. */}
+                                    <div className="flex items-center justify-between gap-4">
+                                        Symbol
+                                        <button
+                                            onClick={() => setShowPercentages(v => !v)}
+                                            aria-pressed={showPercentages}
+                                            title={
+                                                showPercentages
+                                                    ? 'Hide each cell\'s share of its month'
+                                                    : 'Show each cell\'s share of its month'
+                                            }
+                                            style={NUMERIC}
+                                            className={clsx(
+                                                'rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors',
+                                                showPercentages
+                                                    ? 'bg-sky-50 text-sky-600'
+                                                    : 'bg-slate-100/70 text-slate-400 hover:text-slate-900'
+                                            )}
+                                        >
+                                            %
+                                        </button>
+                                    </div>
                                 </th>
                                 {sortedMonths.map(month => (
                                     <th
@@ -369,38 +390,6 @@ const MonthlyView: React.FC = () => {
                                             // went this month.
                                             const isCurrentBuy = month === selectedMonth && !isSell;
 
-                                            // Score line: this month's share of everything ever bought in
-                                            // *this symbol*, which is the other axis from the % beside the
-                                            // amount (that one is the month's split across symbols).
-                                            //
-                                            // The bar is drawn against the row's own biggest month rather
-                                            // than against 100, because a symbol bought across two years
-                                            // would otherwise be twenty near-empty slivers. Full bar = the
-                                            // month you put the most into; the tooltip carries the true
-                                            // percentage.
-                                            //
-                                            // Buys and sells are scored separately and drawn as their own
-                                            // line, so a month that did both -- topped up and trimmed the
-                                            // same position -- shows green over red instead of one bar that
-                                            // nets them out and says nothing about either.
-                                            const symbolBuys = rowBuyTotals.get(symbol) ?? 0;
-                                            const symbolBuyPeak = rowBuyPeaks.get(symbol) ?? 0;
-                                            const buyShare = data.buyAmount > 0 && symbolBuys > 0
-                                                ? (data.buyAmount / symbolBuys) * 100
-                                                : null;
-                                            const buyFill = buyShare != null && symbolBuyPeak > 0
-                                                ? (data.buyAmount / symbolBuyPeak) * 100
-                                                : 0;
-
-                                            const symbolSells = rowSellTotals.get(symbol) ?? 0;
-                                            const symbolSellPeak = rowSellPeaks.get(symbol) ?? 0;
-                                            const sellShare = data.sellAmount > 0 && symbolSells > 0
-                                                ? (data.sellAmount / symbolSells) * 100
-                                                : null;
-                                            const sellFill = sellShare != null && symbolSellPeak > 0
-                                                ? (data.sellAmount / symbolSellPeak) * 100
-                                                : 0;
-
                                             // Share of that month's buying. Sells get none -- they are not part
                                             // of how the month's money was split.
                                             const monthBuys = colBuyTotals.get(month) ?? 0;
@@ -416,13 +405,7 @@ const MonthlyView: React.FC = () => {
                                                     // The quantity and price the amount is built from stay one hover
                                                     // away, and one click away in full, rather than costing every row
                                                     // a second line.
-                                                    title={clsx(
-                                                        `${mask(Math.abs(data.shares).toLocaleString())} @ ${mask(avgPrice.toFixed(2))}`,
-                                                        buyShare != null &&
-                                                            `· ${buyShare.toFixed(1)}% of all ${maskSymbol(symbol)} buying`,
-                                                        sellShare != null &&
-                                                            `· ${sellShare.toFixed(1)}% of all ${maskSymbol(symbol)} selling`
-                                                    )}
+                                                    title={`${mask(Math.abs(data.shares).toLocaleString())} @ ${mask(avgPrice.toFixed(2))}`}
                                                     onMouseEnter={() => setHoveredMonth(month)}
                                                     onMouseLeave={() => setHoveredMonth(null)}
                                                     className={clsx(
@@ -448,7 +431,7 @@ const MonthlyView: React.FC = () => {
                                                             {isSell ? '−' : ''}
                                                             {formatCurrency(Math.round(Math.abs(data.totalAmount))).replace(/^Rs\s*/, '')}
                                                         </span>
-                                                        {share != null && (
+                                                        {showPercentages && share != null && (
                                                             <span
                                                                 className="w-8 text-right text-[10px] leading-none tabular-nums text-slate-400"
                                                                 style={NUMERIC}
@@ -457,28 +440,6 @@ const MonthlyView: React.FC = () => {
                                                             </span>
                                                         )}
                                                     </span>
-
-                                                    {/* Hairlines under the figure, so a row can be read across as a
-                                                        bar chart of when this symbol was accumulated and when it
-                                                        was trimmed. Green in, red out. 3px tall on a 3px gap:
-                                                        enough to see, not enough to cost the grid its
-                                                        no-vertical-scroll fit. */}
-                                                    {showScoreLines && buyShare != null && (
-                                                        <span className="mt-[3px] block h-[3px] w-full overflow-hidden rounded-full bg-slate-100">
-                                                            <span
-                                                                className="block h-full rounded-full bg-emerald-500 transition-[width] duration-500"
-                                                                style={{ width: `${Math.max(buyFill, 4)}%` }}
-                                                            />
-                                                        </span>
-                                                    )}
-                                                    {showScoreLines && sellShare != null && (
-                                                        <span className="mt-[3px] block h-[3px] w-full overflow-hidden rounded-full bg-slate-100">
-                                                            <span
-                                                                className="block h-full rounded-full bg-rose-500 transition-[width] duration-500"
-                                                                style={{ width: `${Math.max(sellFill, 4)}%` }}
-                                                            />
-                                                        </span>
-                                                    )}
                                                 </td>
                                             );
                                         })}

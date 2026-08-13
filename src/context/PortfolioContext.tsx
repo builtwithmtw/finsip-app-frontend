@@ -17,14 +17,6 @@ interface PortfolioContextType {
     selectedMonth: string;
     setSelectedMonth: (month: string) => void;
     /**
-     * Whether the ledger draws its per-symbol buying distribution under each cell.
-     * Owned here rather than by the grid because the switch lives in the nav bar --
-     * putting it inside the panel gave the grid a control strip, and that strip was
-     * enough to push the page into a vertical scroller.
-     */
-    showScoreLines: boolean;
-    toggleScoreLines: () => void;
-    /**
      * True while *anything* the portfolio needs is still in flight, including the
      * auth session. Kept for screens that genuinely need all three tables before
      * they can render; prefer the per-table flags below so one slow query does
@@ -78,12 +70,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const [transactionsLoading, setTransactionsLoading] = useState(true);
     const [realizedLoading, setRealizedLoading] = useState(true);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
-
-    // Off on every load: the bars are a second reading of figures the grid already
-    // gives, so they're something you switch on to answer a question, not the
-    // default view.
-    const [showScoreLines, setShowScoreLines] = useState(false);
-    const toggleScoreLines = useCallback(() => setShowScoreLines(v => !v), []);
 
     // Centralized Live Market State
     const [livePrices, setLivePrices] = useState<Record<string, number>>({});
@@ -617,8 +603,6 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             realizedProfits,
             selectedMonth,
             setSelectedMonth,
-            showScoreLines,
-            toggleScoreLines,
             loading: authLoading || stocksLoading || transactionsLoading || realizedLoading,
             stocksLoading,
             transactionsLoading,

@@ -4,12 +4,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
 import { usePrivacy, useCurrency } from '../context/PrivacyContext';
 import { useAppRefresh } from '../hooks/useAppRefresh';
+import { Avatar } from './Avatar';
+import MonthPicker from './MonthPicker';
 import { getInitials } from '../utils/formatters';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
 import { getPsxMarketState } from '../utils/marketSchedule';
@@ -48,7 +50,7 @@ const Rule: React.FC = () => (
 // Took its children from <Outlet /> under react-router; the App Router hands the
 // active page in as `children` from the (app) route-group layout instead.
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { transactions, livePrices, isMarketLive, marketLoading, consecutiveFailures, selectedMonth, setSelectedMonth, showScoreLines, toggleScoreLines } = usePortfolio();
+    const { transactions, livePrices, isMarketLive, marketLoading, consecutiveFailures, selectedMonth, setSelectedMonth } = usePortfolio();
     const { selectedProxy, setShowModal, retryFetch } = useProxy();
     const { refreshAll, refreshing } = useAppRefresh();
     const { signOut, user } = useAuth();
@@ -355,45 +357,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                         {/* Feed status + gateway + lock */}
                         <div className="flex items-center justify-end gap-3">
-                            {/* Only on the ledger, because that is the only grid it changes.
-                                It lives up here rather than on the panel: a control strip
-                                inside the grid cost it enough height to start a vertical
-                                scroller, which the ledger is built to never have. */}
-                            {pathname === '/ledger' && (
-                                <button
-                                    onClick={toggleScoreLines}
-                                    aria-pressed={showScoreLines}
-                                    title={
-                                        showScoreLines
-                                            ? 'Hide the per-symbol buying distribution'
-                                            : 'Show, under each amount, how much of that symbol was bought that month'
-                                    }
-                                    style={DISPLAY}
-                                    className={clsx(
-                                        'flex shrink-0 items-center gap-2 rounded-xl px-2.5 py-2 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] transition-colors',
-                                        showScoreLines
-                                            ? 'bg-sky-50 text-sky-600'
-                                            : 'bg-slate-100/70 text-slate-500 hover:bg-slate-100 hover:text-slate-900'
-                                    )}
-                                >
-                                    <BarChart3 size={12} />
-                                    <span className="max-lg:hidden">Score Lines</span>
-                                </button>
-                            )}
-
-                            {/* Same recessed, borderless field as every other input in the app --
-                                the focus ring is the only edge that ever appears. */}
-                            <input
-                                type="month"
-                                value={selectedMonth}
-                                onChange={(e) => setSelectedMonth(e.target.value)}
-                                style={WORDMARK}
-                                className={clsx(
-                                    "cursor-pointer rounded-xl border-0 bg-slate-100/70 px-2.5 py-2 lg:px-3",
-                                    "text-[12px] font-semibold tabular-nums text-slate-700 outline-none",
-                                    "transition-all hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-sky-500/25"
-                                )}
-                            />
+                            <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
 
                             {/* Gateway picker and manual refresh stay wired up, just hidden from the nav bar. */}
                             <div className="hidden items-center gap-1 bg-white p-1.5 rounded-lg border border-slate-100 shadow-sm">
@@ -459,13 +423,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                     aria-expanded={menuOpen}
                                     style={DISPLAY}
                                     className={clsx(
-                                        "flex h-9 w-9 shrink-0 select-none items-center justify-center rounded-xl bg-slate-900",
+                                        "flex h-9 w-9 shrink-0 select-none items-center justify-center overflow-hidden rounded-xl bg-slate-900",
                                         "text-[11px] font-semibold tracking-[0.06em] text-white transition-all",
                                         "hover:ring-4 hover:ring-slate-900/10",
                                         menuOpen && "ring-4 ring-slate-900/10"
                                     )}
                                 >
-                                    {getInitials(user?.email)}
+                                    {/* The mark is generated from the address, so it only falls
+                                        back to initials for a session with no email at all. */}
+                                    {user?.email
+                                        ? <Avatar seed={user.email} className="h-full w-full" />
+                                        : getInitials(user?.email)}
                                 </button>
 
                                 {menuOpen && (
