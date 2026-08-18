@@ -15,7 +15,6 @@ import type { Transaction } from '../types';
 import { computeHoldings } from '../utils/holdings';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Panel } from './Panel';
-import useLocalStorage from '../hooks/useLocalStorage';
 
 const HEAD = 'py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
 
@@ -27,7 +26,13 @@ interface Cell {
     rawTransactions: Transaction[];
 }
 
-const MonthlyView: React.FC = () => {
+interface MonthlyViewProps {
+    /** Draw each cell's share of its month beside the amount. Switched on the page's
+        control strip, which owns every ledger view option. */
+    showPercentages: boolean;
+}
+
+const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
     const formatCurrency = useCurrency();
     const mask = useMask();
     const maskSymbol = usePartialMask();
@@ -41,11 +46,6 @@ const MonthlyView: React.FC = () => {
         month?: string;
         transactions: Transaction[];
     } | null>(null);
-
-    // The share-of-month figure beside each amount. On by default -- it's the reading
-    // the grid is built around -- but it doubles the width of every cell, so a wide
-    // history can trade it away for months on screen. Remembered across sessions.
-    const [showPercentages, setShowPercentages] = useLocalStorage<boolean>('finsip:ledger-percentages', true);
 
     // Which month column the pointer is over. Rows already light up on their own via
     // the group; this is the other half of the crosshair, and it is what makes a wide
@@ -257,31 +257,7 @@ const MonthlyView: React.FC = () => {
                                     style={DISPLAY}
                                     className={clsx(HEAD, 'sticky left-0 z-30 border-r border-slate-100 bg-white pl-5 pr-4')}
                                 >
-                                    {/* The switch rides in the header cell rather than on a strip
-                                        above the grid: a strip costs the panel enough height to
-                                        start the vertical scroller this table is built to never
-                                        have. Here it adds none. */}
-                                    <div className="flex items-center justify-between gap-4">
-                                        Symbol
-                                        <button
-                                            onClick={() => setShowPercentages(v => !v)}
-                                            aria-pressed={showPercentages}
-                                            title={
-                                                showPercentages
-                                                    ? 'Hide each cell\'s share of its month'
-                                                    : 'Show each cell\'s share of its month'
-                                            }
-                                            style={NUMERIC}
-                                            className={clsx(
-                                                'rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors',
-                                                showPercentages
-                                                    ? 'bg-sky-50 text-sky-600'
-                                                    : 'bg-slate-100/70 text-slate-400 hover:text-slate-900'
-                                            )}
-                                        >
-                                            %
-                                        </button>
-                                    </div>
+                                    Symbol
                                 </th>
                                 {sortedMonths.map(month => (
                                     <th
