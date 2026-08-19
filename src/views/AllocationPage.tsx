@@ -381,30 +381,54 @@ const AllocationPage: React.FC = () => {
                     {/* The one input that drives every number in the table, so it gets the
                         dark slab the running totals use everywhere else. Current Allocation
                         reads the ledger instead of a plan, so there it would drive nothing. */}
-                    <label className={clsx(view === 'CURRENT' && 'hidden', 'relative flex items-center gap-2.5 overflow-hidden rounded-xl bg-slate-950 py-1.5 pl-3.5 pr-1.5 ring-1 ring-white/10')}>
+                    {/* One control, not a field boxed inside a chip: the slab itself is the
+                        input, so there is no ring-inside-a-ring and the whole thing lights up
+                        on focus. The figure is set large because it drives every number in
+                        the table below. */}
+                    <label
+                        className={clsx(
+                            view === 'CURRENT' && 'hidden',
+                            'group relative flex cursor-text items-center gap-3 overflow-hidden rounded-xl bg-slate-950 py-2 pl-3.5 pr-4',
+                            'ring-1 ring-white/10 transition-all focus-within:ring-sky-400/60'
+                        )}
+                    >
                         <span
                             aria-hidden
                             className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
                         />
-                        <span className="flex items-center">
+                        <span
+                            className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400 transition-colors group-focus-within:text-sky-300"
+                            style={DISPLAY}
+                        >
+                            Invest
+                        </span>
+
+                        <span className="flex items-baseline gap-1.5">
+                            {/* Same dim currency mark the Amount component uses, so a typed
+                                figure and a rendered one read as the same kind of thing. */}
                             <span
-                                className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-300"
+                                className="text-[9px] font-medium leading-none text-white/40"
                                 style={DISPLAY}
                             >
-                                Invest
+                                Rs
                             </span>
+                            <input
+                                type="number"
+                                inputMode="numeric"
+                                min="0"
+                                step="1000"
+                                value={investment}
+                                // An empty field parses to NaN and would blank the whole table.
+                                onChange={(e) => setInvestment(Number(e.target.value) || 0)}
+                                onFocus={(e) => e.currentTarget.select()}
+                                placeholder="0"
+                                style={NUMERIC}
+                                // border-0/p-0/focus:ring-0 strips @tailwindcss/forms, which
+                                // would otherwise draw its own border and focus ring inside
+                                // the slab and put the height back to 40px.
+                                className="no-spinner w-28 border-0 bg-transparent p-0 text-[15px] font-semibold leading-none tabular-nums text-white outline-none placeholder:text-white/25 focus:ring-0"
+                            />
                         </span>
-                        <input
-                            type="number"
-                            min="0"
-                            step="1000"
-                            value={investment}
-                            // An empty field parses to NaN and would blank the whole table.
-                            onChange={(e) => setInvestment(Number(e.target.value) || 0)}
-                            onFocus={(e) => e.currentTarget.select()}
-                            style={NUMERIC}
-                            className="no-spinner w-24 rounded-lg bg-white/5 px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-white outline-none ring-1 ring-white/10 transition-colors hover:bg-white/10 focus:bg-white/10 focus:ring-sky-400/50"
-                        />
                     </label>
                 </div>
             </div>

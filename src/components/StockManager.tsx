@@ -16,7 +16,10 @@ const StockManager: React.FC = () => {
     const { confirm } = useConfirm();
     const maskSymbol = usePartialMask();
     const [newStock, setNewStock] = useState('');
-    const [selectedSector, setSelectedSector] = useState('Others');
+    // Empty until the symbol is recognised or a sector is picked, so the control opens
+    // on its prompt rather than on a real answer nobody chose. An add that never gets
+    // one still lands in 'Others', which is what the whole app treats a blank sector as.
+    const [selectedSector, setSelectedSector] = useState('');
     // True while the sector below was filled in from the PSX lookup rather than
     // picked by hand -- used to show the little "auto" hint. Cleared the moment
     // the user changes the dropdown themselves.
@@ -96,7 +99,7 @@ const StockManager: React.FC = () => {
                 toast.error(`${symbol} already exists in your list.`);
                 return;
             }
-            addStock(symbol, selectedSector);
+            addStock(symbol, selectedSector || 'Others');
             toast.success(`${symbol} added to portfolio master list.`);
             setNewStock('');
         }
@@ -157,10 +160,16 @@ const StockManager: React.FC = () => {
                         style={DISPLAY}
                         className={clsx(
                             'h-10 w-full cursor-pointer rounded-xl border-0 bg-slate-100/70 px-3.5',
-                            'text-[13px] font-semibold text-slate-700',
+                            'text-[13px] font-semibold',
+                            selectedSector ? 'text-slate-700' : 'text-slate-400',
                             'transition-all focus:bg-white focus:ring-2 focus:ring-sky-500/25'
                         )}
                     >
+                        {/* Disabled so it reads as a prompt rather than a choice: once a
+                            sector is set there is no reason to return to "unset". */}
+                        <option value="" disabled>
+                            Select any Sector
+                        </option>
                         {sectors.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                     {autoDetected && (

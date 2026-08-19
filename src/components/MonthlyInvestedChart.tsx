@@ -102,7 +102,7 @@ const MonthlyInvestedChart: React.FC = () => {
     const average = funded.length > 0 ? invested / funded.length : 0;
 
     return (
-        <Panel className="mb-4 flex flex-col">
+        <Panel className="flex flex-col">
             <PanelHeader title="Monthly Flow" caption="Traded, Bought, Sold">
                 <MetricLabel label="Avg Buy / Funded Month" className="justify-end" />
                 <Amount

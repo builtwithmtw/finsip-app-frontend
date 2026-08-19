@@ -280,23 +280,44 @@
   animation: loader-sweep 1.2s ease-in-out infinite;
 }
 
-/* Scrollbar only on hover */
+/* Scrollbar visible only on hover -- but its GUTTER is always reserved.
+ *
+ * This used to switch `scrollbar-width` between `none` and `thin`, which changes
+ * whether the bar takes up space at all: the content reflowed by ~8px every time
+ * the pointer entered or left a scroll area, and again when moving between a page
+ * that overflows and one that doesn't. Since this class is on the app shell's own
+ * scroller, that was every page in the app.
+ *
+ * Now the track is always there and only the thumb fades, so nothing ever moves.
+ * `scrollbar-gutter: stable` holds the space open even when there's nothing to
+ * scroll, which is what keeps two different pages aligned with each other. */
 .scrollbar-hide-auto {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.scrollbar-hide-auto::-webkit-scrollbar {
-  display: none;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: stable;
 }
 
 .scrollbar-hide-auto:hover {
-  scrollbar-width: thin;
-  -ms-overflow-style: auto;
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
 }
 
-.scrollbar-hide-auto:hover::-webkit-scrollbar {
-  display: block;
+.scrollbar-hide-auto::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-hide-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-hide-auto::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  transition: background-color 150ms ease;
+}
+
+.scrollbar-hide-auto:hover::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.55);
 }
 
 /* Scrollbar never shown, not even on hover */

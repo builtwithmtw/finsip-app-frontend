@@ -2,9 +2,13 @@
 
 import React, { useMemo } from 'react';
 import clsx from 'clsx';
+import { format, parseISO } from 'date-fns';
 import { usePortfolio } from '../context/PortfolioContext';
-import { useCurrency } from '../context/PrivacyContext';
+import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
+import { computeSipStreak } from '../utils/sipStreak';
+import { describeMonthActivity } from '../utils/monthNarrative';
+import { groupMonthActivity } from '../utils/monthActivity';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Amount } from './Amount';
 import { MetricLabel, Panel, PanelHeader } from './Panel';
@@ -12,6 +16,11 @@ import { MetricLabel, Panel, PanelHeader } from './Panel';
 /** Emerald above zero, rose below, neutral at exactly nothing. */
 const toneFor = (value: number) =>
     value > 0 ? 'text-emerald-600' : value < 0 ? 'text-rose-600' : 'text-slate-900';
+
+/** The strip shows a year at a time: enough to read a habit, short enough to stay legible. */
+const STRIP_MONTHS = 12;
+
+const monthLabel = (month: string) => format(parseISO(`${month}-01`), "MMM ''yy");
 
 const Tile: React.FC<{ label: string; caption: string; children: React.ReactNode }> = ({
     label,
@@ -30,27 +39,48 @@ const Tile: React.FC<{ label: string; caption: string; children: React.ReactNode
     </div>
 );
 
+/** A money figure with its own percentage beside it, in the panel's colour for the sign. */
+const Result: React.FC<{ amount: string; percent: number }> = ({ amount, percent }) => (
+    <span className={clsx('flex flex-wrap items-baseline gap-x-2 gap-y-1')}>
+        <Amount value={amount} />
+        <span className="text-[11px] font-semibold leading-none tabular-nums opacity-80" style={NUMERIC}>
+            {percent >= 0 ? '+' : '−'}
+            {Math.abs(percent).toFixed(2)}%
+        </span>
+    </span>
+);
+
 /**
- * The ledger's three standing figures -- the ones that are about the whole book
- * rather than the month on screen.
+ * The money half of the ledger's standing figures -- what the book has made, booked
+ * and unbooked. Flanks the log on the left.
  *
- * Realized and unrealized are deliberately measured against different bases, and
- * each against its own: realized is scored on what the sold shares originally cost
- * (from `realized_pnl`, which stores the average buy price it was closed against),
- * unrealized on the cost of what is still held. Scoring both against one number
- * would make each percentage answer a question neither was asked.
+ * Realized and unrealized are deliberately measured against different bases, and each
+ * against its own: realized is scored on what the sold shares originally cost (from
+ * `realized_pnl`, which stores the average buy price it was closed against), unrealized
+ * on the cost of what is still held. Scoring both against one number would make each
+ * percentage answer a question neither was asked.
  */
-const LedgerAnalytics: React.FC = () => {
+export const LedgerReturns: React.FC = () => {
     const { transactions, realizedProfits, livePrices } = usePortfolio();
     const formatCurrency = useCurrency();
 
-    // Every symbol the ledger has ever touched, buys and sells alike -- a symbol
-    // bought and fully exited still counts, which is what makes this different from
-    // the holdings count on Overview.
+    // Same derivation the rest of the app uses for "now" (PortfolioContext seeds its
+    // selected month the same way), so the two can never disagree about the month.
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    // Every symbol the ledger has ever touched, buys and sells alike -- a symbol bought
+    // and fully exited still counts, which is what makes this different from the
+    // holdings count on Overview.
     const symbolsTraded = useMemo(
         () => new Set(transactions.map((t) => t.symbol).filter(Boolean)).size,
         [transactions]
     );
+
+    const streak = useMemo(
+        () => computeSipStreak(transactions, currentMonth),
+        [transactions, currentMonth]
+    );
+    const strip = streak.months.slice(-STRIP_MONTHS);
 
     const realized = useMemo(() => {
         let profit = 0;
@@ -73,13 +103,42 @@ const LedgerAnalytics: React.FC = () => {
         };
     }, [transactions, livePrices]);
 
-    if (transactions.length === 0) return null;
-
     return (
-        <Panel className="mb-4 flex flex-col">
-            <PanelHeader title="Analytics" caption="The Whole Book" />
+        <Panel className="flex h-full flex-col">
+            <PanelHeader title="Returns" caption="The Whole Book" />
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="flex flex-col gap-3">
+                <Tile
+                    label="Realized Profit"
+                    caption={realized.cost > 0 ? 'On Closed Positions' : 'Nothing Closed Yet'}
+                >
+                    <span className={toneFor(realized.profit)}>
+                        <Result
+                            amount={formatCurrency(Math.round(realized.profit))}
+                            percent={realized.percent}
+                        />
+                    </span>
+                </Tile>
+
+                <Tile
+                    label="Unrealized Profit"
+                    caption={
+                        // An unpriced symbol is held at cost, so it scores as flat rather than
+                        // as a loss -- worth saying, because the figure is otherwise
+                        // indistinguishable from a fully priced one.
+                        unrealized.unpriced > 0
+                            ? `${unrealized.unpriced} Unpriced, Held At Cost`
+                            : 'On Open Positions'
+                    }
+                >
+                    <span className={toneFor(unrealized.profit)}>
+                        <Result
+                            amount={formatCurrency(Math.round(unrealized.profit))}
+                            percent={unrealized.percent}
+                        />
+                    </span>
+                </Tile>
+
                 <Tile label="Symbols Traded" caption="Till Today">
                     <span
                         className="block text-[17px] font-semibold leading-none tabular-nums text-slate-900"
@@ -88,48 +147,229 @@ const LedgerAnalytics: React.FC = () => {
                         {symbolsTraded}
                     </span>
                 </Tile>
-
-                <Tile
-                    label="Realized Profit"
-                    caption={realized.cost > 0 ? 'On Closed Positions' : 'Nothing Closed Yet'}
-                >
-                    <span className={clsx('flex items-baseline gap-2', toneFor(realized.profit))}>
-                        <Amount value={formatCurrency(Math.round(realized.profit))} />
-                        <span
-                            className="text-[11px] font-semibold leading-none tabular-nums opacity-80"
-                            style={NUMERIC}
-                        >
-                            {realized.percent >= 0 ? '+' : '−'}
-                            {Math.abs(realized.percent).toFixed(2)}%
-                        </span>
-                    </span>
-                </Tile>
-
-                <Tile
-                    label="Unrealized Profit"
-                    caption={
-                        // An unpriced symbol is held at cost, so it scores as flat rather
-                        // than as a loss -- worth saying, because the figure is otherwise
-                        // indistinguishable from a fully priced one.
-                        unrealized.unpriced > 0
-                            ? `${unrealized.unpriced} Unpriced, Held At Cost`
-                            : 'On Open Positions'
-                    }
-                >
-                    <span className={clsx('flex items-baseline gap-2', toneFor(unrealized.profit))}>
-                        <Amount value={formatCurrency(Math.round(unrealized.profit))} />
-                        <span
-                            className="text-[11px] font-semibold leading-none tabular-nums opacity-80"
-                            style={NUMERIC}
-                        >
-                            {unrealized.percent >= 0 ? '+' : '−'}
-                            {Math.abs(unrealized.percent).toFixed(2)}%
-                        </span>
-                    </span>
-                </Tile>
             </div>
+
+            {/* SIP streak -- the one figure here that isn't about money. It reads off the
+                same ledger: a month counts once it has bought something, so the strip is a
+                picture of whether the plan was actually kept up. */}
+            {streak.totalMonths > 0 && (
+                <div className="mt-4 border-t border-slate-100 pt-3.5">
+                    <div className="flex items-end justify-between gap-3">
+                        <div>
+                            <MetricLabel label="SIP Streak" />
+                            <p
+                                className="mt-1.5 text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
+                                style={DISPLAY}
+                            >
+                                Longest {streak.longest} · Funded {streak.fundedCount} of {streak.totalMonths}
+                            </p>
+                        </div>
+                        <span className="flex items-baseline gap-1.5">
+                            <span
+                                className={clsx(
+                                    'text-[17px] font-semibold leading-none tabular-nums',
+                                    streak.current > 0 ? 'text-sky-600' : 'text-slate-400'
+                                )}
+                                style={NUMERIC}
+                            >
+                                {streak.current}
+                            </span>
+                            <span
+                                className="text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
+                                style={DISPLAY}
+                            >
+                                {streak.current === 1 ? 'Month' : 'Months'}
+                            </span>
+                        </span>
+                    </div>
+
+                    {/* One bar per month, oldest left. A missed month is a gap in the run
+                        rather than a smaller bar -- the question is whether it was paid, not
+                        how much. */}
+                    <div className="mt-3 flex items-end gap-1">
+                        {strip.map((m) => (
+                            <span
+                                key={m.month}
+                                title={`${monthLabel(m.month)} · ${m.funded ? formatCurrency(m.amount) : 'Not funded'}`}
+                                className={clsx(
+                                    'h-6 flex-1 rounded-md transition-colors',
+                                    m.funded ? 'bg-sky-500' : 'bg-slate-100',
+                                    // This month is still open, so it's outlined rather than
+                                    // counted against the run.
+                                    m.month === currentMonth && 'ring-2 ring-sky-500/25 ring-offset-1'
+                                )}
+                            />
+                        ))}
+                    </div>
+
+                    {strip.length > 1 && (
+                        <div className="mt-1.5 flex items-center justify-between">
+                            {[strip[0].month, strip[strip.length - 1].month].map((m, i) => (
+                                <span
+                                    key={m}
+                                    className={clsx(
+                                        'text-[9px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400',
+                                        i === 1 && 'text-right'
+                                    )}
+                                    style={DISPLAY}
+                                >
+                                    {monthLabel(m)}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
         </Panel>
     );
 };
 
-export default LedgerAnalytics;
+/**
+ * This month, in words.
+ *
+ * Written from the ledger by `describeMonthActivity` -- templates over the rows, no
+ * model and no request, so it costs nothing and can only say things that are true.
+ */
+export const LedgerActivity: React.FC = () => {
+    const { transactions } = usePortfolio();
+    const formatCurrency = useCurrency();
+    const maskSymbol = usePartialMask();
+
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    const mask = useMask();
+
+    const summary = useMemo(
+        () => describeMonthActivity(transactions, currentMonth, formatCurrency, maskSymbol),
+        [transactions, currentMonth, formatCurrency, maskSymbol]
+    );
+
+    const days = useMemo(
+        () => groupMonthActivity(transactions, currentMonth),
+        [transactions, currentMonth]
+    );
+
+    // The heaviest buying day sets the scale the others are drawn against, so a day's
+    // bar says how it compares to the SIP rather than to nothing.
+    const peak = days.reduce((max, d) => Math.max(max, d.buyTotal), 0);
+
+    return (
+        <Panel className="flex h-full flex-col">
+            <PanelHeader title="Activity" caption={format(parseISO(`${currentMonth}-01`), 'MMMM yyyy')} />
+
+            <div className="rounded-xl bg-slate-50/70 px-3.5 py-3.5 ring-1 ring-slate-900/5">
+                <p className="text-[13px] font-semibold leading-relaxed text-slate-900">
+                    {summary.headline}
+                </p>
+
+                {/* One sentence per line: these say different kinds of thing (the SIP, a
+                    rotation, the comparison) and run together as a paragraph. */}
+                {summary.notes.length > 0 && (
+                    <ul className="mt-2.5 space-y-1.5">
+                        {summary.notes.map((note) => (
+                            <li
+                                key={note.text}
+                                className={clsx(
+                                    'flex items-baseline gap-1.5 text-[12px] font-medium leading-relaxed',
+                                    note.tone === 'up' ? 'text-emerald-600'
+                                        : note.tone === 'down' ? 'text-rose-600'
+                                            : 'text-slate-500'
+                                )}
+                            >
+                                {/* The same arrows the navbar and the live table use for a
+                                    move, so a direction reads the same everywhere. */}
+                                {note.tone && (
+                                    <span className="text-[8px] leading-none" style={NUMERIC}>
+                                        {note.tone === 'up' ? '▲' : '▼'}
+                                    </span>
+                                )}
+                                <span>{note.text}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            {/* The month day by day, newest first. The day that bought the most is the
+                one the SIP actually went in on, so it's named -- the rest are top-ups,
+                and their bars say how far short of it they fell. */}
+            {days.length > 0 && (
+                <div className="scrollbar-hide-auto mt-4 max-h-[320px] space-y-3 overflow-y-auto border-t border-slate-100 pt-3.5">
+                    {days.map((day) => (
+                        <div key={day.key}>
+                            <div className="flex items-baseline justify-between gap-2">
+                                <span className="flex items-center gap-1.5">
+                                    <span
+                                        className="text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-500"
+                                        style={DISPLAY}
+                                    >
+                                        {day.label}
+                                    </span>
+                                    {day.rank === 0 && day.buyTotal > 0 && (
+                                        <span
+                                            className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] text-sky-600"
+                                            style={DISPLAY}
+                                        >
+                                            SIP
+                                        </span>
+                                    )}
+                                </span>
+                                <span
+                                    className="text-[11px] font-semibold leading-none tabular-nums text-slate-900"
+                                    style={NUMERIC}
+                                >
+                                    {formatCurrency(Math.round(day.buyTotal - day.sellTotal))}
+                                </span>
+                            </div>
+
+                            {/* Rank as a length: the SIP date fills the track, every other
+                                day draws its share of it. */}
+                            <span className="mt-1.5 block h-1 w-full overflow-hidden rounded-full bg-slate-100">
+                                <span
+                                    className={clsx(
+                                        'block h-full rounded-full',
+                                        day.rank === 0 ? 'bg-sky-500' : 'bg-sky-500/40'
+                                    )}
+                                    style={{ width: `${peak > 0 ? Math.max((day.buyTotal / peak) * 100, 2) : 2}%` }}
+                                />
+                            </span>
+
+                            <ul className="mt-2 space-y-1">
+                                {day.transactions.map((t) => {
+                                    const isSell = t.type === 'sell';
+                                    return (
+                                        <li
+                                            key={t.id}
+                                            title={`${mask(t.shares.toLocaleString())} @ ${t.pricePerShare.toFixed(2)}`}
+                                            className="flex items-baseline justify-between gap-2"
+                                        >
+                                            <span
+                                                className={clsx(
+                                                    'truncate text-[11px] font-semibold uppercase tracking-[-0.03em]',
+                                                    isSell ? 'text-rose-600' : 'text-slate-700'
+                                                )}
+                                                style={DISPLAY}
+                                            >
+                                                {maskSymbol(t.symbol)}
+                                            </span>
+                                            <span
+                                                className={clsx(
+                                                    'shrink-0 text-[11px] leading-none tabular-nums',
+                                                    isSell ? 'text-rose-600' : 'text-slate-500'
+                                                )}
+                                                style={NUMERIC}
+                                            >
+                                                {isSell ? '−' : ''}
+                                                {formatCurrency(Math.round(Number(t.totalAmount || t.shares * t.pricePerShare)))}
+                                            </span>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Panel>
+    );
+};

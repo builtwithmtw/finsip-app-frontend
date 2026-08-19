@@ -2,10 +2,11 @@
 
 import React from 'react';
 import clsx from 'clsx';
-import { BarChart3, CalendarRange, Gauge, Percent } from 'lucide-react';
+import { BarChart3, CalendarRange, Percent, Table2 } from 'lucide-react';
 import MonthlyView from '../components/MonthlyView';
 import MonthlyInvestedChart from '../components/MonthlyInvestedChart';
-import LedgerAnalytics from '../components/LedgerAnalytics';
+import TransactionLog from '../components/TransactionLog';
+import { LedgerActivity, LedgerReturns } from '../components/LedgerAnalytics';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { DISPLAY } from '../utils/typography';
 
@@ -36,29 +37,40 @@ const Toggle: React.FC<{
     </button>
 );
 
+/**
+ * The summary grid cycles rather than toggles: off -> monthly -> yearly -> off. It is
+ * one question with three answers ("don't show it / by month / by year"), and three
+ * answers on one button beats two buttons whose combinations include a meaningless one.
+ */
+type GridMode = 'off' | 'month' | 'year';
+
+const NEXT_MODE: Record<GridMode, GridMode> = { off: 'month', month: 'year', year: 'off' };
+const MODE_LABEL: Record<GridMode, string> = { off: 'Grid', month: 'Monthly', year: 'Yearly' };
+const MODE_TITLE: Record<GridMode, string> = {
+    off: 'Show the grid month by month',
+    month: 'Fold the grid into years',
+    year: 'Hide the grid',
+};
+
 const LedgerPage: React.FC = () => {
-    // The chart is off by default -- the grid is what the ledger is for, and the chart
-    // is a second reading of the same months. The percentages are on: they're the
-    // reading the grid is built around, but they widen every cell, so a long history
-    // can trade them away for months on screen. Both remembered across sessions.
+    // Off by default: the log below is the ledger in the literal sense, and the grid is
+    // a second reading of the same rows. The percentages are on -- they're the reading
+    // the grid is built around -- but they widen every cell, so a long history can trade
+    // them away for months on screen. All remembered across sessions.
+    const [gridMode, setGridMode] = useLocalStorage<GridMode>('finsip:ledger-grid', 'off');
     const [showChart, setShowChart] = useLocalStorage<boolean>('finsip:ledger-chart', false);
-    // Analytics is the whole book rather than the month on screen, so it's opt-in too.
-    const [showAnalytics, setShowAnalytics] = useLocalStorage<boolean>('finsip:ledger-analytics', false);
-    // Not a second grid -- the same grid with its months folded into years. Turning it
-    // on is what hides the monthly columns.
-    const [yearly, setYearly] = useLocalStorage<boolean>('finsip:ledger-yearly', false);
     const [showPercentages, setShowPercentages] = useLocalStorage<boolean>('finsip:ledger-percentages', true);
 
     return (
         <div className="animate-in fade-in duration-500">
             <div className="mb-2 flex items-center justify-end gap-1.5">
                 <Toggle
-                    label="Analytics"
-                    active={showAnalytics}
-                    title={showAnalytics ? 'Hide the whole-book figures' : 'Show the whole-book figures'}
-                    onClick={() => setShowAnalytics(v => !v)}
+                    label={MODE_LABEL[gridMode]}
+                    active={gridMode !== 'off'}
+                    title={MODE_TITLE[gridMode]}
+                    onClick={() => setGridMode(NEXT_MODE[gridMode])}
                 >
-                    <Gauge size={12} />
+                    {gridMode === 'year' ? <CalendarRange size={12} /> : <Table2 size={12} />}
                 </Toggle>
 
                 <Toggle
@@ -70,34 +82,54 @@ const LedgerPage: React.FC = () => {
                     <BarChart3 size={12} />
                 </Toggle>
 
-                <Toggle
-                    label="Yearly"
-                    active={yearly}
-                    title={yearly ? 'Show the grid month by month' : 'Fold the grid into years'}
-                    onClick={() => setYearly(v => !v)}
-                >
-                    <CalendarRange size={12} />
-                </Toggle>
-
-                <Toggle
-                    label="Share"
-                    active={showPercentages}
-                    title={
-                        showPercentages
-                            ? "Hide each cell's share of its month"
-                            : "Show each cell's share of its month"
-                    }
-                    onClick={() => setShowPercentages(v => !v)}
-                >
-                    <Percent size={12} />
-                </Toggle>
+                {/* Only means anything while the grid is up -- it's the grid's own cells
+                    that carry the share. */}
+                {gridMode !== 'off' && (
+                    <Toggle
+                        label="Share"
+                        active={showPercentages}
+                        title={
+                            showPercentages
+                                ? "Hide each cell's share of its column"
+                                : "Show each cell's share of its column"
+                        }
+                        onClick={() => setShowPercentages(v => !v)}
+                    >
+                        <Percent size={12} />
+                    </Toggle>
+                )}
             </div>
 
-            {/* Above the grid, coarse to fine: the standing figures, then the months read
-                as a shape, then the grid itself. */}
-            {showAnalytics && <LedgerAnalytics />}
-            {showChart && <MonthlyInvestedChart />}
-            <MonthlyView showPercentages={showPercentages} period={yearly ? 'year' : 'month'} />
+            {/* The standing figures flank the log rather than stacking above it: they are
+                read once on arrival, while the log is what the page is actually for, so it
+                takes the middle and the width. */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                <div className="lg:col-span-3">
+                    <LedgerReturns />
+                </div>
+
+                <div className="lg:col-span-6">
+                    <TransactionLog />
+                </div>
+
+                <div className="lg:col-span-3">
+                    <LedgerActivity />
+                </div>
+            </div>
+
+            {/* Both of these need the full width -- the histogram to keep its months
+                apart, the grid because it is a column per month. */}
+            {showChart && (
+                <div className="mt-4">
+                    <MonthlyInvestedChart />
+                </div>
+            )}
+
+            {gridMode !== 'off' && (
+                <div className="mt-4">
+                    <MonthlyView showPercentages={showPercentages} period={gridMode} />
+                </div>
+            )}
         </div>
     );
 };

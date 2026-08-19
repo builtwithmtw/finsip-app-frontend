@@ -13,6 +13,8 @@ import { useAppRefresh } from '../hooks/useAppRefresh';
 import { Avatar } from './Avatar';
 import MonthPicker from './MonthPicker';
 import { getInitials } from '../utils/formatters';
+import { isAdmin } from '../lib/admins';
+import { VerifiedBadge } from './VerifiedBadge';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
 import { getPsxMarketState } from '../utils/marketSchedule';
 import { DISPLAY, NUMERIC, WORDMARK } from '../utils/typography';
@@ -449,8 +451,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                                 Signed in as
                                             </span>
                                             {/* Local part only -- the domain is noise you already know. */}
-                                            <span className="break-all text-xs font-semibold text-slate-900">
-                                                {user?.email?.split('@')[0] ?? '—'}
+                                            <span className="flex items-start gap-0.5">
+                                                <span className="break-all text-xs font-semibold text-slate-900">
+                                                    {user?.email?.split('@')[0] ?? '—'}
+                                                </span>
+                                                {isAdmin(user?.email) && (
+                                                    <VerifiedBadge
+                                                        size={14}
+                                                        title="Verified admin"
+                                                        className="mt-px text-emerald-500"
+                                                    />
+                                                )}
                                             </span>
                                         </div>
 
