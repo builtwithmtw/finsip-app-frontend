@@ -64,7 +64,7 @@ export const PanelHeader: React.FC<{
     <div className="mb-4 flex items-start justify-between gap-4">
         <div>
             <h3
-                className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                 style={DISPLAY}
             >
                 {title}

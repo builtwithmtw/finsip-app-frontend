@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Trash2, ArrowUp, ArrowDown, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trash2, ArrowUp, ArrowDown, ChevronsUpDown, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { DISPLAY, NUMERIC } from "@/utils/typography";
 import { Panel } from "@/components/Panel";
 
-const PAGE_SIZE = 10;
+/** Offered smallest-first; the list's own total is appended as the "everything" pick. */
+const PAGE_SIZE_OPTIONS = [10, 15, 20, 50];
 
 export interface WatchlistRow {
   id: string;
@@ -83,10 +84,13 @@ const ChangePill: React.FC<{ value: number | null }> = ({ value }) => {
 };
 
 const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
-  // No sort by default — rows stay in the order they were added until a header
-  // is clicked. Clicking the active column flips direction; a new column starts
-  // ascending for text and descending for numbers (largest-first reads best).
-  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
+  // Opens on 1D, biggest move first — the watchlist is read to see what moved
+  // today, and insertion order answered a question nobody was asking. Symbols the
+  // feed has no reading for sink to the bottom (see `sorted`), so a stale ticker
+  // never takes the top row. Any header still re-sorts: clicking the active column
+  // flips direction, a new column starts ascending for text and descending for
+  // numbers (largest-first reads best).
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>({ key: "d1", dir: "desc" });
 
   const toggleSort = (col: (typeof COLUMNS)[number]) => {
     setSort((prev) =>
@@ -115,18 +119,37 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
     });
   }, [rows, sort]);
 
-  // Frontend pagination, 10 rows a page — keeps the card short so the page never
-  // grows a vertical scrollbar over a long list.
+  // Frontend pagination — keeps the card short so the page never grows a vertical
+  // scrollbar over a long list. Always opens on 10: a size picked once shouldn't
+  // decide how tall the card is every session afterwards, so the choice lasts for
+  // the visit rather than being remembered.
   const [page, setPage] = useState(0);
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
 
-  // Clamp back into range when the row count or sort shrinks the current page away.
+  const total = sorted.length;
+
+  // Never offer a size the list can't fill: options stop below the total and the
+  // total itself closes the list, so 15 saved symbols offer "10" and "15" rather
+  // than a "50" that would show the same 15 rows and read as a bigger list.
+  const sizeOptions = useMemo(() => {
+    const opts = PAGE_SIZE_OPTIONS.filter((n) => n < total);
+    opts.push(total);
+    return opts;
+  }, [total]);
+
+  // A remembered size can outrun a list that has since shrunk, so it's clamped on
+  // the way out — which also keeps the select's value on one of its own options.
+  const size = Math.min(pageSize, total) || PAGE_SIZE_OPTIONS[0];
+  const pageCount = Math.max(1, Math.ceil(total / size));
+
+  // Clamp back into range when the row count, sort, or page size shrinks the
+  // current page away.
   useEffect(() => {
     if (page > pageCount - 1) setPage(pageCount - 1);
   }, [page, pageCount]);
 
-  const start = page * PAGE_SIZE;
-  const pageRows = sorted.slice(start, start + PAGE_SIZE);
+  const start = page * size;
+  const pageRows = sorted.slice(start, start + size);
 
   return (
     <Panel flush>
@@ -186,7 +209,7 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
                     className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
                   />
                   <span
-                    className="text-[13px] font-semibold uppercase tracking-tight text-slate-900"
+                    className="text-[13px] font-semibold uppercase tracking-[-0.03em] text-slate-900"
                     style={DISPLAY}
                   >
                     {row.symbol}
@@ -237,14 +260,70 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
         </table>
       </div>
 
-      {sorted.length > PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-2.5">
-          <span className="text-[11px] tabular-nums text-slate-400" style={NUMERIC}>
-            {start + 1}–{Math.min(start + PAGE_SIZE, sorted.length)} of {sorted.length}
+      {/* The footer earns its place as soon as the list outgrows the smallest page
+          size, even when the reader has since chosen to show everything — that's
+          where the size control lives. */}
+      {total > PAGE_SIZE_OPTIONS[0] && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-slate-100 px-4 py-2.5">
+          {/* Always counted against the full list, never against the page. The word
+              sits in the text face and only the figures are mono -- same split as
+              every other label-plus-figure pairing in the app. */}
+          <span className="text-[11px] text-slate-400" style={DISPLAY}>
+            <span className="tabular-nums" style={NUMERIC}>
+              {start + 1}–{Math.min(start + size, total)}
+            </span>{" "}
+            of{" "}
+            <span className="tabular-nums" style={NUMERIC}>
+              {total}
+            </span>
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] tabular-nums text-slate-400" style={NUMERIC}>
-              Page {page + 1} of {pageCount}
+            <label className="flex items-center gap-1.5">
+              <span
+                className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400 max-sm:sr-only"
+                style={DISPLAY}
+              >
+                Rows
+              </span>
+              {/* appearance-none plus our own chevron: the native arrow is drawn
+                  inside the box and crowds the figure at this size. */}
+              <span className="relative flex items-center">
+                <select
+                  value={size}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(0);
+                  }}
+                  aria-label="Rows per page"
+                  style={NUMERIC}
+                  // `border-0 py-0 leading-none` undoes @tailwindcss/forms, which gives
+                  // every select a 1px border and a 40px line box -- that's why the
+                  // app's other selects are h-10. This one has to match the size-7
+                  // pager buttons beside it, so the plugin's metrics come off first.
+                  className="h-7 cursor-pointer appearance-none rounded-lg border-0 bg-white py-0 pl-2.5 pr-6 text-[11px] font-semibold leading-none tabular-nums text-slate-500 outline-none ring-1 ring-slate-900/10 transition-colors hover:text-slate-900"
+                >
+                  {sizeOptions.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={12}
+                  className="pointer-events-none absolute right-1.5 text-slate-400"
+                />
+              </span>
+            </label>
+
+            <span className="text-[11px] text-slate-400" style={DISPLAY}>
+              Page{" "}
+              <span className="tabular-nums" style={NUMERIC}>
+                {page + 1}
+              </span>{" "}
+              of{" "}
+              <span className="tabular-nums" style={NUMERIC}>
+                {pageCount}
+              </span>
             </span>
             <button
               type="button"

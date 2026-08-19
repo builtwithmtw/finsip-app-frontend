@@ -3,10 +3,10 @@
 import React, { useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import {
+    Bar,
+    BarChart,
     CartesianGrid,
-    Line,
-    LineChart,
-    ReferenceLine,
+    Cell,
     ResponsiveContainer,
     Tooltip,
     XAxis,
@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, usePrivacy } from '../context/PrivacyContext';
-import { formatMonth } from '../utils/formatters';
+import { compactNumber, formatMonth } from '../utils/formatters';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Amount } from './Amount';
 import { MetricLabel, Panel, PanelHeader } from './Panel';
@@ -22,8 +22,15 @@ import { MetricLabel, Panel, PanelHeader } from './Panel';
 interface Point {
     month: string; // YYYY-MM
     label: string;
-    net: number;
+    /** Everything the month moved: buys plus sells, not their difference. */
+    total: number;
+    buy: number;
+    sell: number;
 }
+
+const TOTAL = '#0EA5E9'; // Sky 500
+const BUY = '#10B981';   // Emerald 500
+const SELL = '#F43F5E';  // Rose 500
 
 const monthKey = (date: Date) => format(date, 'yyyy-MM');
 
@@ -41,24 +48,17 @@ const monthRange = (first: string, last: string): string[] => {
     return out;
 };
 
-// 1,250,000 -> 1.3m, 120,000 -> 120k. The axis is for scale, not for reading exact figures.
-const compact = (value: number): string => {
-    const sign = value < 0 ? '-' : '';
-    const abs = Math.abs(value);
-
-    if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}m`;
-    if (abs >= 1_000) return `${sign}${Math.round(abs / 1_000)}k`;
-    return `${sign}${Math.round(abs)}`;
-};
-
 /**
- * New money in per month -- buys minus sells, so a month that sold more than it bought
- * dips below zero. Deliberately not cumulative: a running total only ever rises and
- * would say nothing about whether the SIP was kept up, which is the question the ledger
- * is being read to answer.
+ * What each month moved, as three bars: everything traded, the buying inside it, and
+ * the selling. Sells are drawn as their own positive bar rather than as a dip below
+ * zero -- at a glance the question is how much went each way, and two directions on
+ * one axis answers it faster than one signed line did.
+ *
+ * Deliberately not cumulative: a running total only ever rises and would say nothing
+ * about whether the SIP was kept up, which is what the ledger is read to answer.
  *
  * Everything is drawn from the ledger, so every month is exact. There is no price
- * history behind this line -- the app only ever holds a live snapshot.
+ * history behind this -- the app only ever holds a live snapshot.
  */
 const MonthlyInvestedChart: React.FC = () => {
     const { transactions, selectedMonth } = usePortfolio();
@@ -66,39 +66,45 @@ const MonthlyInvestedChart: React.FC = () => {
     const { hidden } = usePrivacy();
 
     const points: Point[] = useMemo(() => {
-        const net = new Map<string, number>();
+        const buys = new Map<string, number>();
+        const sells = new Map<string, number>();
 
         transactions
             .filter((t) => t.shares > 0 && t.pricePerShare > 0)
             .forEach((t) => {
                 const amount = Number(t.totalAmount || t.shares * t.pricePerShare);
-                const signed = t.type === 'buy' ? amount : -amount;
-                net.set(t.month, (net.get(t.month) ?? 0) + signed);
+                const side = t.type === 'buy' ? buys : sells;
+                side.set(t.month, (side.get(t.month) ?? 0) + amount);
             });
 
-        const months = Array.from(net.keys()).sort();
+        const months = Array.from(new Set([...buys.keys(), ...sells.keys()])).sort();
         if (months.length === 0) return [];
 
-        return monthRange(months[0], months[months.length - 1]).map((month) => ({
-            month,
-            label: format(parseISO(`${month}-01`), "MMM ''yy"),
-            net: Math.round(net.get(month) ?? 0),
-        }));
+        return monthRange(months[0], months[months.length - 1]).map((month) => {
+            const buy = Math.round(buys.get(month) ?? 0);
+            const sell = Math.round(sells.get(month) ?? 0);
+            return {
+                month,
+                label: format(parseISO(`${month}-01`), "MMM ''yy"),
+                total: buy + sell,
+                buy,
+                sell,
+            };
+        });
     }, [transactions]);
 
     if (points.length < 2) return null;
 
-    const total = points.reduce((sum, p) => sum + p.net, 0);
-    // Averaged over the months that actually moved money: a run of untouched months
-    // would otherwise drag the figure down and read as a smaller SIP than was paid.
-    const funded = points.filter((p) => p.net !== 0);
-    const average = funded.length > 0 ? total / funded.length : 0;
-    const hasOutflow = points.some((p) => p.net < 0);
+    const invested = points.reduce((sum, p) => sum + p.buy, 0);
+    // Averaged over the months that actually bought: a run of untouched months would
+    // otherwise drag the figure down and read as a smaller SIP than was paid.
+    const funded = points.filter((p) => p.buy > 0);
+    const average = funded.length > 0 ? invested / funded.length : 0;
 
     return (
         <Panel className="mb-4 flex flex-col">
-            <PanelHeader title="Monthly Flow" caption="Buys Less Sells">
-                <MetricLabel label="Avg / Funded Month" className="justify-end" />
+            <PanelHeader title="Monthly Flow" caption="Traded, Bought, Sold">
+                <MetricLabel label="Avg Buy / Funded Month" className="justify-end" />
                 <Amount
                     value={formatCurrency(Math.round(average))}
                     size="text-lg"
@@ -106,9 +112,29 @@ const MonthlyInvestedChart: React.FC = () => {
                 />
             </PanelHeader>
 
+            {/* Hand-rolled rather than recharts' <Legend>, so it sits in the panel's own
+                voice above the plot instead of stealing a row from it. */}
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                {[
+                    { label: 'Total', color: TOTAL },
+                    { label: 'Bought', color: BUY },
+                    { label: 'Sold', color: SELL },
+                ].map((item) => (
+                    <span key={item.label} className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span
+                            className="text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-500"
+                            style={DISPLAY}
+                        >
+                            {item.label}
+                        </span>
+                    </span>
+                ))}
+            </div>
+
             <div className="h-[200px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={points} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                    <BarChart data={points} margin={{ top: 6, right: 8, bottom: 0, left: 0 }} barGap={2}>
                         <CartesianGrid stroke="#E2E8F0" strokeDasharray="2 4" vertical={false} />
 
                         <XAxis
@@ -127,16 +153,12 @@ const MonthlyInvestedChart: React.FC = () => {
                             width={hidden ? 12 : 48}
                             // The axis is a currency figure like any other, so it goes dark
                             // with the rest of them rather than leaking the scale.
-                            tickFormatter={(value: number) => (hidden ? '' : compact(value))}
+                            tickFormatter={(value: number) => (hidden ? '' : compactNumber(value))}
                             tick={{ ...NUMERIC, fill: '#94A3B8', fontSize: 10, fontWeight: 600 }}
                         />
 
-                        {/* Only drawn once a month has actually gone negative; on a buy-only
-                            ledger the baseline is the axis and a second line is just noise. */}
-                        {hasOutflow && <ReferenceLine y={0} stroke="#CBD5E1" strokeWidth={1} />}
-
                         <Tooltip
-                            cursor={{ stroke: '#CBD5E1', strokeDasharray: '3 3' }}
+                            cursor={{ fill: 'rgba(148,163,184,0.12)' }}
                             wrapperStyle={{ zIndex: 100 }}
                             contentStyle={{
                                 backgroundColor: '#020617',
@@ -160,33 +182,35 @@ const MonthlyInvestedChart: React.FC = () => {
                             labelFormatter={(_label, payload) =>
                                 formatMonth(payload?.[0]?.payload?.month ?? '')
                             }
-                            formatter={(value) => [formatCurrency(Number(value || 0)), 'Net In']}
+                            formatter={(value, name) => [formatCurrency(Number(value || 0)), name]}
                         />
 
-                        <Line
-                            type="monotone"
-                            dataKey="net"
-                            stroke="#0EA5E9"
-                            strokeWidth={2}
-                            // The month the rest of the ledger is showing gets the filled dot,
-                            // so the chart and the table below it agree on where you are.
-                            dot={(props: any) => {
-                                const active = props.payload?.month === selectedMonth;
-                                return (
-                                    <circle
-                                        key={props.payload?.month}
-                                        cx={props.cx}
-                                        cy={props.cy}
-                                        r={active ? 4 : 2.5}
-                                        fill={active ? '#0EA5E9' : '#fff'}
-                                        stroke="#0EA5E9"
-                                        strokeWidth={2}
+                        {/* The month the rest of the ledger is showing is drawn solid and the
+                            rest are dimmed, so the chart and the table below it agree on where
+                            you are without a second highlight of its own. */}
+                        {[
+                            { key: 'total', name: 'Total', color: TOTAL },
+                            { key: 'buy', name: 'Bought', color: BUY },
+                            { key: 'sell', name: 'Sold', color: SELL },
+                        ].map((series) => (
+                            <Bar
+                                key={series.key}
+                                dataKey={series.key}
+                                name={series.name}
+                                fill={series.color}
+                                radius={[3, 3, 0, 0]}
+                                maxBarSize={14}
+                            >
+                                {points.map((p) => (
+                                    <Cell
+                                        key={p.month}
+                                        fill={series.color}
+                                        fillOpacity={!selectedMonth || p.month === selectedMonth ? 1 : 0.45}
                                     />
-                                );
-                            }}
-                            activeDot={{ r: 5, strokeWidth: 0, fill: '#0EA5E9' }}
-                        />
-                    </LineChart>
+                                ))}
+                            </Bar>
+                        ))}
+                    </BarChart>
                 </ResponsiveContainer>
             </div>
         </Panel>

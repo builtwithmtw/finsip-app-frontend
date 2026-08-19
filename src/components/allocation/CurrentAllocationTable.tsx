@@ -25,7 +25,7 @@ interface CurrentAllocationTableProps {
     emptyMessage?: string;
 }
 
-const bodyCell = 'px-3.5 py-2 text-[13px] tabular-nums';
+const bodyCell = 'px-3.5 py-2 text-[13px] leading-5 tabular-nums';
 const footCell = 'px-3.5 py-2.5 text-right text-[13px] font-semibold tabular-nums';
 
 type SortKey = 'symbol' | 'investedShare' | 'marketShare' | 'difference';
@@ -93,7 +93,7 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                                                 />
                                             )}
                                             <span
-                                                className="font-semibold uppercase tracking-tight text-slate-900"
+                                                className="font-semibold uppercase tracking-[-0.03em] text-slate-900"
                                                 style={DISPLAY}
                                             >
                                                 {mask(r.symbol)}

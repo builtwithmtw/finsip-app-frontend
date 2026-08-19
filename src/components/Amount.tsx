@@ -42,7 +42,7 @@ export const Amount: React.FC<{
                     {symbol}
                 </span>
             )}
-            <span className={clsx(size, 'font-semibold leading-none tracking-tight tabular-nums')} style={NUMERIC}>
+            <span className={clsx(size, 'font-semibold leading-none tracking-[-0.03em] tabular-nums')} style={NUMERIC}>
                 {roll ? <RollingNumber value={figure} /> : figure}
             </span>
         </span>

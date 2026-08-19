@@ -366,7 +366,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                     className="px-3 py-1.5 hover:bg-slate-50 rounded-md flex flex-col items-start transition-all group"
                                 >
                                     <span className="mb-1 text-[8px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400" style={DISPLAY}>Gateway</span>
-                                    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-tight text-sky-600" style={DISPLAY}>
+                                    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[-0.03em] text-sky-600" style={DISPLAY}>
                                         {selectedProxy.name}
                                         <Activity size={10} className="text-slate-300 transition-colors group-hover:text-sky-500" />
                                     </span>

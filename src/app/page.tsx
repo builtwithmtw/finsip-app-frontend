@@ -34,11 +34,13 @@ export const metadata: Metadata = {
  * true when the per-ticker EOD scrape was replaced -- see the note on `d1` in
  * lib/types.ts.
  */
+// `numeric` picks the face: mono is for figures, and "52W" and "Live" are words
+// sitting in a figure's slot, not figures.
 const STATS = [
-  { value: String(TICKERS.length), label: "PSX Tickers" },
-  { value: String(SECTORS.length), label: "Sectors" },
-  { value: "52W", label: "High / Low" },
-  { value: "Live", label: "Prices" },
+  { value: String(TICKERS.length), label: "PSX Tickers", numeric: true },
+  { value: String(SECTORS.length), label: "Sectors", numeric: true },
+  { value: "52W", label: "High / Low", numeric: false },
+  { value: "Live", label: "Prices", numeric: false },
 ];
 
 const FEATURES = [
@@ -227,8 +229,8 @@ export default function Home() {
             {STATS.map((stat) => (
               <div key={stat.label}>
                 <p
-                  className="text-xl font-semibold leading-none tracking-tight text-white"
-                  style={NUMERIC}
+                  className="text-xl font-semibold leading-none tracking-[-0.03em] text-white"
+                  style={stat.numeric ? NUMERIC : DISPLAY}
                 >
                   {stat.value}
                 </p>

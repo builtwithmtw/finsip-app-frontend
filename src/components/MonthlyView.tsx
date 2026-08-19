@@ -27,17 +27,27 @@ interface Cell {
 }
 
 interface MonthlyViewProps {
-    /** Draw each cell's share of its month beside the amount. Switched on the page's
+    /** Draw each cell's share of its column beside the amount. Switched on the page's
         control strip, which owns every ledger view option. */
     showPercentages: boolean;
+    /** Column granularity. 'year' folds every month of a year into one column -- the
+        same grid and the same cells, summed. Also from the control strip. */
+    period?: 'month' | 'year';
 }
 
-const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
+const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'month' }) => {
     const formatCurrency = useCurrency();
     const mask = useMask();
     const maskSymbol = usePartialMask();
     const { transactions, stocks, deleteMonthTransactions, loading, selectedMonth } = usePortfolio();
     const { confirm } = useConfirm();
+
+    const isYearly = period === 'year';
+
+    // The one place the two granularities differ. Everything downstream works on the
+    // key this returns and never asks which it got: 'YYYY' and 'YYYY-MM' both sort
+    // and compare as plain strings, and `formatMonth` labels either.
+    const columnKey = (month: string) => (isYearly ? month.slice(0, 4) : month);
 
     // State for the detail modal. A missing symbol means a whole month was opened;
     // a missing month means a whole symbol was.
@@ -87,16 +97,16 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
         // The container only exists once the grid does, so re-attach when it appears.
     }, [loading, filteredTransactions.length]);
 
-    const { sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals, held } = useMemo(() => {
-        const monthsSet = new Set<string>();
+    const { sortedColumns, sortedSymbols, matrix, colTotals, colBuyTotals, held } = useMemo(() => {
+        const columnsSet = new Set<string>();
         const symbolsSet = new Set<string>();
 
         filteredTransactions.forEach(t => {
-            monthsSet.add(t.month);
+            columnsSet.add(columnKey(t.month));
             symbolsSet.add(t.symbol);
         });
 
-        const sortedMonths = Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+        const sortedColumns = Array.from(columnsSet).sort((a, b) => b.localeCompare(a));
 
         // Symbols still held today rise to the top; positions fully exited sink below
         // them. Within each group the order stays the one set on Overview, so the grid
@@ -118,9 +128,10 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
         const matrix: Record<string, Record<string, Cell>> = {};
 
         filteredTransactions.forEach(t => {
+            const key = columnKey(t.month);
             if (!matrix[t.symbol]) matrix[t.symbol] = {};
-            if (!matrix[t.symbol][t.month]) {
-                matrix[t.symbol][t.month] = {
+            if (!matrix[t.symbol][key]) {
+                matrix[t.symbol][key] = {
                     shares: 0,
                     totalAmount: 0,
                     hasSell: false,
@@ -129,7 +140,7 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
                 };
             }
 
-            const existing = matrix[t.symbol][t.month];
+            const existing = matrix[t.symbol][key];
 
             // Add raw transaction for detail view
             existing.rawTransactions.push(t);
@@ -146,34 +157,35 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
             }
         });
 
-        // Per-month net, for the footer.
+        // Per-column net, for the footer.
         const colTotals = new Map<string, number>();
 
-        // Denominator for a cell's share of its month. Deliberately buys-only: a sell is
-        // money coming back out, so folding it in would let one sell push the month's
+        // Denominator for a cell's share of its column. Deliberately buys-only: a sell is
+        // money coming back out, so folding it in would let one sell push the column's
         // remaining rows past 100%.
         const colBuyTotals = new Map<string, number>();
 
         sortedSymbols.forEach(symbol => {
-            sortedMonths.forEach(month => {
-                const cell = matrix[symbol]?.[month];
+            sortedColumns.forEach(col => {
+                const cell = matrix[symbol]?.[col];
                 if (!cell) return;
-                colTotals.set(month, (colTotals.get(month) || 0) + cell.totalAmount);
+                colTotals.set(col, (colTotals.get(col) || 0) + cell.totalAmount);
                 if (cell.totalAmount > 0) {
-                    colBuyTotals.set(month, (colBuyTotals.get(month) || 0) + cell.totalAmount);
+                    colBuyTotals.set(col, (colBuyTotals.get(col) || 0) + cell.totalAmount);
                 }
             });
         });
 
-        return { sortedMonths, sortedSymbols, matrix, colTotals, colBuyTotals, held };
-    }, [filteredTransactions, stocks]);
+        return { sortedColumns, sortedSymbols, matrix, colTotals, colBuyTotals, held };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filteredTransactions, stocks, isYearly]);
 
     // Header clicks open a whole row or column of the matrix; the modal sorts by date,
     // so nothing needs ordering here.
-    const openMonth = (month: string) => {
+    const openColumn = (col: string) => {
         setSelectedCell({
-            month,
-            transactions: filteredTransactions.filter(t => t.month === month),
+            month: col,
+            transactions: filteredTransactions.filter(t => columnKey(t.month) === col),
         });
     };
 
@@ -220,7 +232,7 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
                     <Table2 size={20} />
                 </div>
                 <h3
-                    className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                    className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                     style={DISPLAY}
                 >
                     No transactions yet
@@ -259,46 +271,56 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
                                 >
                                     Symbol
                                 </th>
-                                {sortedMonths.map(month => (
+                                {sortedColumns.map(col => (
                                     <th
-                                        key={month}
-                                        onMouseEnter={() => setHoveredMonth(month)}
+                                        key={col}
+                                        onMouseEnter={() => setHoveredMonth(col)}
                                         onMouseLeave={() => setHoveredMonth(null)}
                                         className={clsx(
                                             "min-w-[132px] border-r border-slate-100 px-3 py-2.5 text-right transition-colors last:border-r-0",
-                                            hoveredMonth === month && "bg-slate-50"
+                                            hoveredMonth === col && "bg-slate-50"
                                         )}
                                     >
                                         {/* The delete button occupies no layout of its own until it is
-                                            wanted -- it sits over the label's left, which is empty space. */}
+                                            wanted -- it sits over the label's left, which is empty space.
+                                            Months only: wiping a whole year is not something the ledger
+                                            offers, and a delete that silently means twelve months is worse
+                                            than no delete at all. */}
                                         <div className="group/month relative inline-flex items-center justify-end">
+                                            {!isYearly && (
+                                                <button
+                                                    onClick={() => handleDeleteMonth(col)}
+                                                    title={`Delete all entries for ${formatMonth(col)}`}
+                                                    className="absolute right-full mr-1 rounded p-0.5 text-slate-300 opacity-0 transition-all hover:text-rose-500 group-hover/month:opacity-100"
+                                                >
+                                                    <Trash2 size={11} />
+                                                </button>
+                                            )}
                                             <button
-                                                onClick={() => handleDeleteMonth(month)}
-                                                title={`Delete all entries for ${formatMonth(month)}`}
-                                                className="absolute right-full mr-1 rounded p-0.5 text-slate-300 opacity-0 transition-all hover:text-rose-500 group-hover/month:opacity-100"
-                                            >
-                                                <Trash2 size={11} />
-                                            </button>
-                                            {/* Month leads, year trails dimmed: down a long history the eye
-                                                only needs the month, and the years stop shouting in unison. */}
-                                            <button
-                                                onClick={() => openMonth(month)}
-                                                title={`All transactions in ${formatMonth(month)}`}
+                                                onClick={() => openColumn(col)}
+                                                title={`All transactions in ${formatMonth(col)}`}
                                                 style={DISPLAY}
                                                 className={clsx(
                                                     "whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-[0.18em] transition-colors hover:text-slate-900",
                                                     // The selected month's label carries the same sky as the
                                                     // cells below it, so the highlighted column reads as
                                                     // deliberate rather than as a stuck hover.
-                                                    month === selectedMonth
+                                                    columnKey(selectedMonth) === col
                                                         ? "text-sky-600"
-                                                        : hoveredMonth === month ? "text-slate-900" : "text-slate-400"
+                                                        : hoveredMonth === col ? "text-slate-900" : "text-slate-400"
                                                 )}
                                             >
-                                                {formatMonth(month).split(' ')[0]}
-                                                <span className="ml-1 font-normal text-slate-300">
-                                                    {formatMonth(month).split(' ')[1]}
-                                                </span>
+                                                {/* Monthly: month leads, year trails dimmed -- down a long
+                                                    history the eye only needs the month, and the years stop
+                                                    shouting in unison. Yearly: the year is the whole label. */}
+                                                {isYearly ? col : (
+                                                    <>
+                                                        {formatMonth(col).split(' ')[0]}
+                                                        <span className="ml-1 font-normal text-slate-300">
+                                                            {formatMonth(col).split(' ')[1]}
+                                                        </span>
+                                                    </>
+                                                )}
                                             </button>
                                         </div>
                                     </th>
@@ -322,7 +344,7 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
                                                 title={`All transactions for ${symbol}`}
                                                 style={DISPLAY}
                                                 className={clsx(
-                                                    "text-[12px] font-semibold uppercase leading-none tracking-tight transition-colors hover:text-sky-600",
+                                                    "text-[12px] font-semibold uppercase leading-none tracking-[-0.03em] transition-colors hover:text-sky-600",
                                                     isExited ? "text-rose-600" : "text-slate-900"
                                                 )}
                                             >
@@ -331,17 +353,17 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
                                         </td>
 
 
-                                        {sortedMonths.map(month => {
-                                            const data = matrix[symbol][month];
+                                        {sortedColumns.map(col => {
+                                            const data = matrix[symbol][col];
                                             if (!data || data.rawTransactions.length === 0) {
                                                 return (
                                                     <td
-                                                        key={month}
-                                                        onMouseEnter={() => setHoveredMonth(month)}
+                                                        key={col}
+                                                        onMouseEnter={() => setHoveredMonth(col)}
                                                         onMouseLeave={() => setHoveredMonth(null)}
                                                         className={clsx(
                                                             "border-r border-slate-100 px-3 py-1.5 text-right text-slate-200 transition-colors last:border-r-0 group-hover/row:bg-slate-50",
-                                                            hoveredMonth === month && "bg-slate-50"
+                                                            hoveredMonth === col && "bg-slate-50"
                                                         )}
                                                     >
                                                         <span className="text-[11px] leading-none" style={NUMERIC}>·</span>
@@ -349,7 +371,7 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
                                                 );
                                             }
 
-                                            // Always volume-weighted across the month's actual trades. Dividing the
+                                            // Always volume-weighted across the column's actual trades. Dividing the
                                             // *net* amount by *net* shares breaks whenever a month both buys and
                                             // sells: 100 @ 10 bought and 50 @ 20 sold nets to 50 shares for 0 rupees,
                                             // which would price the row at 0.00.
@@ -364,11 +386,11 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
                                             // working in stands out of a long history without being clicked.
                                             // Sells are left alone: the highlight is about where the money
                                             // went this month.
-                                            const isCurrentBuy = month === selectedMonth && !isSell;
+                                            const isCurrentBuy = columnKey(selectedMonth) === col && !isSell;
 
-                                            // Share of that month's buying. Sells get none -- they are not part
-                                            // of how the month's money was split.
-                                            const monthBuys = colBuyTotals.get(month) ?? 0;
+                                            // Share of that column's buying. Sells get none -- they are not part
+                                            // of how the money was split.
+                                            const monthBuys = colBuyTotals.get(col) ?? 0;
                                             const share = !isSell && monthBuys > 0
                                                 ? (data.totalAmount / monthBuys) * 100
                                                 : null;
@@ -376,18 +398,18 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
 
                                             return (
                                                 <td
-                                                    key={month}
-                                                    onClick={() => setSelectedCell({ symbol, month, transactions: data.rawTransactions })}
+                                                    key={col}
+                                                    onClick={() => setSelectedCell({ symbol, month: col, transactions: data.rawTransactions })}
                                                     // The quantity and price the amount is built from stay one hover
                                                     // away, and one click away in full, rather than costing every row
                                                     // a second line.
                                                     title={`${mask(Math.abs(data.shares).toLocaleString())} @ ${mask(avgPrice.toFixed(2))}`}
-                                                    onMouseEnter={() => setHoveredMonth(month)}
+                                                    onMouseEnter={() => setHoveredMonth(col)}
                                                     onMouseLeave={() => setHoveredMonth(null)}
                                                     className={clsx(
                                                         "cursor-pointer border-r border-slate-100 px-3 py-1.5 text-right transition-colors last:border-r-0",
                                                         "group-hover/row:bg-slate-50 hover:!bg-sky-50",
-                                                        hoveredMonth === month && "bg-slate-50",
+                                                        hoveredMonth === col && "bg-slate-50",
                                                         // Beats the row and column washes, and still yields to
                                                         // the hover rule, which Tailwind emits after it.
                                                         isCurrentBuy && "!bg-sky-50"
@@ -434,16 +456,16 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages }) => {
                                 >
                                     Net
                                 </td>
-                                {sortedMonths.map(month => {
-                                    const net = colTotals.get(month) ?? 0;
+                                {sortedColumns.map(col => {
+                                    const net = colTotals.get(col) ?? 0;
                                     return (
                                         <td
-                                        key={month}
-                                        onMouseEnter={() => setHoveredMonth(month)}
+                                        key={col}
+                                        onMouseEnter={() => setHoveredMonth(col)}
                                         onMouseLeave={() => setHoveredMonth(null)}
                                         className={clsx(
                                             "border-r border-slate-100 px-3 py-2.5 text-center transition-colors last:border-r-0",
-                                            hoveredMonth === month && "bg-slate-100/70"
+                                            hoveredMonth === col && "bg-slate-100/70"
                                         )}
                                     >
                                             <span

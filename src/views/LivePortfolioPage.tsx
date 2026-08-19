@@ -56,9 +56,13 @@ const LivePortfolioPage: React.FC = () => {
         return Number.isFinite(value) ? value : null;
     };
 
-    // No sort by default — largest positions (by cost) first, as before. Clicking
-    // a header takes over from there.
-    const [sort, setSort] = useState<{ id: string; dir: SortDir } | null>(null);
+    // Opens on P/L %, best performer first — the live table is read to see what the
+    // book is doing, and cost-order answered a question nobody was asking. Percent
+    // rather than absolute P/L so a large position doesn't lead the table on size
+    // alone. Unpriced symbols sink to the bottom either way (their `get` returns
+    // null), so a symbol the feed missed never takes the top row. Clicking a header
+    // takes over.
+    const [sort, setSort] = useState<{ id: string; dir: SortDir } | null>({ id: 'plpct', dir: 'desc' });
 
     const holdings = useMemo(() =>
         computeLiveHoldings(transactions, livePrices)
@@ -189,7 +193,7 @@ const LivePortfolioPage: React.FC = () => {
                     {topMovements.best ? (
                         <>
                             <div
-                                className="mt-2.5 text-xl font-semibold uppercase leading-none tracking-tight text-slate-900"
+                                className="mt-2.5 text-xl font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                                 style={DISPLAY}
                             >
                                 {mask(topMovements.best.symbol)}
@@ -211,7 +215,7 @@ const LivePortfolioPage: React.FC = () => {
                     {topMovements.worst ? (
                         <>
                             <div
-                                className="mt-2.5 text-xl font-semibold uppercase leading-none tracking-tight text-slate-900"
+                                className="mt-2.5 text-xl font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                                 style={DISPLAY}
                             >
                                 {mask(topMovements.worst.symbol)}
@@ -297,7 +301,7 @@ const LivePortfolioPage: React.FC = () => {
                                             className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
                                         />
                                         <span
-                                            className="text-[13px] font-semibold uppercase tracking-tight text-slate-900"
+                                            className="text-[13px] font-semibold uppercase tracking-[-0.03em] text-slate-900"
                                             style={DISPLAY}
                                         >
                                             {mask(h.symbol)}

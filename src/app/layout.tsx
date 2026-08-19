@@ -23,14 +23,15 @@ const fontMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
-// The wordmark only. Sora is geometric and closed-aperture, so FINSIP set in it
-// holds together as a single shape at large sizes -- Space Grotesk's wider,
-// quirkier caps read as a sentence in a heading rather than as a logotype. Only
-// the two heaviest weights are pulled: nothing sets body copy in this.
+// FINSIP's voice: the wordmark and every other word in the signed-in app. Sora is
+// geometric and closed-aperture, so the mark holds together as a single shape at
+// large sizes and the micro-labels stay even at 10px. The full weight range is
+// pulled because this now sets body copy as well as the logotype -- the two
+// heaviest are still what the mark itself uses.
 const fontWordmark = Sora({
   variable: "--font-wordmark",
   subsets: ["latin"],
-  weight: ["700", "800"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {

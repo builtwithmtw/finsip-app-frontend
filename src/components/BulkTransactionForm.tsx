@@ -324,7 +324,7 @@ const BulkTransactionForm: React.FC = () => {
                         <TrendingUp size={20} />
                     </div>
                     <h3
-                        className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                        className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                         style={DISPLAY}
                     >
                         No Stocks Added Yet
@@ -346,9 +346,13 @@ const BulkTransactionForm: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6">
-            <Panel flush>
-                <div className="overflow-x-auto">
+        /* On the desktop shell the form fills the height it's given rather than running
+           past it: the asset rows scroll under a stuck header while the action bar and
+           the footnote stay put, so Monthly Entry never puts the page into scroll no
+           matter how many symbols are on the list. Below `lg` it grows as it always did. */
+        <div className="flex flex-col gap-6 lg:h-full">
+            <Panel flush className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+                <div className="scrollbar-hide-auto overflow-x-auto lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                     <table className="w-full min-w-[720px] text-left border-collapse">
                         <thead>
                             <tr className="border-b border-slate-100 bg-slate-50/60">
@@ -358,6 +362,11 @@ const BulkTransactionForm: React.FC = () => {
                                         style={DISPLAY}
                                         className={clsx(
                                             "px-4 py-3 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400",
+                                            // Opaque, and drawing the row's own bottom hairline as an inset
+                                            // shadow, because the `tr` behind it scrolls away once the cells
+                                            // are stuck and a collapsed-border table won't carry a `border-b`
+                                            // along with them.
+                                            "sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_0_#F1F5F9]",
                                             h.align === 'right' && "text-right",
                                             h.align === 'center' && "text-center"
                                         )}
@@ -388,7 +397,7 @@ const BulkTransactionForm: React.FC = () => {
                                             />
                                             <div className="flex items-center gap-2">
                                                 <span
-                                                    className="text-[13px] font-semibold uppercase tracking-tight text-slate-900"
+                                                    className="text-[13px] font-semibold uppercase tracking-[-0.03em] text-slate-900"
                                                     style={DISPLAY}
                                                 >
                                                     {maskSymbol(stock.symbol)}
@@ -536,7 +545,7 @@ const BulkTransactionForm: React.FC = () => {
 
                 {/* Action bar — the same dark slab as the navbar panel, mounted flush to the
                     foot of the form so the running totals sit next to the commit. */}
-                <div className="relative overflow-hidden bg-slate-950">
+                <div className="relative shrink-0 overflow-hidden bg-slate-950">
                     <div
                         aria-hidden
                         className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_160%_at_0%_0%,rgba(56,189,248,0.12),transparent_55%)]"
@@ -652,7 +661,7 @@ const BulkTransactionForm: React.FC = () => {
 
             {/* Footnote, not an alert — it says the same thing in a neutral voice instead of
                 spending a coloured panel on it. */}
-            <div className="flex items-center gap-2.5 rounded-xl bg-slate-100/70 px-3.5 py-2.5">
+            <div className="flex shrink-0 items-center gap-2.5 rounded-xl bg-slate-100/70 px-3.5 py-2.5">
                 <Info size={13} className="shrink-0 text-slate-400" />
                 <p className="text-[11px] font-medium leading-relaxed text-slate-500">
                     Entries with zero quantity or price will be ignored during save. &quot;Sell&quot; transactions

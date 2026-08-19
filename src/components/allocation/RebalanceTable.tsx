@@ -83,7 +83,7 @@ const RebalanceTable: React.FC<RebalanceTableProps> = ({ plan, emptyMessage = 'N
                                                 />
                                             )}
                                             <span
-                                                className="font-semibold uppercase tracking-tight text-slate-900"
+                                                className="font-semibold uppercase tracking-[-0.03em] text-slate-900"
                                                 style={DISPLAY}
                                             >
                                                 {mask(r.symbol)}

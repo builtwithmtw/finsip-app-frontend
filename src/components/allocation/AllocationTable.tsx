@@ -25,7 +25,10 @@ interface AllocationTableProps {
 // Sized so a full 15-row allocation clears the fold on a laptop without its own scroller.
 // Anything tighter than this reads as cramped rather than dense.
 const headCell = 'px-3.5 py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
-const bodyCell = 'px-3.5 py-2 text-[13px] tabular-nums';
+// `leading-5` pins the line box at 20px so a row is the same height whether its
+// weight cell holds plain text (KMI 30) or the editable input (My Symbols) --
+// the input is sized to match it exactly.
+const bodyCell = 'px-3.5 py-2 text-[13px] leading-5 tabular-nums';
 const footCell = 'px-3.5 py-2.5 text-right text-[13px] font-semibold tabular-nums';
 
 const AllocationTable: React.FC<AllocationTableProps> = ({
@@ -89,7 +92,7 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                                                 />
                                             )}
                                             <span
-                                                className="font-semibold uppercase tracking-tight text-slate-900"
+                                                className="font-semibold uppercase tracking-[-0.03em] text-slate-900"
                                                 style={DISPLAY}
                                             >
                                                 {mask(r.name)}
@@ -121,7 +124,10 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                                                     placeholder="0"
                                                     style={NUMERIC}
                                                     className={clsx(
-                                                        'no-spinner w-[4.75rem] rounded-lg py-1.5 pl-2.5 pr-5 text-[13px] font-semibold tabular-nums text-right outline-none transition-all',
+                                                        // h-5/py-0/leading-5 undoes @tailwindcss/forms, which gives
+                                                        // every input a 24px line box and 8px of padding -- that is
+                                                        // what made these rows 16px taller than the read-only tables.
+                                                        'no-spinner h-5 w-[4.75rem] rounded-lg py-0 pl-2.5 pr-5 text-[13px] leading-5 font-semibold tabular-nums text-right outline-none transition-all',
                                                         'border-0 bg-slate-100/70 text-slate-900 placeholder:font-normal placeholder:text-slate-300',
                                                         'hover:bg-slate-100',
                                                         'focus:bg-white focus:ring-2 focus:ring-sky-500/25'

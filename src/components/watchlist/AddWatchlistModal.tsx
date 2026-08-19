@@ -79,7 +79,7 @@ const AddWatchlistModal: React.FC<Props> = ({
         <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-5">
           <div className="min-w-0">
             <h2
-              className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+              className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
               style={DISPLAY}
             >
               Add to Watchlist
@@ -121,7 +121,7 @@ const AddWatchlistModal: React.FC<Props> = ({
               style={DISPLAY}
               className={clsx(
                 "h-10 w-full rounded-xl border-0 bg-slate-100/70 pl-9 pr-3 uppercase",
-                "text-[13px] font-semibold tracking-tight text-slate-900 outline-none",
+                "text-[13px] font-semibold tracking-[-0.03em] text-slate-900 outline-none",
                 "placeholder:font-semibold placeholder:tracking-[0.14em] placeholder:text-slate-400",
                 "transition-all hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-sky-500/25",
               )}
@@ -159,7 +159,7 @@ const AddWatchlistModal: React.FC<Props> = ({
                   >
                     <div className="min-w-0 flex-1">
                       <span
-                        className="text-[13px] font-semibold uppercase leading-none tracking-tight text-slate-900"
+                        className="text-[13px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                         style={DISPLAY}
                       >
                         {s.ticker}

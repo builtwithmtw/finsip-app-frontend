@@ -103,6 +103,28 @@ const SectorAllocationChart: React.FC = () => {
     const approxCharWidth = 0.62; // ems, for this uppercase black face
     const sectorSize = Math.min(hole * 0.17, usableWidth / Math.max(topSector.length * approxCharWidth, 1));
 
+    /**
+     * The legend grows a row for every extra sector, which used to push the whole
+     * card taller and put the page into scroll. The donut gives that height back:
+     * its floor drops by one row's worth for each row past the baseline, so the
+     * card's intrinsic height stays flat as the sector count climbs.
+     *
+     * Two values because the legend is one column below `sm` and two above it —
+     * the same breakpoint the grid below uses. They're published as CSS vars so
+     * the media query stays in Tailwind rather than in JS.
+     */
+    const LEGEND_ROW_H = 21; // 11px row + 10px gap-y
+    const CHART_MIN = 140;
+    const CHART_FLOOR = 96;
+    const legendCount = Math.max(data.length - 1, 0);
+    const chartMinFor = (rows: number, baseline: number) =>
+        `${Math.max(CHART_FLOOR, CHART_MIN - Math.max(0, rows - baseline) * LEGEND_ROW_H)}px`;
+
+    const chartSizing = {
+        '--chart-min': chartMinFor(legendCount, 5),
+        '--chart-min-sm': chartMinFor(Math.ceil(legendCount / 2), 3),
+    } as React.CSSProperties;
+
     const labelStyles = {
         caption: { ...DISPLAY, fontSize: `${Math.max(7, hole * 0.08)}px` },
         sector: { ...DISPLAY, fontSize: `${Math.max(9, sectorSize)}px`, maxWidth: `${usableWidth}px` },
@@ -144,7 +166,11 @@ const SectorAllocationChart: React.FC = () => {
             </PanelHeader>
 
             {/* Chart Container - donut scales with whatever height the row gives us */}
-            <div ref={chartRef} className="relative flex-1 min-h-[140px] mb-3">
+            <div
+                ref={chartRef}
+                style={chartSizing}
+                className="relative flex-1 min-h-(--chart-min) sm:min-h-(--chart-min-sm) lg:min-h-24 mb-3"
+            >
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
@@ -200,7 +226,7 @@ const SectorAllocationChart: React.FC = () => {
                     </span>
                     <span
                         style={labelStyles.sector}
-                        className="mx-auto block font-semibold uppercase leading-none tracking-tight text-slate-900"
+                        className="mx-auto block font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                     >
                         {topSector}
                     </span>

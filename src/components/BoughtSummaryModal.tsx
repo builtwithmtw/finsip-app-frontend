@@ -213,7 +213,7 @@ const BoughtSummaryModal: React.FC<BoughtSummaryModalProps> = ({ isOpen, onClose
             >
                 <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4">
                     <div className="min-w-0">
-                        <h2 className="text-base font-bold text-slate-900 tracking-tight truncate">
+                        <h2 className="text-base font-bold text-slate-900 tracking-[-0.03em] truncate">
                             Bought <span className="text-slate-300 font-normal">·</span>{' '}
                             <span className="text-slate-500 font-normal">{formatMonth(month)}</span>
                         </h2>

@@ -82,7 +82,7 @@ const HoldingsTable: React.FC = () => {
                                             className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
                                         />
                                         <span
-                                            className="text-[13px] font-semibold uppercase tracking-tight text-slate-900"
+                                            className="text-[13px] font-semibold uppercase tracking-[-0.03em] text-slate-900"
                                             style={DISPLAY}
                                         >
                                             {mask(stock.symbol)}

@@ -13,10 +13,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  /* Screener typography is scoped to .screener-root rather than applied here --
-     mapping --font-sans to Manrope would restyle every FINSIP page, which was
-     built around the system stack. */
-  --font-sans: var(--font-app-sans);
+  /* FINSIP's default face is Sora -- the same face as the wordmark, so everything
+     that isn't a figure speaks in the brand's voice: body copy, buttons, toasts.
+     The system stack stays behind it as the fallback. The screener is untouched:
+     .screener-root sets its own font-family (Manrope) further down, which beats
+     this by inheritance. */
+  --font-sans: var(--font-wordmark), var(--font-app-sans);
   --font-mono: var(--font-mono);
   --font-heading: var(--font-heading);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -160,6 +162,12 @@
   }
   html {
     @apply font-sans;
+    /* Sora is set a hair tight everywhere in FINSIP -- the default the app's own
+       text is drawn at. It's inherited rather than baked into the DISPLAY style
+       object on purpose: a `tracking-*` utility on an element still wins, so the
+       wide-tracked micro-labels (0.18em and friends) keep their own spacing and
+       only untracked text picks this up. */
+    letter-spacing: -0.03em;
   }
 
   /* Tailwind 3's preflight gave buttons `cursor: pointer`; v4 dropped that and
@@ -183,6 +191,9 @@
  * holdings and allocation tables. */
 .screener-root {
   font-family: var(--font-screener-sans), var(--font-app-sans), sans-serif;
+  /* The public screener is its own design in its own face -- FINSIP's tightening
+     is not part of it. */
+  letter-spacing: normal;
 }
 
 .screener-root h1,

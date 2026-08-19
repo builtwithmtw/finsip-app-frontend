@@ -107,7 +107,7 @@ const ChangelogModal: React.FC = () => {
                             </div>
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">V {CHANGELOG_DATA[0].version}</span>
                         </div>
-                        <h2 className="text-4xl font-black text-slate-900 tracking-tight uppercase whitespace-pre-line">
+                        <h2 className="text-4xl font-black text-slate-900 tracking-[-0.03em] uppercase whitespace-pre-line">
                             Terminal{'\n'}Evolution
                         </h2>
                     </div>
@@ -128,7 +128,7 @@ const ChangelogModal: React.FC = () => {
                                 <div className="flex items-center gap-4 mb-6">
                                     <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
                                     <div>
-                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{entry.title}</h3>
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-[-0.03em]">{entry.title}</h3>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{entry.date} • Version {entry.version}</p>
                                     </div>
                                 </div>
@@ -149,7 +149,7 @@ const ChangelogModal: React.FC = () => {
                                                     </span>
                                                     <CheckCircle2 size={10} className="text-slate-200" />
                                                 </div>
-                                                <p className="text-[13px] font-bold text-slate-600 leading-relaxed uppercase tracking-tight">
+                                                <p className="text-[13px] font-bold text-slate-600 leading-relaxed uppercase tracking-[-0.03em]">
                                                     {change.text}
                                                 </p>
                                             </div>

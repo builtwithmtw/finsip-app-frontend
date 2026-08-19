@@ -46,7 +46,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                         )}>
                             <AlertTriangle size={18} />
                         </div>
-                        <h3 className="text-base font-semibold text-slate-900 tracking-tight truncate">{title}</h3>
+                        <h3 className="text-base font-semibold text-slate-900 tracking-[-0.03em] truncate">{title}</h3>
                     </div>
                     <button
                         onClick={onCancel}

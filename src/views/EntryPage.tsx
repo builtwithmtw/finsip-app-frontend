@@ -5,7 +5,7 @@ import BulkTransactionForm from '../components/BulkTransactionForm';
 
 const EntryPage: React.FC = () => {
     return (
-        <div className="animate-in fade-in duration-500">
+        <div className="lg:h-full animate-in fade-in duration-500">
             <BulkTransactionForm />
         </div>
     );

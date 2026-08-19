@@ -29,7 +29,7 @@ const ProxyModal: React.FC = () => {
                 {/* Header */}
                 <div className="px-4 py-8 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase flex items-center gap-3">
+                        <h2 className="text-2xl font-black text-slate-900 tracking-[-0.03em] uppercase flex items-center gap-3">
                             <Globe size={28} className="text-blue-600" />
                             Proxy Terminal
                         </h2>
@@ -64,7 +64,7 @@ const ProxyModal: React.FC = () => {
                                         <Server size={20} />
                                     </div>
                                     <div>
-                                        <h3 className="font-black text-slate-900 text-sm tracking-tight uppercase">{proxy.name}</h3>
+                                        <h3 className="font-black text-slate-900 text-sm tracking-[-0.03em] uppercase">{proxy.name}</h3>
                                         <p className="text-[10px] font-bold text-slate-400 truncate max-w-[200px]">{proxy.url}</p>
                                     </div>
                                 </div>

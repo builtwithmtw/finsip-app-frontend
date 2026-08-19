@@ -218,17 +218,23 @@ const StockManager: React.FC = () => {
                             )}
                         >
                             <GripVertical size={12} className="shrink-0 text-slate-300 group-hover:text-slate-400" />
-                            <span
-                                className="text-[12px] font-semibold uppercase leading-none tracking-tight text-slate-900"
-                                style={DISPLAY}
-                            >
-                                {maskSymbol(stock.symbol)}
-                            </span>
-                            <span
-                                className="text-[9px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-400"
-                                style={DISPLAY}
-                            >
-                                {stock.sector || 'Others'}
+                            {/* Ticker over sector rather than beside it: stacked, the chip is only
+                                as wide as its longer line instead of the sum of both, so a long
+                                sector name stops stretching the chip across the row. */}
+                            <span className="flex min-w-0 flex-col gap-1">
+                                <span
+                                    className="truncate text-[12px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
+                                    style={DISPLAY}
+                                >
+                                    {maskSymbol(stock.symbol)}
+                                </span>
+                                <span
+                                    className="truncate text-[9px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-400"
+                                    title={stock.sector || 'Others'}
+                                    style={DISPLAY}
+                                >
+                                    {stock.sector || 'Others'}
+                                </span>
                             </span>
                             <button
                                 onClick={() => handleRemove(stock.id, stock.symbol)}

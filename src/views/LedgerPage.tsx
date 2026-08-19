@@ -2,9 +2,10 @@
 
 import React from 'react';
 import clsx from 'clsx';
-import { LineChart, Percent } from 'lucide-react';
+import { BarChart3, CalendarRange, Gauge, Percent } from 'lucide-react';
 import MonthlyView from '../components/MonthlyView';
 import MonthlyInvestedChart from '../components/MonthlyInvestedChart';
+import LedgerAnalytics from '../components/LedgerAnalytics';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { DISPLAY } from '../utils/typography';
 
@@ -41,18 +42,41 @@ const LedgerPage: React.FC = () => {
     // reading the grid is built around, but they widen every cell, so a long history
     // can trade them away for months on screen. Both remembered across sessions.
     const [showChart, setShowChart] = useLocalStorage<boolean>('finsip:ledger-chart', false);
+    // Analytics is the whole book rather than the month on screen, so it's opt-in too.
+    const [showAnalytics, setShowAnalytics] = useLocalStorage<boolean>('finsip:ledger-analytics', false);
+    // Not a second grid -- the same grid with its months folded into years. Turning it
+    // on is what hides the monthly columns.
+    const [yearly, setYearly] = useLocalStorage<boolean>('finsip:ledger-yearly', false);
     const [showPercentages, setShowPercentages] = useLocalStorage<boolean>('finsip:ledger-percentages', true);
 
     return (
         <div className="animate-in fade-in duration-500">
             <div className="mb-2 flex items-center justify-end gap-1.5">
                 <Toggle
-                    label="Flow"
+                    label="Analytics"
+                    active={showAnalytics}
+                    title={showAnalytics ? 'Hide the whole-book figures' : 'Show the whole-book figures'}
+                    onClick={() => setShowAnalytics(v => !v)}
+                >
+                    <Gauge size={12} />
+                </Toggle>
+
+                <Toggle
+                    label="Histogram"
                     active={showChart}
-                    title={showChart ? 'Hide the monthly flow chart' : 'Show the monthly flow chart'}
+                    title={showChart ? 'Hide the monthly histogram' : 'Show the monthly histogram'}
                     onClick={() => setShowChart(v => !v)}
                 >
-                    <LineChart size={12} />
+                    <BarChart3 size={12} />
+                </Toggle>
+
+                <Toggle
+                    label="Yearly"
+                    active={yearly}
+                    title={yearly ? 'Show the grid month by month' : 'Fold the grid into years'}
+                    onClick={() => setYearly(v => !v)}
+                >
+                    <CalendarRange size={12} />
                 </Toggle>
 
                 <Toggle
@@ -69,9 +93,11 @@ const LedgerPage: React.FC = () => {
                 </Toggle>
             </div>
 
-            {/* Above the grid: the same months the table lists, read as a shape. */}
+            {/* Above the grid, coarse to fine: the standing figures, then the months read
+                as a shape, then the grid itself. */}
+            {showAnalytics && <LedgerAnalytics />}
             {showChart && <MonthlyInvestedChart />}
-            <MonthlyView showPercentages={showPercentages} />
+            <MonthlyView showPercentages={showPercentages} period={yearly ? 'year' : 'month'} />
         </div>
     );
 };

@@ -68,7 +68,7 @@ const WatchlistPage: React.FC = () => {
           </div>
           <div>
             <h1
-              className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+              className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
               style={DISPLAY}
             >
               Watchlist
@@ -109,7 +109,7 @@ const WatchlistPage: React.FC = () => {
             <Star size={20} />
           </div>
           <p
-            className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+            className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
             style={DISPLAY}
           >
             Your watchlist is empty

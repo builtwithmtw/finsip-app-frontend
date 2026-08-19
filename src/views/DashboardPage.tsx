@@ -28,21 +28,25 @@ const DashboardPage: React.FC = () => {
     const cardsLoading = transactionsLoading || stocksLoading;
 
     return (
-        <div className="flex flex-col gap-4 max-w-[1600px] mx-auto animate-in fade-in duration-500">
+        <div className="flex flex-col gap-4 max-w-[1600px] mx-auto lg:h-full animate-in fade-in duration-500">
             {cardsLoading ? (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                     <HoldingsCardSkeleton />
                     <AllocationCardSkeleton />
                 </div>
             ) : hasHoldings ? (
-                /* Both cards stretch to the taller of the two, and no further -- the row is sized
-                   by its content rather than the viewport, so no dead space hangs off the bottom. */
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                    <div className="lg:col-span-7">
+                /* On the desktop shell this row takes exactly the height left over above the
+                   asset list, so Overview never pushes the page into scroll no matter how many
+                   holdings or sectors there are -- the holdings table scrolls inside itself and
+                   the donut flexes down. `minmax(0,1fr)` is what lets the track shrink below its
+                   content; a bare `1fr` would still grow to max-content. Below `lg` the cards
+                   stack and stay content-sized. */
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:min-h-0 lg:flex-1 lg:grid-rows-[minmax(0,1fr)]">
+                    <div className="lg:col-span-7 lg:min-h-0">
                         <HoldingsTable />
                     </div>
 
-                    <div className="lg:col-span-5">
+                    <div className="lg:col-span-5 lg:min-h-0">
                         <SectorAllocationChart />
                     </div>
                 </div>
@@ -54,7 +58,7 @@ const DashboardPage: React.FC = () => {
                         <LineChart size={20} />
                     </div>
                     <h3
-                        className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                        className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                         style={DISPLAY}
                     >
                         No holdings yet

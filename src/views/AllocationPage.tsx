@@ -21,7 +21,7 @@ type AllocationView = 'KMI30' | 'MINE' | 'CURRENT';
 const VIEWS: Array<{ id: AllocationView; label: string }> = [
     { id: 'KMI30', label: 'KMI 30' },
     { id: 'MINE', label: 'My Symbols' },
-    { id: 'CURRENT', label: 'Current Allocation' },
+    { id: 'CURRENT', label: 'Current' },
 ];
 
 // Footnotes under the table: same micro-label voice, only the colour changes.
@@ -136,7 +136,7 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
         return (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center">
                 <p
-                    className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                    className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                     style={DISPLAY}
                 >
                     No symbols yet
@@ -267,7 +267,7 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean }> = ({ rebalancing
                 plan.unweighted ? (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center">
                         <p
-                            className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
+                            className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
                             style={DISPLAY}
                         >
                             No target weights
