@@ -82,6 +82,7 @@ const StockManager: React.FC = () => {
         'Pharma',
         'Power',
         'Property',
+        'Refinery',
         'REITS',
         'Sugar',
         'Tech',

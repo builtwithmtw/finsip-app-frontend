@@ -18,11 +18,14 @@ export const PSX_SECTORS: Record<string, string> = {
     BOP: 'Banks', BIPL: 'Banks', SNBL: 'Banks', JSBL: 'Banks', SCBPL: 'Banks',
     HMB: 'Banks', SILK: 'Banks', SMBL: 'Banks',
 
-    // Oil & Gas (Exploration + Marketing + Refinery)
+    // Oil & Gas (Exploration + Marketing + Distribution)
     OGDC: 'Oil & Gas', PPL: 'Oil & Gas', POL: 'Oil & Gas', MARI: 'Oil & Gas',
     PSO: 'Oil & Gas', APL: 'Oil & Gas', SHEL: 'Oil & Gas', SNGP: 'Oil & Gas',
-    SSGC: 'Oil & Gas', ATRL: 'Oil & Gas', NRL: 'Oil & Gas', PRL: 'Oil & Gas',
-    CNERGY: 'Oil & Gas', HTL: 'Oil & Gas', HASCOL: 'Oil & Gas',
+    SSGC: 'Oil & Gas', HTL: 'Oil & Gas', HASCOL: 'Oil & Gas',
+
+    // Refinery -- its own sector rather than folded into Oil & Gas: refiners trade on
+    // crack spreads and currency, not on crude prices the way E&P names do.
+    ATRL: 'Refinery', NRL: 'Refinery', PRL: 'Refinery', CNERGY: 'Refinery',
 
     // Fertilizer
     ENGRO: 'Fertilizer', FFC: 'Fertilizer', EFERT: 'Fertilizer', FFBL: 'Fertilizer',
@@ -44,7 +47,7 @@ export const PSX_SECTORS: Record<string, string> = {
 
     // Chemicals
     ICI: 'Chemicals', LOTCHEM: 'Chemicals', EPCL: 'Chemicals', BERG: 'Chemicals',
-    SITC: 'Chemicals', ARPL: 'Chemicals', NRSL: 'Chemicals',
+    SITC: 'Chemicals', ARPL: 'Chemicals', NRSL: 'Chemicals', GCIL: 'Chemicals',
 
     // Pharma
     GLAXO: 'Pharma', AGP: 'Pharma', SEARL: 'Pharma', HINOON: 'Pharma',
