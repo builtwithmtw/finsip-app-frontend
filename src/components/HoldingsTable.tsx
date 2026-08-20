@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask } from '../context/PrivacyContext';
 import { computeHoldings } from '../utils/holdings';
+import { masterRankOf } from '../utils/masterOrder';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Panel, PanelHeader } from './Panel';
 
@@ -21,16 +22,20 @@ const HoldingsTable: React.FC = () => {
     const mask = useMask();
     const { transactions, stocks } = usePortfolio();
 
-    const holdings = useMemo(() =>
-        computeHoldings(transactions)
+    // Asset Master List order, the same one Overview sets and Live Portfolio and the
+    // allocation tables read. Ranking by invested cost put a position in a different
+    // place on every screen that shows it.
+    const holdings = useMemo(() => {
+        const rankOf = masterRankOf(stocks);
+
+        return computeHoldings(transactions)
             .map(h => ({
                 ...h,
                 totalInvested: h.totalCostBasis,
                 sector: stocks.find(s => s.symbol === h.symbol)?.sector || 'Others',
             }))
-            .sort((a, b) => b.totalInvested - a.totalInvested),
-        [transactions, stocks]
-    );
+            .sort((a, b) => rankOf(a.symbol) - rankOf(b.symbol));
+    }, [transactions, stocks]);
 
     const totalPortfolioValue = useMemo(() =>
         holdings.reduce((sum, h) => sum + h.totalInvested, 0),

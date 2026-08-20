@@ -36,8 +36,9 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
 }) => {
     const mask = useMask();
 
-    // Opens on the heaviest position, which is the order the tab arrives in.
-    const { sort, toggle } = useTableSort<SortKey>({ key: 'marketShare', direction: 'desc' });
+    // Opens unsorted: the page hands rows in Asset Master List order, and that is the
+    // order the whole app reads positions in. A header click takes over from there.
+    const { sort, toggle } = useTableSort<SortKey>();
 
     const sorted = React.useMemo(
         () => sortRows(rows, sort, (row, key) => row[key]),

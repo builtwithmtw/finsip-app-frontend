@@ -5,8 +5,13 @@ import { Trash2, ArrowUp, ArrowDown, ChevronsUpDown, ChevronLeft, ChevronRight }
 import clsx from "clsx";
 import { DISPLAY, NUMERIC } from "@/utils/typography";
 import { Panel } from "@/components/Panel";
+import useLocalStorage from "@/hooks/useLocalStorage";
 
-const PAGE_SIZE = 10;
+// Ten first: it is what keeps the card short enough that the page never grows a
+// vertical scrollbar over a long list. The rest are there for when you'd rather read
+// the whole watchlist in one go than page through it.
+const PAGE_SIZES = [10, 15, 20, 50];
+const DEFAULT_PAGE_SIZE = PAGE_SIZES[0];
 
 export interface WatchlistRow {
   id: string;
@@ -83,10 +88,11 @@ const ChangePill: React.FC<{ value: number | null }> = ({ value }) => {
 };
 
 const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
-  // No sort by default — rows stay in the order they were added until a header
-  // is clicked. Clicking the active column flips direction; a new column starts
-  // ascending for text and descending for numbers (largest-first reads best).
-  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
+  // Opens on today's move, biggest gainer first — the watchlist is read to see what
+  // is happening now, and the order it was added in says nothing about that. Every
+  // load re-sorts against the day's fresh figures. Clicking the active column flips
+  // direction; a new column starts ascending for text and descending for numbers.
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>({ key: "d1", dir: "desc" });
 
   const toggleSort = (col: (typeof COLUMNS)[number]) => {
     setSort((prev) =>
@@ -115,18 +121,41 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
     });
   }, [rows, sort]);
 
-  // Frontend pagination, 10 rows a page — keeps the card short so the page never
-  // grows a vertical scrollbar over a long list.
+  // Frontend pagination. The size is remembered across sessions, so the choice sticks
+  // the way the sort does.
+  const [storedPageSize, setPageSize] = useLocalStorage<number>("finsip:watchlist-page-size", DEFAULT_PAGE_SIZE);
+
+  // Only the sizes that mean anything for this many rows: every size below the total,
+  // then the total itself as the show-everything option. Thirteen rows offer 10 and 13,
+  // not 10 and 15 -- a button promising fifteen rows that can only ever produce
+  // thirteen is a number the table never shows.
+  const sizeOptions = useMemo(
+    () => [...PAGE_SIZES.filter((size) => size < sorted.length), sorted.length],
+    [sorted.length],
+  );
+
+  // A remembered 50 outlives the list that earned it. While the list is short the
+  // largest offered size stands in, and the preference comes back when it grows again.
+  const pageSize = sizeOptions.includes(storedPageSize)
+    ? storedPageSize
+    : sizeOptions[sizeOptions.length - 1];
   const [page, setPage] = useState(0);
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
 
   // Clamp back into range when the row count or sort shrinks the current page away.
   useEffect(() => {
     if (page > pageCount - 1) setPage(pageCount - 1);
   }, [page, pageCount]);
 
-  const start = page * PAGE_SIZE;
-  const pageRows = sorted.slice(start, start + PAGE_SIZE);
+  const start = page * pageSize;
+  const pageRows = sorted.slice(start, start + pageSize);
+
+  // Resizing keeps the row you were already looking at on screen, rather than throwing
+  // you back to the top of a list you had paged into.
+  const changePageSize = (size: number) => {
+    setPage(Math.floor(start / size));
+    setPageSize(size);
+  };
 
   return (
     <Panel flush>
@@ -237,11 +266,39 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
         </table>
       </div>
 
-      {sorted.length > PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-2.5">
-          <span className="text-[11px] tabular-nums text-slate-400" style={NUMERIC}>
-            {start + 1}–{Math.min(start + PAGE_SIZE, sorted.length)} of {sorted.length}
-          </span>
+      {/* Shown from the smallest page size up, not from the current one: at 50 a
+          20-row list is a single page, and the bar is the only way back to 10. */}
+      {sorted.length > DEFAULT_PAGE_SIZE && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="text-[11px] tabular-nums text-slate-400" style={NUMERIC}>
+              {start + 1}–{Math.min(start + pageSize, sorted.length)} of {sorted.length}
+            </span>
+
+            {/* Sizes on one recessed track — the same segmented control the app uses
+                everywhere it offers a small set of choices. */}
+            <div className="flex items-center gap-0.5 rounded-lg bg-slate-100/70 p-0.5">
+              {sizeOptions.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => changePageSize(size)}
+                  aria-pressed={pageSize === size}
+                  title={`${size} rows per page`}
+                  style={NUMERIC}
+                  className={clsx(
+                    "rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-none tabular-nums transition-colors",
+                    pageSize === size
+                      ? "bg-white text-slate-900 shadow-[0_1px_2px_0_rgba(15,23,42,0.06)]"
+                      : "text-slate-400 hover:text-slate-900"
+                  )}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
             <span className="text-[11px] tabular-nums text-slate-400" style={NUMERIC}>
               Page {page + 1} of {pageCount}

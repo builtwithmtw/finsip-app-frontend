@@ -18,11 +18,14 @@ export const PSX_SECTORS: Record<string, string> = {
     BOP: 'Banks', BIPL: 'Banks', SNBL: 'Banks', JSBL: 'Banks', SCBPL: 'Banks',
     HMB: 'Banks', SILK: 'Banks', SMBL: 'Banks',
 
-    // Oil & Gas (Exploration + Marketing + Refinery)
+    // Oil & Gas (Exploration + Marketing). Refineries have their own label below.
     OGDC: 'Oil & Gas', PPL: 'Oil & Gas', POL: 'Oil & Gas', MARI: 'Oil & Gas',
     PSO: 'Oil & Gas', APL: 'Oil & Gas', SHEL: 'Oil & Gas', SNGP: 'Oil & Gas',
-    SSGC: 'Oil & Gas', ATRL: 'Oil & Gas', NRL: 'Oil & Gas', PRL: 'Oil & Gas',
-    CNERGY: 'Oil & Gas', HTL: 'Oil & Gas', HASCOL: 'Oil & Gas',
+    SSGC: 'Oil & Gas', HTL: 'Oil & Gas', HASCOL: 'Oil & Gas',
+    WAFI: 'Oil & Gas',
+
+    // Refinery -- the PSX sector of its own, not a slice of Oil & Gas.
+    ATRL: 'Refinery', NRL: 'Refinery', PRL: 'Refinery', CNERGY: 'Refinery',
 
     // Fertilizer
     ENGRO: 'Fertilizer', FFC: 'Fertilizer', EFERT: 'Fertilizer', FFBL: 'Fertilizer',
@@ -36,15 +39,19 @@ export const PSX_SECTORS: Record<string, string> = {
     // Power (Generation & Distribution)
     HUBC: 'Power', KEL: 'Power', KAPCO: 'Power', NPL: 'Power', NCPL: 'Power',
     ALTN: 'Power', LPL: 'Power', PKGP: 'Power', EPQL: 'Power',
+    SGPL: 'Power', TSPL: 'Power',
 
     // Autos (Assemblers + Parts)
     INDU: 'Autos', HCAR: 'Autos', PSMC: 'Autos', MTL: 'Autos', AGTL: 'Autos',
     SAZEW: 'Autos', DFML: 'Autos', GTYR: 'Autos', BWHL: 'Autos', LOADS: 'Autos',
     EXIDE: 'Autos', ATBA: 'Autos',
+    ATLH: 'Autos', GHNI: 'Autos', GAL: 'Autos',
 
     // Chemicals
     ICI: 'Chemicals', LOTCHEM: 'Chemicals', EPCL: 'Chemicals', BERG: 'Chemicals',
     SITC: 'Chemicals', ARPL: 'Chemicals', NRSL: 'Chemicals',
+    LCI: 'Chemicals', NICL: 'Chemicals', PAKOXY: 'Chemicals', GCIL: 'Chemicals',
+    ICL: 'Chemicals', PPVC: 'Chemicals', DAAG: 'Chemicals',
 
     // Pharma
     GLAXO: 'Pharma', AGP: 'Pharma', SEARL: 'Pharma', HINOON: 'Pharma',
@@ -52,6 +59,7 @@ export const PSX_SECTORS: Record<string, string> = {
     CPHL: 'Pharma', IBLHL: 'Pharma', BFBIO: 'Pharma',
 
     // Tech (Technology & Communication)
+    SYM: 'Tech', HUMNL: 'Tech', PAKD: 'Tech',
     SYS: 'Tech', TRG: 'Tech', NETSOL: 'Tech', AVN: 'Tech', PTC: 'Tech',
     WTL: 'Tech', TELE: 'Tech', AIRLINK: 'Tech',
 
@@ -59,10 +67,15 @@ export const PSX_SECTORS: Record<string, string> = {
     NML: 'Textiles', GATM: 'Textiles', ILP: 'Textiles', KTML: 'Textiles',
     NCL: 'Textiles', KML: 'Textiles', FML: 'Textiles', SAPT: 'Textiles',
     SFL: 'Textiles', GADT: 'Textiles',
+    KHYT: 'Textiles', HAFL: 'Textiles', FSWL: 'Textiles', REDCO: 'Textiles',
+    JUBS: 'Textiles', ASHT: 'Textiles', STJT: 'Textiles', PRWM: 'Textiles',
+    ZTL: 'Textiles',
 
     // Foods (Food & Personal Care)
     NESTLE: 'Foods', EFOODS: 'Foods', FCEPL: 'Foods', UPFL: 'Foods',
     NATF: 'Foods', COLG: 'Foods', MFFL: 'Foods',
+    ISIL: 'Foods', RMPL: 'Foods', ZIL: 'Foods', TOMCL: 'Foods',
+    QUICE: 'Foods', CLOV: 'Foods', TREET: 'Foods',
 
     // Sugar
     JDWS: 'Sugar',
@@ -72,35 +85,46 @@ export const PSX_SECTORS: Record<string, string> = {
 
     // Glass & Ceramics
     TGL: 'Glass', GGL: 'Glass',
+    FRCL: 'Glass', GVGL: 'Glass', KCL: 'Glass', GHGL: 'Glass',
 
     // Insurance
     AICL: 'Insurance', EFUG: 'Insurance', EFUL: 'Insurance', IGIHL: 'Insurance',
     JGICL: 'Insurance', JLICL: 'Insurance', TPLI: 'Insurance', ATIL: 'Insurance',
 
     // Investments (Investment Cos / Holdings / Modaraba)
+    ENGROH: 'Investments',
     AHCL: 'Investments', JSCL: 'Investments', DAWH: 'Investments',
 
     // Engineering (Steel / Pumps / etc.)
     ISL: 'Engineering', ASTL: 'Engineering', MUGHAL: 'Engineering', INIL: 'Engineering',
     CSAP: 'Engineering', KSBP: 'Engineering', ASL: 'Engineering', DSIL: 'Engineering',
+    BECO: 'Engineering',
 
     // Cables & Electrical Goods
     PAEL: 'Cables', PCAL: 'Cables', SIEM: 'Cables', WAVES: 'Cables', EMCO: 'Cables',
+    FCL: 'Cables',
 
     // Packaging (Paper & Board)
     PKGS: 'Packaging', CPPL: 'Packaging', CEPB: 'Packaging', RPL: 'Packaging',
+    MACFL: 'Packaging', SPEL: 'Packaging', PPP: 'Packaging', SEPL: 'Packaging',
 
     // Leather & Tanneries
     SRVI: 'Leather', BATA: 'Leather',
+    SGF: 'Leather', SUHJ: 'Leather',
 
     // Transport
     PIAA: 'Transport', PICT: 'Transport', PNSC: 'Transport', PIBTL: 'Transport',
 
     // REITS
     DCR: 'REITS',
+    GRR: 'REITS',
 
     // Property
-    TPLP: 'Property',
+    TPLP: 'Property', JVDC: 'Property',
+
+    // Others -- listed here rather than left to the default so the "auto" hint still
+    // fires: the sector really is known, it just has no label of its own.
+    UDPL: 'Others', SHFA: 'Others', ARPAK: 'Others', GEMPACRA: 'Others',
 };
 
 // Returns the mapped sector for a symbol, or undefined if we don't know it.

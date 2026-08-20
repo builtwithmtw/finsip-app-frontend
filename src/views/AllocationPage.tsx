@@ -13,6 +13,7 @@ import AllocationTable from '../components/allocation/AllocationTable';
 import CurrentAllocationTable, { type CurrentAllocationRow } from '../components/allocation/CurrentAllocationTable';
 import RebalanceTable from '../components/allocation/RebalanceTable';
 import { computeLiveHoldings } from '../utils/holdings';
+import { masterRankOf } from '../utils/masterOrder';
 import { computeRebalance } from '../utils/rebalance';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 
@@ -236,6 +237,7 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean }> = ({ rebalancing
     );
 
     const rows: CurrentAllocationRow[] = useMemo(() => {
+        const rankOf = masterRankOf(stocks);
 
         const totalCost = holdings.reduce((sum, h) => sum + h.totalCostBasis, 0);
         const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
@@ -254,10 +256,11 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean }> = ({ rebalancing
                     isPriced: h.isPriced,
                 };
             })
-            // Heaviest position first: the rows that move the portfolio most are the
-            // ones worth reading, and the drift on a 0.4% holding is noise.
-            .sort((a, b) => b.marketShare - a.marketShare);
-    }, [holdings, logos]);
+            // Asset Master List order, the same one Overview sets and Live Portfolio
+            // reads. Sorting by drift here would reshuffle the table on every price
+            // tick, and a position would never be twice in the same place.
+            .sort((a, b) => rankOf(a.symbol) - rankOf(b.symbol));
+    }, [holdings, logos, stocks]);
 
     if (transactionsLoading) return <TableSkeleton />;
 

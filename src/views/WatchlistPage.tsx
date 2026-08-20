@@ -4,16 +4,19 @@ import React, { useMemo, useState } from "react";
 import { Plus, Star } from "lucide-react";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useStocks } from "@/hooks/useStocks";
+import { usePortfolio } from "@/context/PortfolioContext";
 import { useConfirm } from "@/context/ConfirmContext";
 import { toast } from "sonner";
 import AddWatchlistModal from "@/components/watchlist/AddWatchlistModal";
 import WatchlistTable, { type WatchlistRow } from "@/components/watchlist/WatchlistTable";
 import WatchlistTableSkeleton from "@/components/watchlist/WatchlistTableSkeleton";
+import { computeHoldings } from "@/utils/holdings";
 import { DISPLAY } from "@/utils/typography";
 
 const WatchlistPage: React.FC = () => {
   const { items, loading, adding, addItem, removeItem } = useWatchlist();
   const { data: stocks = [], isLoading: stocksLoading } = useStocks();
+  const { transactions } = usePortfolio();
   const { confirm } = useConfirm();
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -23,9 +26,22 @@ const WatchlistPage: React.FC = () => {
     [stocks],
   );
 
+  // A symbol you already own isn't on watch any more -- it's a position, and Live
+  // Portfolio is where it's read. Hidden at display time only: the row stays in the
+  // table, so selling out in full brings it back without having to add it again.
+  const held = useMemo(
+    () => new Set(computeHoldings(transactions).map((h) => h.symbol.toUpperCase())),
+    [transactions],
+  );
+
+  const visibleItems = useMemo(
+    () => items.filter((item) => !held.has(item.symbol.toUpperCase())),
+    [items, held],
+  );
+
   const rows = useMemo<WatchlistRow[]>(
     () =>
-      items.map((item) => {
+      visibleItems.map((item) => {
         const s = stockBySymbol.get(item.symbol.toUpperCase());
         return {
           id: item.id,
@@ -37,7 +53,7 @@ const WatchlistPage: React.FC = () => {
           volume: s?.volume ?? null,
         };
       }),
-    [items, stockBySymbol],
+    [visibleItems, stockBySymbol],
   );
 
   const existing = useMemo(
@@ -78,7 +94,9 @@ const WatchlistPage: React.FC = () => {
                 className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-500"
                 style={DISPLAY}
               >
-                {items.length} {items.length === 1 ? "symbol" : "symbols"} tracked
+                {visibleItems.length} {visibleItems.length === 1 ? "symbol" : "symbols"} tracked
+                {items.length > visibleItems.length &&
+                  ` · ${items.length - visibleItems.length} held, shown in portfolio`}
               </span>
             </p>
           </div>
@@ -98,11 +116,11 @@ const WatchlistPage: React.FC = () => {
           are in, so the table never flashes rows with "—" prices that fill in a
           moment later. If the list is empty there's nothing to price, so we don't
           wait on the feed. */}
-      {loading || (items.length > 0 && stocksLoading) ? (
+      {loading || (visibleItems.length > 0 && stocksLoading) ? (
         // Skeleton mirrors the real table so values land in place — no spinner,
         // no jump. Row count tracks the saved list (capped at a page) when it's
         // already in, so the placeholder is the right height.
-        <WatchlistTableSkeleton rows={items.length > 0 ? Math.min(items.length, 10) : 8} />
+        <WatchlistTableSkeleton rows={visibleItems.length > 0 ? Math.min(visibleItems.length, 10) : 8} />
       ) : rows.length === 0 ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
           <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
@@ -112,10 +130,12 @@ const WatchlistPage: React.FC = () => {
             className="text-[15px] font-semibold uppercase leading-none tracking-[0.02em] text-slate-900"
             style={DISPLAY}
           >
-            Your watchlist is empty
+            {items.length > 0 ? "Everything here is owned" : "Your watchlist is empty"}
           </p>
           <p className="mt-3 max-w-sm text-xs font-medium leading-relaxed text-slate-400">
-            Add a PSX symbol to start tracking its price and daily move.
+            {items.length > 0
+              ? `All ${items.length} saved ${items.length === 1 ? "symbol is" : "symbols are"} held in your portfolio, so they're read on Live Portfolio instead. Add one you don't own yet to start watching it.`
+              : "Add a PSX symbol to start tracking its price and daily move."}
           </p>
           <button
             onClick={() => setModalOpen(true)}

@@ -7,6 +7,7 @@ import { SkeletonBar, SkeletonCard, SkeletonTableRows } from '../components/Dash
 import clsx from 'clsx';
 import { AlertTriangle, ArrowUp, ArrowDown, ChevronsUpDown, TrendingUp, TrendingDown } from 'lucide-react';
 import { computeLiveHoldings, summarizeLive, type LiveHolding } from '../utils/holdings';
+import { masterRankOf } from '../utils/masterOrder';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Amount } from '../components/Amount';
 import { Panel, MetricLabel } from '../components/Panel';
@@ -47,7 +48,7 @@ const COLUMNS: {
 const LivePortfolioPage: React.FC = () => {
     const formatCurrency = useCurrency();
     const mask = useMask();
-    const { transactions, loading, livePrices, liveChanges } = usePortfolio();
+    const { transactions, stocks, loading, livePrices, liveChanges } = usePortfolio();
 
     // A symbol the feed didn't price has no day move either; null keeps it out of the
     // sort's way instead of pinning it at a fictional 0%.
@@ -56,15 +57,18 @@ const LivePortfolioPage: React.FC = () => {
         return Number.isFinite(value) ? value : null;
     };
 
-    // No sort by default — largest positions (by cost) first, as before. Clicking
-    // a header takes over from there.
+    // No sort by default — rows stay in the Asset Master List order they arrive in.
+    // Clicking a header takes over from there.
     const [sort, setSort] = useState<{ id: string; dir: SortDir } | null>(null);
 
-    const holdings = useMemo(() =>
-        computeLiveHoldings(transactions, livePrices)
-            .sort((a, b) => b.totalCostBasis - a.totalCostBasis),
-        [transactions, livePrices]
-    );
+    // Asset Master List order by default -- the same order Overview, Monthly Entry and
+    // the allocation tables read positions in, so a row sits in the same place wherever
+    // you look at it. Clicking a header takes over from here.
+    const holdings = useMemo(() => {
+        const rankOf = masterRankOf(stocks);
+        return computeLiveHoldings(transactions, livePrices)
+            .sort((a, b) => rankOf(a.symbol) - rankOf(b.symbol));
+    }, [transactions, livePrices, stocks]);
 
     const totals = useMemo(() => summarizeLive(holdings), [holdings]);
 

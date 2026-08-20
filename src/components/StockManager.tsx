@@ -74,11 +74,12 @@ const StockManager: React.FC = () => {
         'Insurance',
         'Investments',  // + leasing, modarabas, mutual funds
         'Leather',
-        'Oil & Gas',    // + exploration, marketing, refinery
+        'Oil & Gas',    // + exploration, marketing
         'Packaging',    // paper & board
         'Pharma',
         'Power',
         'Property',
+        'Refinery',
         'REITS',
         'Sugar',
         'Tech',
