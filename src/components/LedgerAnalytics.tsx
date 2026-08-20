@@ -8,7 +8,7 @@ import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext'
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
 import { computeSipStreak } from '../utils/sipStreak';
 import { describeMonthActivity } from '../utils/monthNarrative';
-import { groupMonthActivity } from '../utils/monthActivity';
+import { splitMonthActivity, type ActivityDay, type SoloGroup } from '../utils/monthActivity';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Amount } from './Amount';
 import { MetricLabel, Panel, PanelHeader } from './Panel';
@@ -224,6 +224,179 @@ export const LedgerReturns: React.FC = () => {
     );
 };
 
+/** Shared by both kinds of row: the privacy-aware formatters, and the month's scale. */
+interface RowProps {
+    peak: number;
+    formatCurrency: (amount: number) => string;
+    mask: (value: string) => string;
+    maskSymbol: (symbol: string) => string;
+}
+
+/** A day worth showing as a day: the SIP, or a day that did more than one thing. */
+const ActivityDayBlock: React.FC<RowProps & { day: ActivityDay }> = ({
+    day,
+    peak,
+    formatCurrency,
+    mask,
+    maskSymbol,
+}) => (
+    <div>
+        <div className="flex items-baseline justify-between gap-2">
+            <span className="flex items-center gap-1.5">
+                <span
+                    className="text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-500"
+                    style={DISPLAY}
+                >
+                    {day.label}
+                </span>
+                {day.rank === 0 && day.buyTotal > 0 && (
+                    <span
+                        className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] text-sky-600"
+                        style={DISPLAY}
+                    >
+                        SIP
+                    </span>
+                )}
+            </span>
+            <span
+                className="text-[11px] font-semibold leading-none tabular-nums text-slate-900"
+                style={NUMERIC}
+            >
+                {formatCurrency(Math.round(day.buyTotal - day.sellTotal))}
+            </span>
+        </div>
+
+        <span className="mt-1.5 block h-1 w-full overflow-hidden rounded-full bg-slate-100">
+            <span
+                className={clsx('block h-full rounded-full', day.rank === 0 ? 'bg-sky-500' : 'bg-sky-500/40')}
+                style={{ width: `${peak > 0 ? Math.max((day.buyTotal / peak) * 100, 2) : 2}%` }}
+            />
+        </span>
+
+        <ul className="mt-2 space-y-1">
+            {day.transactions.map((t) => {
+                const isSell = t.type === 'sell';
+                return (
+                    <li
+                        key={t.id}
+                        title={`${mask(t.shares.toLocaleString())} @ ${t.pricePerShare.toFixed(2)}`}
+                        className="flex items-baseline justify-between gap-2"
+                    >
+                        <span
+                            className={clsx(
+                                'truncate text-[11px] font-semibold uppercase tracking-[-0.03em]',
+                                isSell ? 'text-rose-600' : 'text-slate-700'
+                            )}
+                            style={DISPLAY}
+                        >
+                            {maskSymbol(t.symbol)}
+                        </span>
+                        <span
+                            className={clsx(
+                                'shrink-0 text-[11px] leading-none tabular-nums',
+                                isSell ? 'text-rose-600' : 'text-slate-500'
+                            )}
+                            style={NUMERIC}
+                        >
+                            {isSell ? '−' : ''}
+                            {formatCurrency(Math.round(Number(t.totalAmount || t.shares * t.pricePerShare)))}
+                        </span>
+                    </li>
+                );
+            })}
+        </ul>
+    </div>
+);
+
+/**
+ * A symbol bought on several days that each did nothing else -- one position built in
+ * instalments, with the days it took listed inside rather than spread across the month
+ * as separate headings.
+ */
+const ActivityGroupBlock: React.FC<RowProps & { group: SoloGroup }> = ({
+    group,
+    peak,
+    formatCurrency,
+    mask,
+    maskSymbol,
+}) => {
+    const isSell = group.type === 'sell';
+    return (
+        <div>
+            <div className="flex items-baseline justify-between gap-2">
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span
+                        className={clsx(
+                            'truncate text-[11px] font-semibold uppercase tracking-[-0.03em]',
+                            isSell ? 'text-rose-600' : 'text-slate-900'
+                        )}
+                        style={DISPLAY}
+                    >
+                        {maskSymbol(group.symbol)}
+                    </span>
+                    {/* Says the line stands for several purchases, so it can't be read
+                        as one trade. */}
+                    {group.count > 1 && (
+                        <span
+                            className="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[8px] font-semibold leading-none tabular-nums text-slate-500"
+                            style={NUMERIC}
+                        >
+                            ×{group.count}
+                        </span>
+                    )}
+                </span>
+                <span
+                    className={clsx(
+                        'shrink-0 text-[11px] font-semibold leading-none tabular-nums',
+                        isSell ? 'text-rose-600' : 'text-slate-900'
+                    )}
+                    style={NUMERIC}
+                >
+                    {isSell ? '−' : ''}
+                    {formatCurrency(Math.round(group.amount))}
+                </span>
+            </div>
+
+            <span className="mt-1.5 block h-1 w-full overflow-hidden rounded-full bg-slate-100">
+                <span
+                    className={clsx('block h-full rounded-full', isSell ? 'bg-rose-500/50' : 'bg-sky-500/40')}
+                    style={{ width: `${peak > 0 ? Math.max((group.amount / peak) * 100, 2) : 2}%` }}
+                />
+            </span>
+
+            {/* Inside the group: the day each instalment went in. */}
+            <ul className="mt-2 space-y-0.5">
+                {group.fills.map((fill, i) => (
+                    <li
+                        key={`${fill.label}-${i}`}
+                        title={`${mask(fill.shares.toLocaleString())} shares`}
+                        className="flex items-baseline justify-between gap-2 text-[10px] leading-none text-slate-400"
+                    >
+                        <span className="font-semibold uppercase tracking-[0.14em]" style={DISPLAY}>
+                            {fill.label}
+                        </span>
+                        <span className="shrink-0 tabular-nums" style={NUMERIC}>
+                            {formatCurrency(Math.round(fill.amount))}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+
+            {group.count > 1 && (
+                <p
+                    className="mt-1 text-[9px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
+                    style={DISPLAY}
+                >
+                    <span className="tabular-nums" style={NUMERIC}>
+                        {mask(group.shares.toLocaleString())} @ {group.avgPrice.toFixed(2)}
+                    </span>{' '}
+                    averaged
+                </p>
+            )}
+        </div>
+    );
+};
+
 /**
  * This month, in words.
  *
@@ -244,20 +417,23 @@ export const LedgerActivity: React.FC = () => {
         [transactions, currentMonth, formatCurrency, maskSymbol]
     );
 
-    const days = useMemo(
-        () => groupMonthActivity(transactions, currentMonth),
+    const items = useMemo(
+        () => splitMonthActivity(transactions, currentMonth),
         [transactions, currentMonth]
     );
 
-    // The heaviest buying day sets the scale the others are drawn against, so a day's
-    // bar says how it compares to the SIP rather than to nothing.
-    const peak = days.reduce((max, d) => Math.max(max, d.buyTotal), 0);
+    // The month's heaviest buying sets the scale every bar is drawn against -- days and
+    // accumulated symbols alike -- so a bar means the same thing wherever it appears.
+    const peak = items.reduce(
+        (max, item) => Math.max(max, item.kind === 'day' ? item.day.buyTotal : item.group.amount),
+        0
+    );
 
     return (
         <Panel className="flex h-full flex-col">
             <PanelHeader title="Activity" caption={format(parseISO(`${currentMonth}-01`), 'MMMM yyyy')} />
 
-            <div className="rounded-xl bg-slate-50/70 px-3.5 py-3.5 ring-1 ring-slate-900/5">
+            <div className="shrink-0 rounded-xl bg-slate-50/70 px-3.5 py-3.5 ring-1 ring-slate-900/5">
                 <p className="text-[13px] font-semibold leading-relaxed text-slate-900">
                     {summary.headline}
                 </p>
@@ -293,83 +469,39 @@ export const LedgerActivity: React.FC = () => {
             {/* The month day by day, newest first. The day that bought the most is the
                 one the SIP actually went in on, so it's named -- the rest are top-ups,
                 and their bars say how far short of it they fell. */}
-            {days.length > 0 && (
-                <div className="scrollbar-hide-auto mt-4 max-h-[320px] space-y-3 overflow-y-auto border-t border-slate-100 pt-3.5">
-                    {days.map((day) => (
-                        <div key={day.key}>
-                            <div className="flex items-baseline justify-between gap-2">
-                                <span className="flex items-center gap-1.5">
-                                    <span
-                                        className="text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-500"
-                                        style={DISPLAY}
-                                    >
-                                        {day.label}
-                                    </span>
-                                    {day.rank === 0 && day.buyTotal > 0 && (
-                                        <span
-                                            className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] text-sky-600"
-                                            style={DISPLAY}
-                                        >
-                                            SIP
-                                        </span>
-                                    )}
-                                </span>
-                                <span
-                                    className="text-[11px] font-semibold leading-none tabular-nums text-slate-900"
-                                    style={NUMERIC}
-                                >
-                                    {formatCurrency(Math.round(day.buyTotal - day.sellTotal))}
-                                </span>
-                            </div>
+            {/* One list, newest first, whatever kind of thing each entry is. A symbol
+                accumulated across solo days sorts on its most recent instalment, so the
+                month never switches ordering halfway down.
 
-                            {/* Rank as a length: the SIP date fills the track, every other
-                                day draws its share of it. */}
-                            <span className="mt-1.5 block h-1 w-full overflow-hidden rounded-full bg-slate-100">
-                                <span
-                                    className={clsx(
-                                        'block h-full rounded-full',
-                                        day.rank === 0 ? 'bg-sky-500' : 'bg-sky-500/40'
-                                    )}
-                                    style={{ width: `${peak > 0 ? Math.max((day.buyTotal / peak) * 100, 2) : 2}%` }}
-                                />
-                            </span>
-
-                            <ul className="mt-2 space-y-1">
-                                {day.transactions.map((t) => {
-                                    const isSell = t.type === 'sell';
-                                    return (
-                                        <li
-                                            key={t.id}
-                                            title={`${mask(t.shares.toLocaleString())} @ ${t.pricePerShare.toFixed(2)}`}
-                                            className="flex items-baseline justify-between gap-2"
-                                        >
-                                            <span
-                                                className={clsx(
-                                                    'truncate text-[11px] font-semibold uppercase tracking-[-0.03em]',
-                                                    isSell ? 'text-rose-600' : 'text-slate-700'
-                                                )}
-                                                style={DISPLAY}
-                                            >
-                                                {maskSymbol(t.symbol)}
-                                            </span>
-                                            <span
-                                                className={clsx(
-                                                    'shrink-0 text-[11px] leading-none tabular-nums',
-                                                    isSell ? 'text-rose-600' : 'text-slate-500'
-                                                )}
-                                                style={NUMERIC}
-                                            >
-                                                {isSell ? '−' : ''}
-                                                {formatCurrency(Math.round(Number(t.totalAmount || t.shares * t.pricePerShare)))}
-                                            </span>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
-                    ))}
+                Fixed height with its own scrollbar -- the thin always-visible one, not
+                the hide-until-hover kind, so a month with more entries than fit says so
+                instead of looking like the whole list. */}
+            {items.length > 0 && (
+                <div className="custom-scrollbar mt-4 max-h-[350px] space-y-3 overflow-y-auto border-t border-slate-100 pt-3.5 pr-1">
+                    {items.map((item) =>
+                        item.kind === 'day' ? (
+                            <ActivityDayBlock
+                                key={`day:${item.date}`}
+                                day={item.day}
+                                peak={peak}
+                                formatCurrency={formatCurrency}
+                                mask={mask}
+                                maskSymbol={maskSymbol}
+                            />
+                        ) : (
+                            <ActivityGroupBlock
+                                key={`group:${item.group.type}:${item.group.symbol}`}
+                                group={item.group}
+                                peak={peak}
+                                formatCurrency={formatCurrency}
+                                mask={mask}
+                                maskSymbol={maskSymbol}
+                            />
+                        )
+                    )}
                 </div>
             )}
+
         </Panel>
     );
 };

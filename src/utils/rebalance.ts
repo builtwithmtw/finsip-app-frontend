@@ -166,8 +166,25 @@ export function computeRebalance(
         cash -= row.tradeAmount;
     }
 
+    /**
+     * Grouped by what you have to do, because that is how the plan gets executed: every
+     * sell together (they fund the buys, so they happen first), then every buy, then the
+     * holds that need no action at all and only have to be accounted for.
+     *
+     * Within a group the largest trade leads -- the rows that move the portfolio most are
+     * the ones worth reading -- and holds fall back to target weight, having no trade to
+     * be sorted by.
+     */
+    const ACTION_ORDER: Record<RebalanceRow['action'], number> = { sell: 0, buy: 1, hold: 2 };
+
     return {
-        rows: rows.sort((a, b) => b.targetShare - a.targetShare || b.marketShare - a.marketShare),
+        rows: rows.sort(
+            (a, b) =>
+                ACTION_ORDER[a.action] - ACTION_ORDER[b.action] ||
+                b.tradeAmount - a.tradeAmount ||
+                b.targetShare - a.targetShare ||
+                b.marketShare - a.marketShare
+        ),
         portfolioValue,
         sellTotal,
         buyTotal,

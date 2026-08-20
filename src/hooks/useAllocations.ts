@@ -56,10 +56,15 @@ const EMPTY: AllocationResult = {
  * its share of the money allows, and whatever cash is left over is then spent on the
  * rows that fell furthest short of their target.
  */
-export function calculateAllocations(companies: AllocationInput[], investment: number): AllocationResult {
+export function calculateAllocations(
+    companies: AllocationInput[],
+    investment: number,
+    /** How many of the highest-weighted rows get funded. Defaults to the usual cap. */
+    limit: number = MAX_ALLOCATION_HOLDINGS
+): AllocationResult {
     if (!companies.length) return EMPTY;
 
-    const results: AllocationRow[] = companies.slice(0, MAX_ALLOCATION_HOLDINGS).map((c) => ({
+    const results: AllocationRow[] = companies.slice(0, limit).map((c) => ({
         name: c.name,
         weight: c.weight,
         price: c.price,
@@ -124,6 +129,13 @@ export function calculateAllocations(companies: AllocationInput[], investment: n
     };
 }
 
-export function useAllocations(companies: AllocationInput[] = [], investment = 0): AllocationResult {
-    return useMemo(() => calculateAllocations(companies, investment), [companies, investment]);
+export function useAllocations(
+    companies: AllocationInput[] = [],
+    investment = 0,
+    limit: number = MAX_ALLOCATION_HOLDINGS
+): AllocationResult {
+    return useMemo(
+        () => calculateAllocations(companies, investment, limit),
+        [companies, investment, limit]
+    );
 }

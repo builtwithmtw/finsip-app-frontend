@@ -27,7 +27,7 @@ const HEADERS: { label: string; align: 'left' | 'center' | 'right' }[] = [
 // Every control on this screen sits on the same recessed fill with no border — the
 // focus ring is the only edge that ever appears, so a form of 20 rows stays quiet.
 const FIELD = [
-    'w-full rounded-lg border-0 bg-slate-100/70 px-3 py-2 text-[13px] font-semibold tabular-nums',
+    'w-full rounded-lg border-0 bg-slate-100/70 px-3 py-1.5 text-[13px] leading-5 font-semibold tabular-nums',
     'placeholder:font-normal placeholder:text-slate-300',
     'transition-all focus:bg-white focus:ring-2 focus:ring-sky-500/25',
 ].join(' ');
@@ -346,13 +346,13 @@ const BulkTransactionForm: React.FC = () => {
     }
 
     return (
-        /* On the desktop shell the form fills the height it's given rather than running
-           past it: the asset rows scroll under a stuck header while the action bar and
-           the footnote stay put, so Monthly Entry never puts the page into scroll no
-           matter how many symbols are on the list. Below `lg` it grows as it always did. */
-        <div className="flex flex-col gap-6 lg:h-full">
-            <Panel flush className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-                <div className="scrollbar-hide-auto overflow-x-auto lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+        /* Sized by its rows, not by the viewport. Stretching the table to fill the screen
+           only pays when the rows overflow it; when they don't -- and with the compact
+           row height they usually don't -- it puts a band of empty white between the last
+           row and the action bar. The rows are short enough to fit without it. */
+        <div className="flex flex-col gap-6">
+            <Panel flush>
+                <div className="scrollbar-hide-auto overflow-x-auto">
                     <table className="w-full min-w-[720px] text-left border-collapse">
                         <thead>
                             <tr className="border-b border-slate-100 bg-slate-50/60">
@@ -361,12 +361,8 @@ const BulkTransactionForm: React.FC = () => {
                                         key={h.label}
                                         style={DISPLAY}
                                         className={clsx(
-                                            "px-4 py-3 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400",
-                                            // Opaque, and drawing the row's own bottom hairline as an inset
-                                            // shadow, because the `tr` behind it scrolls away once the cells
-                                            // are stuck and a collapsed-border table won't carry a `border-b`
-                                            // along with them.
-                                            "sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_0_#F1F5F9]",
+                                            "px-4 py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400",
+                                            "bg-slate-50 shadow-[inset_0_-1px_0_0_#F1F5F9]",
                                             h.align === 'right' && "text-right",
                                             h.align === 'center' && "text-center"
                                         )}
@@ -390,7 +386,7 @@ const BulkTransactionForm: React.FC = () => {
                                     <tr key={stock.id} className="group transition-colors hover:bg-slate-50/70">
                                         {/* The accent rail only paints on hover, so a long entry form stays
                                             flat and the pointer has something to track down the column. */}
-                                        <td className="relative px-4 py-2">
+                                        <td className="relative px-4 py-1.5">
                                             <span
                                                 aria-hidden
                                                 className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
@@ -412,7 +408,7 @@ const BulkTransactionForm: React.FC = () => {
                                         </td>
                                         {/* Segmented control: one recessed track, the active side lifted on a
                                             white pill. Colour lands only on the selected side. */}
-                                        <td className="px-4 py-2">
+                                        <td className="px-4 py-1.5">
                                             <div className="flex justify-center">
                                                 <div className="inline-flex rounded-lg bg-slate-100/80 p-0.5">
                                                     <button
@@ -444,7 +440,7 @@ const BulkTransactionForm: React.FC = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-2">
+                                        <td className="px-4 py-1.5">
                                             <div className="max-w-[120px]">
                                                 <input
                                                     ref={(el) => { sharesRefs.current[stock.symbol] = el; }}
@@ -460,7 +456,7 @@ const BulkTransactionForm: React.FC = () => {
                                                 />
                                             </div>
                                         </td>
-                                        <td className="px-4 py-2">
+                                        <td className="px-4 py-1.5">
                                             <div className="relative max-w-[160px]">
                                                 <span
                                                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400"
@@ -492,7 +488,7 @@ const BulkTransactionForm: React.FC = () => {
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-2 text-right">
+                                        <td className="px-4 py-1.5 text-right">
                                             <div
                                                 className={clsx(
                                                     "text-[13px] font-semibold tabular-nums transition-colors",
@@ -508,7 +504,7 @@ const BulkTransactionForm: React.FC = () => {
                                         </td>
                                         {/* Where this symbol lands once the month is committed. The delta against
                                             today's allocation is what makes the number actionable. */}
-                                        <td className="px-4 py-2 text-right">
+                                        <td className="px-4 py-1.5 text-right">
                                             {total > 0 || allocation.current > 0 ? (
                                                 <div className="flex items-center justify-end gap-2">
                                                     <span
@@ -574,7 +570,7 @@ const BulkTransactionForm: React.FC = () => {
                             />
 
                             <div className="flex flex-col gap-2">
-<MetricLabel label="Net Monthly Value" tone="dark" />
+                                <MetricLabel label="Net Monthly Value" tone="dark" />
                                 <span className={clsx(
                                     "flex items-baseline gap-1.5",
                                     totalMonthlyInvestment >= 0 ? "text-emerald-400" : "text-rose-400"

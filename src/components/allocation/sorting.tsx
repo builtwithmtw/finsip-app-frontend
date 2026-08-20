@@ -38,13 +38,20 @@ export function useTableSort<K extends string>(initial: SortState<K>) {
 export function sortRows<T, K extends string>(
     rows: T[],
     sort: SortState<K>,
-    valueOf: (row: T, key: K) => string | number
+    valueOf: (row: T, key: K) => string | number | null | undefined
 ): T[] {
     const sign = sort.direction === 'asc' ? 1 : -1;
 
     return [...rows].sort((a, b) => {
         const av = valueOf(a, sort.key);
         const bv = valueOf(b, sort.key);
+
+        // A column with no reading -- an unset custom weight, a symbol outside the index
+        // -- sinks to the bottom whichever way the sort runs. Ordering it as zero would
+        // rank "no answer" against real ones.
+        const aMissing = av == null;
+        const bMissing = bv == null;
+        if (aMissing || bMissing) return aMissing && bMissing ? 0 : aMissing ? 1 : -1;
 
         if (typeof av === 'string' || typeof bv === 'string') {
             return String(av).localeCompare(String(bv)) * sign;

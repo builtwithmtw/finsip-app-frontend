@@ -4,6 +4,8 @@ import React, { useMemo, useState } from "react";
 import { Plus, Star } from "lucide-react";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useStocks } from "@/hooks/useStocks";
+import { usePortfolio } from "@/context/PortfolioContext";
+import { computeHoldings } from "@/utils/holdings";
 import { useConfirm } from "@/context/ConfirmContext";
 import { toast } from "sonner";
 import AddWatchlistModal from "@/components/watchlist/AddWatchlistModal";
@@ -14,6 +16,7 @@ import { DISPLAY } from "@/utils/typography";
 const WatchlistPage: React.FC = () => {
   const { items, loading, adding, addItem, removeItem } = useWatchlist();
   const { data: stocks = [], isLoading: stocksLoading } = useStocks();
+  const { transactions } = usePortfolio();
   const { confirm } = useConfirm();
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -39,6 +42,22 @@ const WatchlistPage: React.FC = () => {
       }),
     [items, stockBySymbol],
   );
+
+  // Anything you actually hold is already on Live Portfolio, priced and with its P/L --
+  // repeating it here makes the watchlist a list of things you own rather than a list of
+  // things you are watching. Held rows are hidden, not deleted: sell out of a position
+  // and the symbol comes straight back to the watchlist you put it on.
+  const held = useMemo(
+    () => new Set(computeHoldings(transactions).map((h) => h.symbol.toUpperCase())),
+    [transactions],
+  );
+
+  const visibleRows = useMemo(
+    () => rows.filter((r) => !held.has(r.symbol.toUpperCase())),
+    [rows, held],
+  );
+
+  const hiddenCount = rows.length - visibleRows.length;
 
   const existing = useMemo(
     () => new Set(items.map((i) => i.symbol.toUpperCase())),
@@ -78,8 +97,18 @@ const WatchlistPage: React.FC = () => {
                 className="text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-500"
                 style={DISPLAY}
               >
-                {items.length} {items.length === 1 ? "symbol" : "symbols"} tracked
+                {visibleRows.length} {visibleRows.length === 1 ? "symbol" : "symbols"} tracked
               </span>
+              {/* Says what the filter took out, so a symbol you know you saved can't
+                  look like it went missing. */}
+              {hiddenCount > 0 && (
+                <span
+                  className="ml-2 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-300"
+                  style={DISPLAY}
+                >
+                  · {hiddenCount} held
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -103,6 +132,33 @@ const WatchlistPage: React.FC = () => {
         // no jump. Row count tracks the saved list (capped at a page) when it's
         // already in, so the placeholder is the right height.
         <WatchlistTableSkeleton rows={items.length > 0 ? Math.min(items.length, 10) : 8} />
+      ) : visibleRows.length === 0 && rows.length > 0 ? (
+        // Saved symbols exist, they are all held. Saying "empty" here would read as
+        // data loss rather than as the filter doing its job.
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+            <Star size={20} />
+          </div>
+          <p
+            className="text-[15px] font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
+            style={DISPLAY}
+          >
+            Everything here is in your portfolio
+          </p>
+          <p className="mt-3 max-w-sm text-xs font-medium leading-relaxed text-slate-400">
+            All {rows.length} watched {rows.length === 1 ? "symbol" : "symbols"} are positions you
+            already hold, so they live on Live Portfolio instead. Add a symbol you don&apos;t own to
+            start watching it.
+          </p>
+          <button
+            onClick={() => setModalOpen(true)}
+            style={DISPLAY}
+            className="mt-6 inline-flex h-10 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition-all hover:bg-slate-800 active:scale-95"
+          >
+            <Plus size={14} />
+            Add a symbol
+          </button>
+        </div>
       ) : rows.length === 0 ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
           <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
@@ -127,7 +183,7 @@ const WatchlistPage: React.FC = () => {
           </button>
         </div>
       ) : (
-        <WatchlistTable rows={rows} onRemove={handleRemove} />
+        <WatchlistTable rows={visibleRows} onRemove={handleRemove} />
       )}
 
       <AddWatchlistModal

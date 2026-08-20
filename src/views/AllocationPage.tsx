@@ -16,12 +16,19 @@ import { computeLiveHoldings } from '../utils/holdings';
 import { computeRebalance } from '../utils/rebalance';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 
-type AllocationView = 'KMI30' | 'MINE' | 'CURRENT';
+type AllocationView = 'KMI30' | 'KMI15' | 'MINE' | 'CURRENT';
+
+/** The KMI 15 tab funds the usual cap; KMI 30 funds the whole index. */
+const KMI_FULL_HOLDINGS = 30;
+
+/** What the rebalance pulls the book onto: the weights you set, or the split you bought at. */
+type RebalanceBasis = 'custom' | 'invested';
 
 const VIEWS: Array<{ id: AllocationView; label: string }> = [
+    { id: 'CURRENT', label: 'Invested' },
+    { id: 'MINE', label: 'Custom' },
+    { id: 'KMI15', label: 'KMI 15' },
     { id: 'KMI30', label: 'KMI 30' },
-    { id: 'MINE', label: 'My Symbols' },
-    { id: 'CURRENT', label: 'Current' },
 ];
 
 // Footnotes under the table: same micro-label voice, only the colour changes.
@@ -51,10 +58,19 @@ const TableSkeleton: React.FC = () => (
     </div>
 );
 
-/** KMI 30: weights come from the exchange, so the table is read-only. */
-const IndexAllocationView: React.FC<{ investment: number }> = ({ investment }) => {
+/**
+ * KMI: weights come from the exchange, so the table is read-only.
+ *
+ * `limit` is the only difference between the two KMI tabs -- how many of the index's
+ * highest-weighted constituents the money is split across. One feed, one calculation,
+ * two depths of it.
+ */
+const IndexAllocationView: React.FC<{ investment: number; limit: number }> = ({
+    investment,
+    limit,
+}) => {
     const { companies, loading, error, refetch } = useIndexCompanies('KMI30');
-    const allocation = useAllocations(companies, investment);
+    const allocation = useAllocations(companies, investment, limit);
 
     if (loading && companies.length === 0) return <TableSkeleton />;
 
@@ -204,9 +220,15 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
  * the split the market has since made of it, and the drift between the two.
  * Nothing here depends on the investment amount -- it reads the ledger, not a plan.
  */
-const CurrentAllocationView: React.FC<{ rebalancing: boolean }> = ({ rebalancing }) => {
+const CurrentAllocationView: React.FC<{ rebalancing: boolean; basis: RebalanceBasis }> = ({
+    rebalancing,
+    basis,
+}) => {
     const { transactions, transactionsLoading, livePrices, stocks } = usePortfolio();
     const { companies } = useIndexCompanies('ALLSHR');
+    // Warm in the boot cache already -- the KMI 30 tab reads the same query, so putting
+    // its weights in this table costs no request.
+    const { companies: kmiCompanies } = useIndexCompanies('KMI30');
     const currency = useCurrency();
 
     const logos = useMemo(
@@ -219,20 +241,60 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean }> = ({ rebalancing
         [transactions, livePrices]
     );
 
-    // The plan to rebalance onto is exactly what My Symbols funds -- the same leading
-    // slice in the same Overview order -- so the two tabs can't disagree about the target.
-    const plan = useMemo(
+    // The custom plan is exactly what the Custom tab funds -- the same leading slice in
+    // the same Overview order -- so the two tabs can't disagree about the target.
+    /**
+     * Two things you can rebalance onto, and they answer different questions.
+     *
+     * `custom` pulls the book onto the weights set on the Custom tab -- the allocation
+     * you decided you wanted.
+     *
+     * `invested` pulls it back onto the split you actually bought at. Nothing is
+     * re-decided: it only undoes the drift the market has since put between what each
+     * position cost and what it is now worth. Weights are raw cost basis; the plan
+     * normalises them, so they don't need to be percentages.
+     */
+    const targets = useMemo(
         () =>
-            computeRebalance(
-                holdings,
-                stocks.slice(0, MAX_ALLOCATION_HOLDINGS).map((s) => ({
-                    symbol: s.symbol.toUpperCase(),
-                    weight: s.allocationWeight ?? 0,
-                })),
-                livePrices,
-                logos
-            ),
-        [holdings, stocks, livePrices, logos]
+            basis === 'invested'
+                ? holdings.map((h) => ({ symbol: h.symbol.toUpperCase(), weight: h.totalCostBasis }))
+                : stocks.slice(0, MAX_ALLOCATION_HOLDINGS).map((s) => ({
+                      symbol: s.symbol.toUpperCase(),
+                      weight: s.allocationWeight ?? 0,
+                  })),
+        [basis, holdings, stocks]
+    );
+
+    const plan = useMemo(
+        () => computeRebalance(holdings, targets, livePrices, logos),
+        [holdings, targets, livePrices, logos]
+    );
+
+    /**
+     * The Custom tab's weights, normalised the same way that tab normalises them: as a
+     * share of the weights actually set, not of 100. A symbol with no weight stays out
+     * of the map entirely -- unset and zero are different answers, and the column shows
+     * a dash for the first.
+     */
+    const customShares = useMemo(() => {
+        const weighted = stocks
+            .slice(0, MAX_ALLOCATION_HOLDINGS)
+            .filter((s) => (s.allocationWeight ?? 0) > 0);
+        const total = weighted.reduce((sum, s) => sum + (s.allocationWeight ?? 0), 0);
+
+        return new Map(
+            total > 0
+                ? weighted.map((s) => [
+                      s.symbol.toUpperCase(),
+                      ((s.allocationWeight ?? 0) / total) * 100,
+                  ])
+                : []
+        );
+    }, [stocks]);
+
+    const kmiShares = useMemo(
+        () => new Map(kmiCompanies.map((c) => [c.name.toUpperCase(), c.weight])),
+        [kmiCompanies]
     );
 
     const rows: CurrentAllocationRow[] = useMemo(() => {
@@ -245,10 +307,14 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean }> = ({ rebalancing
                 const investedShare = totalCost > 0 ? (h.totalCostBasis / totalCost) * 100 : 0;
                 const marketShare = totalValue > 0 ? (h.marketValue / totalValue) * 100 : 0;
 
+                const key = h.symbol.toUpperCase();
+
                 return {
                     symbol: h.symbol,
-                    logo: logos.get(h.symbol.toUpperCase()) ?? '',
+                    logo: logos.get(key) ?? '',
                     investedShare,
+                    customShare: customShares.get(key) ?? null,
+                    kmiShare: kmiShares.get(key) ?? null,
                     marketShare,
                     difference: marketShare - investedShare,
                     isPriced: h.isPriced,
@@ -257,7 +323,7 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean }> = ({ rebalancing
             // Heaviest position first: the rows that move the portfolio most are the
             // ones worth reading, and the drift on a 0.4% holding is noise.
             .sort((a, b) => b.marketShare - a.marketShare);
-    }, [holdings, logos]);
+    }, [holdings, logos, customShares, kmiShares]);
 
     if (transactionsLoading) return <TableSkeleton />;
 
@@ -273,8 +339,9 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean }> = ({ rebalancing
                             No target weights
                         </p>
                         <p className="mt-3 text-xs font-medium text-slate-400">
-                            Set a weight on the My Symbols tab — that&apos;s the allocation this
-                            rebalances back onto.
+                            Set a weight on the Custom tab — that&apos;s the allocation this
+                            rebalances back onto. Or rebalance with Invested, which needs
+                            no weights: it uses the split you bought at.
                         </p>
                     </div>
                 ) : (
@@ -324,6 +391,7 @@ const AllocationPage: React.FC = () => {
     // with Screener. Off by default: the drift table is the thing being read, and the
     // trade list is the follow-up question you ask of it.
     const [rebalancing, setRebalancing] = useState(false);
+    const [basis, setBasis] = useLocalStorage<RebalanceBasis>('finsip:rebalance-basis', 'custom');
 
     return (
         <div className="flex flex-col gap-2 pb-2">
@@ -352,19 +420,65 @@ const AllocationPage: React.FC = () => {
                     {/* Only Current Allocation has a live split to pull back onto a plan;
                         on the other two tabs the plan *is* the table. */}
                     {view === 'CURRENT' && (
-                        <button
-                            onClick={() => setRebalancing((prev) => !prev)}
-                            style={DISPLAY}
+                        // Off, it's one button. On, the basis choice unfolds inside the same
+                        // dark slab -- a second row of light pills under the tab bar read as a
+                        // rival set of tabs, which is exactly what it isn't.
+                        <div
                             className={clsx(
-                                'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] ring-1 transition-colors',
+                                'flex items-center rounded-xl ring-1 transition-colors',
                                 rebalancing
-                                    ? 'bg-slate-900 text-white ring-slate-900'
-                                    : 'bg-white text-slate-500 ring-slate-900/5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] hover:text-slate-900'
+                                    ? 'gap-1 bg-slate-900 p-1 ring-slate-900'
+                                    : 'ring-transparent'
                             )}
                         >
-                            <Scale size={13} />
-                            Rebalance
-                        </button>
+                            <button
+                                onClick={() => {
+                                    // Opening the plan always starts from Invested: it needs no
+                                    // weights set and answers the question you clicked for --
+                                    // what the market has drifted away from what you paid.
+                                    if (!rebalancing) setBasis('invested');
+                                    setRebalancing((prev) => !prev);
+                                }}
+                                title={rebalancing ? 'Stop rebalancing' : 'Rebalance the book'}
+                                style={DISPLAY}
+                                className={clsx(
+                                    'flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] transition-colors',
+                                    rebalancing
+                                        ? 'rounded-lg px-2.5 py-1 text-white hover:text-sky-300'
+                                        : 'rounded-xl bg-white px-3.5 py-2 text-slate-500 ring-1 ring-slate-900/5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] hover:text-slate-900'
+                                )}
+                            >
+                                <Scale size={13} />
+                                Rebalance
+                            </button>
+
+                            {rebalancing && (
+                                <>
+                                    <span aria-hidden className="h-4 w-px shrink-0 bg-white/15" />
+                                    {([
+                                        { id: 'custom' as const, label: 'Custom', title: 'Onto the weights set on the Custom tab' },
+                                        { id: 'invested' as const, label: 'Invested', title: 'Back onto the split you bought at' },
+                                    ]).map((option) => (
+                                        <button
+                                            key={option.id}
+                                            type="button"
+                                            onClick={() => setBasis(option.id)}
+                                            aria-pressed={basis === option.id}
+                                            title={option.title}
+                                            style={DISPLAY}
+                                            className={clsx(
+                                                'rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition-colors',
+                                                basis === option.id
+                                                    ? 'bg-white text-slate-900'
+                                                    : 'text-slate-400 hover:text-white'
+                                            )}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </>
+                            )}
+                        </div>
                     )}
 
                     {/* Deciding what to hold is the step before deciding how much of
@@ -434,11 +548,14 @@ const AllocationPage: React.FC = () => {
             </div>
 
             {view === 'CURRENT' ? (
-                <CurrentAllocationView rebalancing={rebalancing} />
+                <CurrentAllocationView rebalancing={rebalancing} basis={basis} />
             ) : view === 'MINE' ? (
                 <MySymbolsView investment={investment} />
             ) : (
-                <IndexAllocationView investment={investment} />
+                <IndexAllocationView
+                    investment={investment}
+                    limit={view === 'KMI30' ? KMI_FULL_HOLDINGS : MAX_ALLOCATION_HOLDINGS}
+                />
             )}
         </div>
     );

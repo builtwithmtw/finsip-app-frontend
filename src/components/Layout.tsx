@@ -25,7 +25,7 @@ const navItems = [
     { path: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { path: '/live', label: 'Live Portfolio', icon: Landmark },
     { path: '/entry', label: 'Monthly Entry', icon: Calendar },
-    { path: '/ledger', label: 'Transaction Ledger', icon: Table2 },
+    { path: '/ledger', label: 'Ledger', icon: Table2 },
     { path: '/allocation', label: 'Allocation', icon: PieChart },
     { path: '/watchlist', label: 'Watchlist', icon: Star },
 ];

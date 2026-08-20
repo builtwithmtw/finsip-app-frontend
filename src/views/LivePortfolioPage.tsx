@@ -100,17 +100,31 @@ const LivePortfolioPage: React.FC = () => {
     }, [holdings, sort, liveChanges]);
 
     const topMovements = useMemo(() => {
-        const sorted = holdings.filter(h => h.isPriced).sort((a, b) => b.profitLossPercentage - a.profitLossPercentage);
+        const priced = holdings.filter(h => h.isPriced);
+        const sorted = priced.slice().sort((a, b) => b.profitLossPercentage - a.profitLossPercentage);
+
+        // The day's biggest mover, read off the feed's 1D figure rather than off cost:
+        // a position can be deep underwater since you bought it and still lead today,
+        // which is exactly what the other two cards can't tell you.
+        const today = priced
+            .map(h => ({ holding: h, change: liveChanges[h.symbol] }))
+            .filter(x => Number.isFinite(x.change))
+            .sort((a, b) => b.change - a.change);
+
         return {
             best: sorted[0] || null,
-            worst: sorted[sorted.length - 1] || null
+            worst: sorted[sorted.length - 1] || null,
+            today: today[0] || null,
+            // Same list read from the other end, so the two day cards can never
+            // disagree about which readings counted.
+            todayDown: today.length > 0 ? today[today.length - 1] : null,
         };
-    }, [holdings]);
+    }, [holdings, liveChanges]);
 
     if (loading) return (
         <div className="space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
-                {Array.from({ length: 4 }).map((_, i) => (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 lg:gap-3">
+                {Array.from({ length: 6 }).map((_, i) => (
                     <SkeletonCard key={i} className="!p-4 !rounded-2xl">
                         <SkeletonBar className="h-2.5 w-24 mb-3.5" />
                         <SkeletonBar className="h-5 w-32 mb-2.5" />
@@ -129,7 +143,7 @@ const LivePortfolioPage: React.FC = () => {
         <div className="space-y-4 animate-in fade-in duration-500">
             {/* Summary Widgets — the dark slab anchors the row and echoes the navbar
                 panel; the three light panes hang off it in the same grammar. */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 lg:gap-3">
                 <div className="relative overflow-hidden rounded-2xl bg-slate-950 px-4 py-3.5 text-white ring-1 ring-white/10 shadow-[0_16px_40px_-24px_rgba(2,6,23,0.9)]">
                     <div
                         aria-hidden
@@ -160,7 +174,7 @@ const LivePortfolioPage: React.FC = () => {
                 </div>
 
                 <StatCard>
-<MetricLabel label="Market Velocity" />
+                    <MetricLabel label="Market Velocity" />
                     <div className={clsx(
                         "mt-2.5 flex items-baseline gap-1.5",
                         totals.totalPL >= 0 ? "text-emerald-600" : "text-rose-600"
@@ -230,6 +244,74 @@ const LivePortfolioPage: React.FC = () => {
                                 <span className="text-[11px] font-semibold leading-none tabular-nums" style={NUMERIC}>
                                     {topMovements.worst.profitLossPercentage >= 0 ? '+' : ''}
                                     {topMovements.worst.profitLossPercentage.toFixed(2)}%
+                                </span>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="mt-2.5 text-xl leading-none text-slate-300" style={NUMERIC}>—</div>
+                    )}
+                </StatCard>
+
+                <StatCard>
+                    <MetricLabel label="Today's Up" />
+                    {topMovements.today ? (
+                        <>
+                            <div
+                                className="mt-2.5 text-xl font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
+                                style={DISPLAY}
+                            >
+                                {mask(topMovements.today.holding.symbol)}
+                            </div>
+                            <div className={clsx(
+                                "mt-2 flex items-center gap-1.5",
+                                topMovements.today.change >= 0 ? "text-emerald-600" : "text-rose-600"
+                            )}>
+                                {topMovements.today.change >= 0
+                                    ? <TrendingUp size={12} className="shrink-0" />
+                                    : <TrendingDown size={12} className="shrink-0" />}
+                                <span className="text-[11px] font-semibold leading-none tabular-nums" style={NUMERIC}>
+                                    {topMovements.today.change >= 0 ? '+' : ''}
+                                    {topMovements.today.change.toFixed(2)}%
+                                </span>
+                                <span
+                                    className="text-[10px] font-semibold uppercase leading-none tracking-[0.16em] text-slate-400"
+                                    style={DISPLAY}
+                                >
+                                    Today
+                                </span>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="mt-2.5 text-xl leading-none text-slate-300" style={NUMERIC}>—</div>
+                    )}
+                </StatCard>
+
+                <StatCard>
+                    <MetricLabel label="Today's Down" />
+                    {topMovements.todayDown ? (
+                        <>
+                            <div
+                                className="mt-2.5 text-xl font-semibold uppercase leading-none tracking-[-0.03em] text-slate-900"
+                                style={DISPLAY}
+                            >
+                                {mask(topMovements.todayDown.holding.symbol)}
+                            </div>
+                            <div className={clsx(
+                                "mt-2 flex items-center gap-1.5",
+                                topMovements.todayDown.change >= 0 ? "text-emerald-600" : "text-rose-600"
+                            )}>
+                                {topMovements.todayDown.change >= 0
+                                    ? <TrendingUp size={12} className="shrink-0" />
+                                    : <TrendingDown size={12} className="shrink-0" />}
+                                <span className="text-[11px] font-semibold leading-none tabular-nums" style={NUMERIC}>
+                                    {topMovements.todayDown.change >= 0 ? '+' : ''}
+                                    {topMovements.todayDown.change.toFixed(2)}%
+                                </span>
+                                <span
+                                    className="text-[10px] font-semibold uppercase leading-none tracking-[0.16em] text-slate-400"
+                                    style={DISPLAY}
+                                >
+                                    Today
                                 </span>
                             </div>
                         </>

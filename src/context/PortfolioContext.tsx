@@ -252,11 +252,35 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         const fetchTransactions = async () => {
             if (!silent) setTransactionsLoading(true);
             try {
-                const { data: transData } = await supabase
-                    .from('transactions')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .order('month', { ascending: false });
+                /**
+                 * Paged, because PostgREST caps a response at its `db-max-rows` (1000 on
+                 * Supabase's defaults) and says nothing about having done so. A ledger
+                 * that outgrows one page would otherwise just stop having a past: the
+                 * newest 1000 rows come back and every older month silently disappears
+                 * from the grid, the charts and the holdings maths alike.
+                 *
+                 * A second ordering key is required for paging to be stable -- `month`
+                 * alone leaves rows within a month in no defined order, so the same row
+                 * can appear on two pages while another appears on none.
+                 */
+                const PAGE = 1000;
+                const rows: any[] = [];
+
+                for (let from = 0; ; from += PAGE) {
+                    const { data: page, error } = await supabase
+                        .from('transactions')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('month', { ascending: false })
+                        .order('id', { ascending: false })
+                        .range(from, from + PAGE - 1);
+
+                    if (error || !page) break;
+                    rows.push(...page);
+                    if (page.length < PAGE) break;
+                }
+
+                const transData = rows;
 
                 if (transData) {
                     setTransactions(transData.map(t => ({

@@ -18,20 +18,25 @@ const footCell = 'px-3.5 py-2.5 text-right text-[13px] font-semibold tabular-num
 
 type SortKey = 'symbol' | 'targetShare' | 'marketShare' | 'drift' | 'tradeShares' | 'tradeAmount';
 
+/** Execution order: what you sell, then what you buy with it, then what you leave alone. */
+const ACTION_ORDER: Record<'sell' | 'buy' | 'hold', number> = { sell: 0, buy: 1, hold: 2 };
+
 const RebalanceTable: React.FC<RebalanceTableProps> = ({ plan, emptyMessage = 'Nothing to rebalance' }) => {
     const mask = useMask();
     const currency = useCurrency();
 
-    // Opens on the heaviest target, the order the plan is built in.
-    const { sort, toggle } = useTableSort<SortKey>({ key: 'targetShare', direction: 'desc' });
+    // Opens on Action, which is the order the plan is executed in: sells first (they fund
+    // the buys), then buys, then the holds that need no trade at all.
+    const { sort, toggle } = useTableSort<SortKey>({ key: 'tradeShares', direction: 'asc' });
 
     const rows = React.useMemo(
-        // Action sorts by the size of the trade, and a sell reads as negative so the two
-        // sides fall to opposite ends rather than interleaving by share count.
         () =>
             sortRows(plan.rows, sort, (row, key) =>
+                // Action is a group before it is a number: rank first so sells, buys and
+                // holds stay in blocks, then the largest trade leads inside each block.
+                // Subtracting the amount keeps that descending under an ascending sort.
                 key === 'tradeShares'
-                    ? row.tradeShares * (row.action === 'sell' ? -1 : 1)
+                    ? ACTION_ORDER[row.action] * 1e15 - row.tradeAmount
                     : row[key]
             ),
         [plan.rows, sort]

@@ -12,6 +12,10 @@ export interface CurrentAllocationRow {
     logo?: string;
     /** Share of the portfolio's cost basis. */
     investedShare: number;
+    /** The Custom tab's weight for this symbol, normalised. Null when none is set. */
+    customShare: number | null;
+    /** The symbol's weight in KMI 30. Null when it isn't a constituent. */
+    kmiShare: number | null;
     /** Share of the portfolio valued at the live price. */
     marketShare: number;
     /** Market share minus invested share, in percentage points. */
@@ -28,7 +32,7 @@ interface CurrentAllocationTableProps {
 const bodyCell = 'px-3.5 py-2 text-[13px] leading-5 tabular-nums';
 const footCell = 'px-3.5 py-2.5 text-right text-[13px] font-semibold tabular-nums';
 
-type SortKey = 'symbol' | 'investedShare' | 'marketShare' | 'difference';
+type SortKey = 'symbol' | 'investedShare' | 'customShare' | 'kmiShare' | 'marketShare' | 'difference';
 
 const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
     rows,
@@ -46,15 +50,19 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
 
     const totalInvested = rows.reduce((sum, r) => sum + r.investedShare, 0);
     const totalMarket = rows.reduce((sum, r) => sum + r.marketShare, 0);
+    const totalCustom = rows.reduce((sum, r) => sum + (r.customShare ?? 0), 0);
+    const totalKmi = rows.reduce((sum, r) => sum + (r.kmiShare ?? 0), 0);
 
     return (
         <Panel flush>
             <div className="overflow-x-auto scrollbar-hide-auto">
-                <table className="w-full min-w-[560px] text-left border-collapse">
+                <table className="w-full min-w-[760px] text-left border-collapse">
                     <thead className="border-b border-slate-100 bg-slate-50/60">
                         <tr>
                             <SortHeader label="Equity" sortKey="symbol" sort={sort} onToggle={toggle} naturalDirection="asc" align="left" />
                             <SortHeader label="Invested Allocation" sortKey="investedShare" sort={sort} onToggle={toggle} />
+                            <SortHeader label="Custom Allocation" sortKey="customShare" sort={sort} onToggle={toggle} />
+                            <SortHeader label="KMI Allocation" sortKey="kmiShare" sort={sort} onToggle={toggle} />
                             <SortHeader label="Market Price Allocation" sortKey="marketShare" sort={sort} onToggle={toggle} />
                             <SortHeader label="Difference" sortKey="difference" sort={sort} onToggle={toggle} />
                         </tr>
@@ -64,7 +72,7 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                         {rows.length === 0 ? (
                             <tr>
                                 <td
-                                    colSpan={4}
+                                    colSpan={6}
                                     style={DISPLAY}
                                     className="px-3.5 py-12 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400"
                                 >
@@ -116,6 +124,26 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                                         {r.investedShare.toFixed(2)}%
                                     </td>
 
+                                    {/* The plan and the index, for comparison only -- neither is
+                                        what the book is, both are what it could be measured against.
+                                        A dash means no weight set / not a constituent, which is a
+                                        different thing from a weight of zero. */}
+                                    <td className={clsx(bodyCell, 'text-right text-slate-500')} style={NUMERIC}>
+                                        {r.customShare == null ? (
+                                            <span className="text-slate-300">—</span>
+                                        ) : (
+                                            `${r.customShare.toFixed(2)}%`
+                                        )}
+                                    </td>
+
+                                    <td className={clsx(bodyCell, 'text-right text-slate-500')} style={NUMERIC}>
+                                        {r.kmiShare == null ? (
+                                            <span className="text-slate-300">—</span>
+                                        ) : (
+                                            `${r.kmiShare.toFixed(2)}%`
+                                        )}
+                                    </td>
+
                                     <td className={clsx(bodyCell, 'text-right font-semibold text-slate-700')} style={NUMERIC}>
                                         {r.marketShare.toFixed(2)}%
                                     </td>
@@ -152,6 +180,15 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                                 </td>
                                 <td className={clsx(footCell, 'text-slate-900')} style={NUMERIC}>
                                     {totalInvested.toFixed(0)}%
+                                </td>
+                                {/* Both of these total whatever the plan or the index assigns to
+                                    symbols you hold -- not to 100, unless you hold exactly the
+                                    plan or exactly the index. */}
+                                <td className={clsx(footCell, 'text-slate-500')} style={NUMERIC}>
+                                    {totalCustom > 0 ? `${totalCustom.toFixed(0)}%` : '—'}
+                                </td>
+                                <td className={clsx(footCell, 'text-slate-500')} style={NUMERIC}>
+                                    {totalKmi > 0 ? `${totalKmi.toFixed(0)}%` : '—'}
                                 </td>
                                 <td className={clsx(footCell, 'text-slate-900')} style={NUMERIC}>
                                     {totalMarket.toFixed(0)}%
