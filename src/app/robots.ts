@@ -22,6 +22,7 @@ export default function robots(): MetadataRoute.Robots {
         "/allocation",
         "/live",
         "/reset-password",
+        "/settings",
         "/delete-account",
       ],
     },

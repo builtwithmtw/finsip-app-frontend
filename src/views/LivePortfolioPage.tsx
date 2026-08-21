@@ -38,6 +38,9 @@ const COLUMNS: {
     { id: 'avg', label: 'Avg', align: 'right', numeric: true, get: h => h.avgPrice },
     { id: 'live', label: 'Live', align: 'right', numeric: true, get: h => (h.isPriced ? h.currentPrice : null) },
     { id: 'd1', label: '1D', align: 'right', numeric: true, get: (_h, d1) => d1 },
+    // Cost basis, next to what the position is worth now: the two figures P/L is the
+    // difference between, so they belong side by side rather than at opposite ends.
+    { id: 'invested', label: 'Invested', align: 'right', numeric: true, get: h => h.totalCostBasis },
     { id: 'value', label: 'Value', align: 'right', numeric: true, get: h => h.marketValue },
     { id: 'alloc', label: 'Alloc', align: 'right', numeric: true, get: h => h.marketValue },
     { id: 'pl', label: 'P/L', align: 'right', numeric: true, get: h => (h.isPriced ? h.profitLoss : null) },
@@ -425,6 +428,16 @@ const LivePortfolioPage: React.FC = () => {
                                                 {Math.abs(d1).toFixed(2)}%
                                             </span>
                                         )}
+                                    </td>
+                                    {/* What the position cost. Quieter than Value beside it: this
+                                        one is settled history and never moves, where the other is
+                                        being watched. It is also always known -- an unpriced symbol
+                                        has no live value but its cost basis is still a fact. */}
+                                    <td
+                                        className="px-4 py-2.5 text-right text-[13px] tabular-nums text-slate-500"
+                                        style={NUMERIC}
+                                    >
+                                        {formatCurrency(Math.round(h.totalCostBasis)).replace(/^Rs\s*/, '')}
                                     </td>
                                     <td
                                         className={clsx(

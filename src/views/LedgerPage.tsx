@@ -8,6 +8,7 @@ import MonthlyInvestedChart from '../components/MonthlyInvestedChart';
 import TransactionLog from '../components/TransactionLog';
 import { LedgerActivity, LedgerReturns } from '../components/LedgerAnalytics';
 import useLocalStorage from '../hooks/useLocalStorage';
+import { useSettings } from '../context/SettingsContext';
 import { DISPLAY } from '../utils/typography';
 
 // One control, in the voice the Allocation tab's buttons already use: white pane at
@@ -38,47 +39,57 @@ const Toggle: React.FC<{
 );
 
 /**
- * The summary grid cycles rather than toggles: off -> monthly -> yearly -> off. It is
- * one question with three answers ("don't show it / by month / by year"), and three
- * answers on one button beats two buttons whose combinations include a meaningless one.
+ * Which way the grid is cut. Whether it is shown at all is no longer asked here -- that
+ * is the "Display transactions ledger" setting, since the choice is between the two
+ * readings of the book rather than between a page and an extra on it.
  */
-type GridMode = 'off' | 'month' | 'year';
+type GridPeriod = 'month' | 'year';
 
-const NEXT_MODE: Record<GridMode, GridMode> = { off: 'month', month: 'year', year: 'off' };
-const MODE_LABEL: Record<GridMode, string> = { off: 'Grid', month: 'Monthly', year: 'Yearly' };
-const MODE_TITLE: Record<GridMode, string> = {
-    off: 'Show the grid month by month',
+const NEXT_PERIOD: Record<GridPeriod, GridPeriod> = { month: 'year', year: 'month' };
+const PERIOD_LABEL: Record<GridPeriod, string> = { month: 'Monthly', year: 'Yearly' };
+const PERIOD_TITLE: Record<GridPeriod, string> = {
     month: 'Fold the grid into years',
-    year: 'Hide the grid',
+    year: 'Break the grid back into months',
 };
 
 const LedgerPage: React.FC = () => {
-    // Off by default: the log below is the ledger in the literal sense, and the grid is
-    // a second reading of the same rows. The percentages are on -- they're the reading
-    // the grid is built around -- but they widen every cell, so a long history can trade
-    // them away for months on screen. All remembered across sessions.
-    const [gridMode, setGridMode] = useLocalStorage<GridMode>('finsip:ledger-grid', 'off');
+    /*
+     * Which reading the page opens on lives in Settings, because it is a standing
+     * preference rather than something toggled while reading. Everything else here is a
+     * view option and stays on the page, remembered across sessions.
+     *
+     * The percentages are on -- they're the reading the grid is built around -- but they
+     * widen every cell, so a long history can trade them away for months on screen.
+     */
+    const { showTransactionsLedger } = useSettings();
+
+    const [storedPeriod, setPeriod] = useLocalStorage<GridPeriod | 'off'>('finsip:ledger-grid', 'month');
     const [showChart, setShowChart] = useLocalStorage<boolean>('finsip:ledger-chart', false);
     const [showPercentages, setShowPercentages] = useLocalStorage<boolean>('finsip:ledger-percentages', true);
 
-    /*
-     * The grid is a whole reading of the book on its own, and it wants the page. So
-     * turning it on stands the other three down and turning it off brings them back --
-     * one control, two states, nothing else to learn or to undo.
-     */
-    const gridOn = gridMode !== 'off';
+    // 'off' was the third state of the old cycle and is still in storage for anyone who
+    // left the page on it. It no longer means anything -- the setting decides that now --
+    // so it reads as the monthly cut.
+    const period: GridPeriod = storedPeriod === 'off' ? 'month' : storedPeriod;
+
+    const gridOn = !showTransactionsLedger;
 
     return (
         <div className="animate-in fade-in duration-500">
             <div className="mb-2 flex items-center justify-end gap-1.5">
-                <Toggle
-                    label={MODE_LABEL[gridMode]}
-                    active={gridMode !== 'off'}
-                    title={MODE_TITLE[gridMode]}
-                    onClick={() => setGridMode(NEXT_MODE[gridMode])}
-                >
-                    {gridMode === 'year' ? <CalendarRange size={12} /> : <Table2 size={12} />}
-                </Toggle>
+                {/* Only while the grid is the page: with the log up there is no grid to
+                    cut either way, and a control that governs something not on screen is
+                    worse than no control. */}
+                {gridOn && (
+                    <Toggle
+                        label={PERIOD_LABEL[period]}
+                        active
+                        title={PERIOD_TITLE[period]}
+                        onClick={() => setPeriod(NEXT_PERIOD[period])}
+                    >
+                        {period === 'year' ? <CalendarRange size={12} /> : <Table2 size={12} />}
+                    </Toggle>
+                )}
 
                 <Toggle
                     label="Histogram"
@@ -91,7 +102,7 @@ const LedgerPage: React.FC = () => {
 
                 {/* Only means anything while the grid is up -- it's the grid's own cells
                     that carry the share. */}
-                {gridMode !== 'off' && (
+                {gridOn && (
                     <Toggle
                         label="Share"
                         active={showPercentages}
@@ -142,7 +153,7 @@ const LedgerPage: React.FC = () => {
                 is the first thing under the controls and sets its own. */}
             {gridOn && (
                 <div className={clsx(showChart && 'mt-4')}>
-                    <MonthlyView showPercentages={showPercentages} period={gridMode} />
+                    <MonthlyView showPercentages={showPercentages} period={period} />
                 </div>
             )}
         </div>

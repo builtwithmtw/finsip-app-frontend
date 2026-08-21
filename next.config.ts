@@ -13,6 +13,7 @@ const PRIVATE_PATHS = [
   "/allocation/:path*",
   "/live/:path*",
   "/reset-password/:path*",
+  "/settings/:path*",
   "/delete-account/:path*",
 ];
 

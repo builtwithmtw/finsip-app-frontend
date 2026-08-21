@@ -4,17 +4,18 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, Search } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, Search, SlidersHorizontal } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
 import { usePrivacy, useCurrency } from '../context/PrivacyContext';
+import { useSettings } from '../context/SettingsContext';
 import { useAppRefresh } from '../hooks/useAppRefresh';
 import { Avatar } from './Avatar';
 import MonthPicker from './MonthPicker';
 import EntryDatePicker from './EntryDatePicker';
 import GlobalSearch from './GlobalSearch';
-import { getInitials } from '../utils/formatters';
+import { getInitials, formatCompactCurrency } from '../utils/formatters';
 import { isAdmin } from '../lib/admins';
 import { VerifiedBadge } from './VerifiedBadge';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
@@ -59,6 +60,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { refreshAll, refreshing } = useAppRefresh();
     const { signOut, user } = useAuth();
     const { hidden, toggleHidden } = usePrivacy();
+    const { compactNavAmounts } = useSettings();
     const formatCurrency = useCurrency();
     const { confirm } = useConfirm();
     const pathname = usePathname();
@@ -165,6 +167,25 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         [livePrices, transactions]
     );
 
+    /**
+     * Worth and Cost, abbreviated -- "Rs 272k", "Rs 1.2M".
+     *
+     * Only these two, and only here. They are the widest figures in the app sitting in
+     * the narrowest strip it has, and in the bar they are a headline rather than a
+     * reading anyone acts on -- the exact number is a tab away on Live Portfolio. The
+     * Change figure beside them stays in full: it is small enough not to need this, and
+     * abbreviating a move to "Rs 1k" would round away the thing being watched.
+     *
+     * Routed through the privacy formatter first, so hiding amounts still hides them --
+     * a compact figure is still a figure.
+     *
+     * Switched off on the Settings page, where the whole figure comes back.
+     */
+    const headline = (value: number) => {
+        if (hidden || !compactNavAmounts) return formatCurrency(Math.round(value));
+        return formatCompactCurrency(Math.round(value));
+    };
+
     // Prices only truly move while the market is Open; outside that window the feed
     // (if it responds at all) is just the last close, so we don't badge it "Live".
     const isLive = marketState.isOpen && isMarketLive && totalMarketValue > 0;
@@ -253,14 +274,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                     ) : (
                                         <>
                                             <Metric label="Worth">
-                                                <Amount value={formatCurrency(Math.round(displayWorth))} className="text-white" bare roll />
+                                                <Amount value={headline(displayWorth)} className="text-white" bare roll />
                                             </Metric>
 
                                             <Rule />
 
                                             <Metric label="Cost">
                                                 <Amount
-                                                    value={formatCurrency(Math.round(totalInvestedCost))}
+                                                    value={headline(totalInvestedCost)}
                                                     size="text-[15px]"
                                                     className="text-slate-300"
                                                     bare
@@ -491,6 +512,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                                 )}
                                             </span>
                                         </div>
+
+                                        <Link
+                                            href="/settings"
+                                            role="menuitem"
+                                            onClick={() => setMenuOpen(false)}
+                                            style={DISPLAY}
+                                            className="flex w-full items-center gap-2.5 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                                        >
+                                            <SlidersHorizontal size={14} />
+                                            Settings
+                                        </Link>
 
                                         <button
                                             role="menuitem"

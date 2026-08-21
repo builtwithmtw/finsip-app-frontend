@@ -10,6 +10,44 @@ export const formatCurrency = (amount: number) => {
 };
 
 /**
+ * The same figure at a glance: "Rs 272k", "Rs 1.2M".
+ *
+ * For the nav bar only, where Worth and Cost run to seven digits inside a fixed strip
+ * that also has to hold the tabs and the controls. Everywhere else the exact figure is
+ * the point and prints in full -- this is a headline, not a reading you would act on.
+ *
+ * One decimal below ten of a unit and none above it, so the string stays roughly the
+ * same width whatever the number does: 5k, 9.4k, 272k, 1.2M, 12M. A trailing ".0" is
+ * dropped rather than printed, since "1.0M" claims a precision the abbreviation does
+ * not have. Under a thousand there is nothing to abbreviate and it prints as-is.
+ *
+ * The "Rs " prefix is kept in the same shape `formatCurrency` produces, because
+ * `Amount` splits on it to set the symbol small and dim beside the figure.
+ */
+export const formatCompactCurrency = (amount: number): string => {
+    const sign = amount < 0 ? '-' : '';
+    const abs = Math.abs(amount);
+
+    const scaled = (value: number, suffix: string) => {
+        const text = value < 10
+            ? value.toFixed(1).replace(/\.0$/, '')
+            : Math.round(value).toLocaleString('en-PK');
+        return `${sign}Rs ${text}${suffix}`;
+    };
+
+    /*
+     * The boundaries are where the *rounded* figure would overflow its unit, not where
+     * the raw one does. At a flat 1,000,000 the step below it renders 999,999 as
+     * "1,000k" -- arithmetically right and obviously wrong to read, since the whole
+     * point of the unit is that it never carries four digits.
+     */
+    if (abs >= 999_500) return scaled(abs / 1_000_000, 'M');
+    if (abs >= 999.5) return scaled(abs / 1_000, 'k');
+
+    return `${sign}Rs ${Math.round(abs).toLocaleString('en-PK')}`;
+};
+
+/**
  * Initials from the local part of an email: talha.iways@x.com -> TI, devops@x.com -> DE.
  * Separator-joined names give one letter per name; a single name gives its first two letters.
  */

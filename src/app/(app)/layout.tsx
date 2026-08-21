@@ -5,6 +5,7 @@ import { PortfolioProvider } from "@/context/PortfolioContext";
 import { ConfirmProvider } from "@/context/ConfirmContext";
 import { ProxyProvider } from "@/context/ProxyContext";
 import { PrivacyProvider } from "@/context/PrivacyContext";
+import { SettingsProvider } from "@/context/SettingsContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppBootGate from "@/components/AppBootGate";
 import QueryCacheReset from "@/components/QueryCacheReset";
@@ -31,6 +32,10 @@ export default function AppLayout({
       {/* Outside ProtectedRoute so it survives the sign-out that unmounts
           everything below it -- that transition is the one it exists to catch. */}
       <QueryCacheReset />
+      {/* Above the data providers: these are preferences about how the app draws
+          itself, read by the nav bar and set on the Settings page, and they depend
+          on nothing below them. */}
+      <SettingsProvider>
       <PrivacyProvider>
         <ProxyProvider>
           <PortfolioProvider>
@@ -50,6 +55,7 @@ export default function AppLayout({
           </PortfolioProvider>
         </ProxyProvider>
       </PrivacyProvider>
+      </SettingsProvider>
     </Providers>
   );
 }
