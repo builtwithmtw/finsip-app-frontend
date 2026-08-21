@@ -27,6 +27,43 @@ interface TransactionDetailModalProps {
 
 const HEAD = 'py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
 
+/**
+ * The date to show against a row.
+ *
+ * A transaction belongs to a month and carries no trade date of its own; `createdAt` is
+ * when the row was *written*. For anything filed in the month it belongs to those agree,
+ * and the exact day is worth showing. For anything backfilled they do not, and printing
+ * `createdAt` put a January 2026 date on every October, November and December 2025 row
+ * of a book that was caught up in one sitting -- a column of dates flatly contradicting
+ * the month named in the header directly above them.
+ *
+ * So the day is shown only when it falls inside the month the row is filed under. When
+ * it doesn't, the month itself is the only thing actually known about when the trade
+ * happened, and that is what gets printed.
+ */
+const entryDate = (t: Transaction): string => {
+    const filed = (t.month ?? '').slice(0, 7);
+    const written = (t.createdAt ?? '').slice(0, 7);
+
+    // 'YYYY-MM' -> "Oct 2025", to sit in the same column as "5 Oct 2025" without one
+    // row's label running twice the length of its neighbour's. Built with an explicit
+    // day and no zone suffix so it is parsed as local midnight; `new Date('2025-10')`
+    // is read as UTC and would slip to September for anyone east of Greenwich.
+    const asMonth = (key: string): string => {
+        const at = new Date(`${key}-01T00:00:00`);
+        return Number.isNaN(at.getTime())
+            ? key
+            : at.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    };
+
+    if (filed.length === 7 && written !== filed) return asMonth(filed);
+
+    const at = new Date(t.createdAt);
+    if (Number.isNaN(at.getTime())) return filed.length === 7 ? asMonth(filed) : '—';
+
+    return at.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
 // Edit fields match the recessed, borderless fields used across the app: the focus
 // ring is the only edge that ever appears.
 const FIELD = [
@@ -213,7 +250,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({ isOpen,
                                             className={clsx('whitespace-nowrap py-2.5 text-[13px] text-slate-500', symbol ? 'px-5' : 'px-4')}
                                             style={NUMERIC}
                                         >
-                                            {new Date(t.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            {entryDate(t)}
                                         </td>
 
                                         <td className="px-4 py-2.5">

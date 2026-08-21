@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
-import { computeSipStreak } from '../utils/sipStreak';
+import { computeSipStreak, computeSipWindow } from '../utils/sipStreak';
 import { describeMonthActivity } from '../utils/monthNarrative';
 import { splitMonthActivity, type ActivityDay, type SoloGroup } from '../utils/monthActivity';
 import { DISPLAY, NUMERIC } from '../utils/typography';
@@ -22,7 +22,18 @@ const STRIP_MONTHS = 12;
 
 const monthLabel = (month: string) => format(parseISO(`${month}-01`), "MMM ''yy");
 
-const Tile: React.FC<{ label: string; caption: string; children: React.ReactNode }> = ({
+/** 1 -> "1st", 22 -> "22nd". The teens are the exception every naive version gets wrong. */
+const ordinal = (day: number): string => {
+    if (day % 100 >= 11 && day % 100 <= 13) return `${day}th`;
+    if (day % 10 === 1) return `${day}st`;
+    if (day % 10 === 2) return `${day}nd`;
+    if (day % 10 === 3) return `${day}rd`;
+    return `${day}th`;
+};
+
+// `caption` is optional: a figure that speaks for itself takes the card without a
+// qualifying line under it, rather than one padded out with something to say.
+const Tile: React.FC<{ label: string; caption?: string; children: React.ReactNode }> = ({
     label,
     caption,
     children,
@@ -30,12 +41,14 @@ const Tile: React.FC<{ label: string; caption: string; children: React.ReactNode
     <div className="rounded-xl bg-slate-50/70 px-3.5 py-3 ring-1 ring-slate-900/5">
         <MetricLabel label={label} />
         <div className="mt-2.5">{children}</div>
-        <p
-            className="mt-2 text-[9px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
-            style={DISPLAY}
-        >
-            {caption}
-        </p>
+        {caption && (
+            <p
+                className="mt-2 text-[9px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
+                style={DISPLAY}
+            >
+                {caption}
+            </p>
+        )}
     </div>
 );
 
@@ -81,6 +94,26 @@ export const LedgerReturns: React.FC = () => {
         [transactions, currentMonth]
     );
     const strip = streak.months.slice(-STRIP_MONTHS);
+
+    /**
+     * What a contribution typically is, averaged over the months that had one.
+     *
+     * Deliberately not averaged over every month since the first buy: a skipped month
+     * contributed nothing, and letting it pull the figure down would answer "how much
+     * do I invest per calendar month" when the question here is "when I do fund the
+     * SIP, what does it cost me". The streak strip directly above already says how
+     * often the plan was kept, so the two are not telling the same story twice.
+     *
+     * Buys only, on the same footing as the streak itself -- `SipMonth.amount` is the
+     * month's buy total, so a month that also sold does not net off against it.
+     */
+    const averageSip = useMemo(() => {
+        const funded = streak.months.filter((m) => m.funded);
+        if (funded.length === 0) return 0;
+        return funded.reduce((sum, m) => sum + m.amount, 0) / funded.length;
+    }, [streak]);
+
+    const sipWindow = useMemo(() => computeSipWindow(transactions), [transactions]);
 
     const realized = useMemo(() => {
         let profit = 0;
@@ -217,6 +250,40 @@ export const LedgerReturns: React.FC = () => {
                                 </span>
                             ))}
                         </div>
+                    )}
+                </div>
+            )}
+
+            {/* What the plan actually costs, in the same card dress as the figures at the
+                top of the panel. It sits under the streak because it reads off it: the
+                strip says how many months were funded, this says what one of them is
+                worth. Guarded on fundedCount rather than totalMonths so it never has to
+                render a division by zero -- a ledger holding only sells has months but no
+                contribution to average.
+
+                The two sit side by side: they answer one question between them -- how
+                much, and when -- and reading them as a pair is the point. Alone, Average
+                SIP keeps the full width rather than leaving half the row empty. */}
+            {streak.fundedCount > 0 && (
+                <div className={clsx('mt-3.5 grid gap-3', sipWindow ? 'grid-cols-2' : 'grid-cols-1')}>
+                    <Tile label="Average SIP">
+                        <Amount value={formatCurrency(Math.round(averageSip))} />
+                    </Tile>
+
+                    {/* When in the month it actually goes in. Not masked: a date is not a
+                        figure, and hiding it would say nothing to anyone looking over your
+                        shoulder that the streak strip does not already say. */}
+                    {sipWindow && (
+                        <Tile label="SIP Date Range">
+                            <span
+                                className="block text-[17px] font-semibold leading-none tabular-nums text-slate-900"
+                                style={NUMERIC}
+                            >
+                                {sipWindow.earliest === sipWindow.latest
+                                    ? ordinal(sipWindow.earliest)
+                                    : `${ordinal(sipWindow.earliest)} – ${ordinal(sipWindow.latest)}`}
+                            </span>
+                        </Tile>
                     )}
                 </div>
             )}

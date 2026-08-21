@@ -133,11 +133,21 @@ export const describeMonthActivity = (
         });
     }
 
+    /*
+     * Beyond the SIP, the month gets a fixed budget of event lines, spent on rotations
+     * before lone trades: a day that bought and sold at once carries a decision, where a
+     * single trade is one leg of one. Without a budget a busy month would push the
+     * comparison and the streak off the end of the list, and those are the two lines
+     * that say whether the plan is being kept.
+     */
+    const EVENT_LINES = 2;
+    const events: string[] = [];
+
     // A day that both bought and sold is a rotation, not two unrelated trades, so it is
     // named as one -- which of these went out and which came in is the thing to see.
     days
         .filter((d) => d.buyTotal > 0 && d.sellTotal > 0)
-        .slice(0, 2)
+        .slice(0, EVENT_LINES)
         .forEach((day) => {
             const bought = listSymbols(
                 Array.from(new Set(day.transactions.filter((t) => t.type === 'buy').map((t) => t.symbol))),
@@ -147,8 +157,44 @@ export const describeMonthActivity = (
                 Array.from(new Set(day.transactions.filter((t) => t.type === 'sell').map((t) => t.symbol))),
                 maskSymbol
             );
-            notes.push({ text: `On ${day.label} you bought ${bought} and sold ${sold}.` });
+            events.push(`On ${day.label} you bought ${bought} and sold ${sold}.`);
         });
+
+    /*
+     * The days that did exactly one thing -- the odd sell, a top-up filed on its own.
+     * These were previously unnamed: the SIP line and the rotation line both skip them,
+     * so a month whose only news was one exit read as though nothing had happened.
+     *
+     * Oldest first, because a sell followed by a buy is usually the same decision taken
+     * in two steps and reads as one sentence -- "sold DGKC, then bought PRL". Pairing
+     * them only across consecutive single-trade days keeps that claim honest: they are
+     * genuinely consecutive in the month, with nothing else between them. The SIP day is
+     * excluded from the sequence, since it has its own line already.
+     */
+    const solo = days
+        .filter((d) => d.key !== sipDay?.key && d.transactions.length === 1)
+        .sort((a, b) => a.key.localeCompare(b.key));
+
+    for (let i = 0; i < solo.length && events.length < EVENT_LINES; i += 1) {
+        const day = solo[i];
+        const trade = day.transactions[0];
+        const next = solo[i + 1];
+        const nextTrade = next?.transactions[0];
+
+        if (trade.type === 'sell' && nextTrade?.type === 'buy') {
+            events.push(
+                `Sold ${maskSymbol(trade.symbol)} on ${day.label}, then bought ${maskSymbol(nextTrade.symbol)} on ${next.label}.`
+            );
+            i += 1; // both days are spoken for by that sentence.
+            continue;
+        }
+
+        events.push(
+            `${trade.type === 'sell' ? 'Sold' : 'Bought'} ${maskSymbol(trade.symbol)} on ${day.label}.`
+        );
+    }
+
+    events.forEach((text) => notes.push({ text }));
 
     if (buyTotal > 0 && previousNet && previousNet[1] > 0 && net > 0) {
         const change = ((net - previousNet[1]) / previousNet[1]) * 100;
@@ -166,8 +212,10 @@ export const describeMonthActivity = (
 
     if (buyTotal > 0) {
         const streak = computeSipStreak(valid, currentMonth);
-        if (streak.current > 1) notes.push({ text: `That's ${streak.current} months in a row.` });
+        if (streak.current > 1) notes.push({ text: `That's ${streak.current} months in a row. 🔥` });
     }
 
-    return { headline, notes: notes.slice(0, 4) };
+    // Five: the SIP, two events, the comparison and the streak -- one of each kind the
+    // month can produce, rather than four of whichever kind came first.
+    return { headline, notes: notes.slice(0, 5) };
 };

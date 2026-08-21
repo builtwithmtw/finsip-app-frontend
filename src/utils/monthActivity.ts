@@ -9,7 +9,7 @@ export interface ActivityDay {
     sellTotal: number;
     /** 0 is the month's heaviest buying day -- its SIP date. */
     rank: number;
-    /** Newest first. */
+    /** Largest amount first, whichever side it traded. */
     transactions: Transaction[];
 }
 
@@ -76,8 +76,21 @@ export const groupMonthActivity = (
             day.rank = index;
         });
 
+    // Biggest ticket first, so a day reads as what it weighted into rather than as the
+    // order the entries happened to be typed in. Within one day `createdAt` is minutes
+    // apart at most -- on the SIP day it is one sitting -- so it never carried meaning
+    // here the way it does between days; it stays only as the tie-break, to keep the
+    // order stable when two lines are for the same amount.
+    //
+    // Magnitude, not signed value: on a day that both bought and sold, the largest
+    // trade is the largest trade whichever side it was on, and ranking sells below
+    // every buy would bury the one line most worth seeing.
     all.forEach((day) => {
-        day.transactions.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+        day.transactions.sort(
+            (a, b) =>
+                (amountOf(b) - amountOf(a)) ||
+                (b.createdAt ?? '').localeCompare(a.createdAt ?? '')
+        );
     });
 
     return all.sort((a, b) => b.key.localeCompare(a.key));
