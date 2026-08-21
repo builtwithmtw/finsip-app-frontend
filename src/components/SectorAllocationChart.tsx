@@ -114,8 +114,8 @@ const SectorAllocationChart: React.FC = () => {
      * the media query stays in Tailwind rather than in JS.
      */
     const LEGEND_ROW_H = 21; // 11px row + 10px gap-y
-    const CHART_MIN = 140;
-    const CHART_FLOOR = 96;
+    const CHART_MIN = 120;
+    const CHART_FLOOR = 84;
     const legendCount = Math.max(data.length - 1, 0);
     const chartMinFor = (rows: number, baseline: number) =>
         `${Math.max(CHART_FLOOR, CHART_MIN - Math.max(0, rows - baseline) * LEGEND_ROW_H)}px`;

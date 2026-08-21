@@ -35,13 +35,18 @@ const DashboardPage: React.FC = () => {
                     <AllocationCardSkeleton />
                 </div>
             ) : hasHoldings ? (
-                /* On the desktop shell this row takes exactly the height left over above the
-                   asset list, so Overview never pushes the page into scroll no matter how many
-                   holdings or sectors there are -- the holdings table scrolls inside itself and
-                   the donut flexes down. `minmax(0,1fr)` is what lets the track shrink below its
-                   content; a bare `1fr` would still grow to max-content. Below `lg` the cards
-                   stack and stay content-sized. */
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:min-h-0 lg:flex-1 lg:grid-rows-[minmax(0,1fr)]">
+                /* The row takes the height its content needs and no more. It used to take
+                   the whole leftover height above the asset list, which on a tall screen
+                   meant a short holdings list padded itself out with empty rows-worth of
+                   card and the donut inflated to match it.
+
+                   Nothing here is capped, because nothing needs to be: as a flex child the
+                   row still shrinks (`min-h-0` lets it shrink past its content), so a long
+                   holdings list gives way rather than pushing the asset list off a screen
+                   that cannot scroll. The table scrolls inside itself and the donut flexes
+                   down, exactly as before -- only now that happens when the content is
+                   genuinely too tall, not on every screen. Below `lg` the cards stack. */
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:min-h-0 lg:overflow-hidden">
                     <div className="lg:col-span-7 lg:min-h-0">
                         <HoldingsTable />
                     </div>
