@@ -7,7 +7,7 @@ import clsx from 'clsx';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency } from '../context/PrivacyContext';
-import { useIndexCompanies } from '../hooks/useIndexCompanies';
+import { useIndexCompanies, type MarketIndex } from '../hooks/useIndexCompanies';
 import { useAllocations, MAX_ALLOCATION_HOLDINGS, type AllocationInput, type AllocationRow } from '../hooks/useAllocations';
 import AllocationTable from '../components/allocation/AllocationTable';
 import CurrentAllocationTable, { type CurrentAllocationRow } from '../components/allocation/CurrentAllocationTable';
@@ -16,10 +16,26 @@ import { computeLiveHoldings } from '../utils/holdings';
 import { computeRebalance } from '../utils/rebalance';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 
-type AllocationView = 'KMI30' | 'KMI15' | 'MINE' | 'CURRENT';
+/**
+ * A tab is named for the index it funds *from* and the depth it funds *to*: KMI 15 is
+ * the top fifteen of KMI 30, KSE 15 the top fifteen of KSE 30. The index itself stays a
+ * `MarketIndex` and is never the tab's own name.
+ */
+type AllocationView = 'KMI15' | 'KSE15' | 'MINE' | 'CURRENT';
 
-/** The KMI 15 tab funds the usual cap; KMI 30 funds the whole index. */
-const KMI_FULL_HOLDINGS = 30;
+/**
+ * Tabs that no longer exist, and where a stored value for one lands instead.
+ *
+ * These names are still sitting in the localStorage of anyone who last left the page on
+ * them, and a stored value with no tab behind it would render a page with nothing lit.
+ */
+const RETIRED_VIEWS: Record<string, AllocationView> = {
+    // Funded all thirty; removed in favour of the fifteen-deep tab.
+    KMI30: 'KMI15',
+    // Only ever the fifteen-deep tab -- it was named for its index before being renamed
+    // for what it actually funds.
+    KSE30: 'KSE15',
+};
 
 /** What the rebalance pulls the book onto: the weights you set, or the split you bought at. */
 type RebalanceBasis = 'custom' | 'invested';
@@ -28,7 +44,7 @@ const VIEWS: Array<{ id: AllocationView; label: string }> = [
     { id: 'CURRENT', label: 'Invested' },
     { id: 'MINE', label: 'Custom' },
     { id: 'KMI15', label: 'KMI 15' },
-    { id: 'KMI30', label: 'KMI 30' },
+    { id: 'KSE15', label: 'KSE 15' },
 ];
 
 // Footnotes under the table: same micro-label voice, only the colour changes.
@@ -59,17 +75,19 @@ const TableSkeleton: React.FC = () => (
 );
 
 /**
- * KMI: weights come from the exchange, so the table is read-only.
+ * An index tab: weights come from the exchange, so the table is read-only.
  *
- * `limit` is the only difference between the two KMI tabs -- how many of the index's
- * highest-weighted constituents the money is split across. One feed, one calculation,
- * two depths of it.
+ * `index` is which PSX index the money is split by and `limit` is how far down it the
+ * money goes -- `fetchIndexCompanies` returns every feed sorted heaviest-first, so a
+ * limit is always the top N by index weight. One component, one calculation; the tabs
+ * differ only in those two arguments.
  */
-const IndexAllocationView: React.FC<{ investment: number; limit: number }> = ({
-    investment,
-    limit,
-}) => {
-    const { companies, loading, error, refetch } = useIndexCompanies('KMI30');
+const IndexAllocationView: React.FC<{
+    index: MarketIndex;
+    investment: number;
+    limit: number;
+}> = ({ index, investment, limit }) => {
+    const { companies, loading, error, refetch } = useIndexCompanies(index);
     const allocation = useAllocations(companies, investment, limit);
 
     if (loading && companies.length === 0) return <TableSkeleton />;
@@ -81,6 +99,11 @@ const IndexAllocationView: React.FC<{ investment: number; limit: number }> = ({
                 rows={allocation.results}
                 summary={allocation}
                 emptyMessage={error ? 'Feed unavailable' : 'No data available'}
+                // KMI is the Shariah index -- every row would carry the badge, so it
+                // says nothing there. KSE 30 is the whole market, where it is the
+                // distinction the list is actually being read for.
+                showShariah={index !== 'KMI30'}
+                showPortfolio
             />
         </div>
     );
@@ -384,7 +407,15 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean; basis: RebalanceBa
 };
 
 const AllocationPage: React.FC = () => {
-    const [view, setView] = useLocalStorage<AllocationView>('finsip:allocation-view', 'KMI30');
+    const [storedView, setView] = useLocalStorage<AllocationView | keyof typeof RETIRED_VIEWS>(
+        'finsip:allocation-view',
+        'KMI15'
+    );
+
+    // A stored name that no longer belongs to a tab lands on its replacement. Read rather
+    // than written back: the stored value is corrected the next time a tab is actually
+    // picked, and rewriting it here would mean a storage write on every visit.
+    const view: AllocationView = RETIRED_VIEWS[storedView] ?? (storedView as AllocationView);
     const [investment, setInvestment] = useLocalStorage<number>('finsip:allocation-investment', 100000);
 
     // Lives up here rather than inside the view so the toggle can share the header row
@@ -553,8 +584,9 @@ const AllocationPage: React.FC = () => {
                 <MySymbolsView investment={investment} />
             ) : (
                 <IndexAllocationView
+                    index={view === 'KSE15' ? 'KSE30' : 'KMI30'}
                     investment={investment}
-                    limit={view === 'KMI30' ? KMI_FULL_HOLDINGS : MAX_ALLOCATION_HOLDINGS}
+                    limit={MAX_ALLOCATION_HOLDINGS}
                 />
             )}
         </div>

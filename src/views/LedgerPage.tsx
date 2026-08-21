@@ -61,6 +61,13 @@ const LedgerPage: React.FC = () => {
     const [showChart, setShowChart] = useLocalStorage<boolean>('finsip:ledger-chart', false);
     const [showPercentages, setShowPercentages] = useLocalStorage<boolean>('finsip:ledger-percentages', true);
 
+    /*
+     * The grid is a whole reading of the book on its own, and it wants the page. So
+     * turning it on stands the other three down and turning it off brings them back --
+     * one control, two states, nothing else to learn or to undo.
+     */
+    const gridOn = gridMode !== 'off';
+
     return (
         <div className="animate-in fade-in duration-500">
             <div className="mb-2 flex items-center justify-end gap-1.5">
@@ -98,35 +105,43 @@ const LedgerPage: React.FC = () => {
                         <Percent size={12} />
                     </Toggle>
                 )}
+
             </div>
 
             {/* The standing figures flank the log rather than stacking above it: they are
                 read once on arrival, while the log is what the page is actually for, so it
-                takes the middle and the width. */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                <div className="lg:col-span-3">
-                    <LedgerReturns />
-                </div>
+                takes the middle and the width. All of it stands down while the grid has
+                the page. */}
+            {!gridOn && (
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                    <div className="lg:col-span-3">
+                        <LedgerReturns />
+                    </div>
 
-                <div className="lg:col-span-6">
-                    <TransactionLog />
-                </div>
+                    <div className="lg:col-span-6">
+                        <TransactionLog />
+                    </div>
 
-                <div className="lg:col-span-3">
-                    <LedgerActivity />
+                    <div className="lg:col-span-3">
+                        <LedgerActivity />
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Both of these need the full width -- the histogram to keep its months
-                apart, the grid because it is a column per month. */}
+                apart, the grid because it is a column per month. The histogram keeps its
+                own switch either way: it is the one thing here that reads *with* the
+                grid rather than competing with it, both being a month at a time. */}
             {showChart && (
-                <div className="mt-4">
+                <div className={clsx(!gridOn && 'mt-4')}>
                     <MonthlyInvestedChart />
                 </div>
             )}
 
-            {gridMode !== 'off' && (
-                <div className="mt-4">
+            {/* The grid only needs a top gap when the histogram is above it; otherwise it
+                is the first thing under the controls and sets its own. */}
+            {gridOn && (
+                <div className={clsx(showChart && 'mt-4')}>
                     <MonthlyView showPercentages={showPercentages} period={gridMode} />
                 </div>
             )}

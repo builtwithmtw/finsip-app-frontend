@@ -16,7 +16,18 @@ import { computeHoldings } from '../utils/holdings';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Panel } from './Panel';
 
-const HEAD = 'py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
+const HEAD = 'py-2 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
+
+/*
+ * Column width, which is what decides how many months fit before the grid has to be
+ * scrolled -- the single biggest lever on how much of the book you can read at once.
+ *
+ * Two widths because the share column is optional: carrying the width for a percentage
+ * that isn't being drawn costs a month of history on screen for nothing. The narrow one
+ * still clears seven figures with a thousands separator at this size.
+ */
+const COL_WIDE = 'min-w-[112px]';
+const COL_NARROW = 'min-w-[92px]';
 
 interface Cell {
     shares: number;
@@ -97,7 +108,7 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
         // The container only exists once the grid does, so re-attach when it appears.
     }, [loading, filteredTransactions.length]);
 
-    const { sortedColumns, sortedSymbols, matrix, colTotals, colBuyTotals, held } = useMemo(() => {
+    const { sortedColumns, sortedSymbols, matrix, colTotals, colBuyTotals, colMaxBuys, held } = useMemo(() => {
         const columnsSet = new Set<string>();
         const symbolsSet = new Set<string>();
 
@@ -165,6 +176,16 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
         // remaining rows past 100%.
         const colBuyTotals = new Map<string, number>();
 
+        /*
+         * The heaviest single buy in each month, which is what the cell tints are scaled
+         * against. Per column rather than across the whole grid on purpose: the question
+         * a row of tints answers is "where did THIS month go", and scaling globally would
+         * wash out every month that happened to be smaller than the biggest one you ever
+         * had. It also keeps the picture legible whether the book holds four symbols or
+         * twenty -- the largest cell in a month is always full strength.
+         */
+        const colMaxBuys = new Map<string, number>();
+
         sortedSymbols.forEach(symbol => {
             sortedColumns.forEach(col => {
                 const cell = matrix[symbol]?.[col];
@@ -172,11 +193,12 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
                 colTotals.set(col, (colTotals.get(col) || 0) + cell.totalAmount);
                 if (cell.totalAmount > 0) {
                     colBuyTotals.set(col, (colBuyTotals.get(col) || 0) + cell.totalAmount);
+                    colMaxBuys.set(col, Math.max(colMaxBuys.get(col) || 0, cell.totalAmount));
                 }
             });
         });
 
-        return { sortedColumns, sortedSymbols, matrix, colTotals, colBuyTotals, held };
+        return { sortedColumns, sortedSymbols, matrix, colTotals, colBuyTotals, colMaxBuys, held };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filteredTransactions, stocks, isYearly]);
 
@@ -267,7 +289,7 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
                             <tr className="border-b border-slate-100">
                                 <th
                                     style={DISPLAY}
-                                    className={clsx(HEAD, 'sticky left-0 z-30 border-r border-slate-100 bg-white pl-5 pr-4')}
+                                    className={clsx(HEAD, 'sticky left-0 z-30 border-r border-slate-100 bg-white pl-4 pr-3')}
                                 >
                                     Symbol
                                 </th>
@@ -277,10 +299,25 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
                                         onMouseEnter={() => setHoveredMonth(col)}
                                         onMouseLeave={() => setHoveredMonth(null)}
                                         className={clsx(
-                                            "min-w-[132px] border-r border-slate-100 px-3 py-2.5 text-right transition-colors last:border-r-0",
+                                            "relative border-r border-slate-100 px-2.5 py-2 text-right transition-colors last:border-r-0",
+                                            showPercentages ? COL_WIDE : COL_NARROW,
                                             hoveredMonth === col && "bg-slate-50"
                                         )}
                                     >
+                                        {/* The selected month used to be a sky wash down the
+                                            whole column. Now that a cell's fill means how big
+                                            it is, the two would be saying different things in
+                                            the same ink -- so selection moved up here, to a
+                                            rule under its own heading. It marks the column
+                                            once instead of on every row, which is all it ever
+                                            needed to do. */}
+                                        {columnKey(selectedMonth) === col && (
+                                            <span
+                                                aria-hidden
+                                                className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-sky-500"
+                                            />
+                                        )}
+
                                         {/* The delete button occupies no layout of its own until it is
                                             wanted -- it sits over the label's left, which is empty space.
                                             Months only: wiping a whole year is not something the ledger
@@ -338,13 +375,13 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
                                     <tr key={symbol} className="group/row border-b border-slate-100 transition-colors last:border-0">
                                         {/* Stays put as the months scroll past, so a row never loses its
                                             label. It carries its own background for that reason. */}
-                                        <td className="sticky left-0 z-10 border-r border-slate-100 bg-white py-1.5 pl-5 pr-4 transition-colors group-hover/row:bg-slate-50">
+                                        <td className="sticky left-0 z-10 border-r border-slate-100 bg-white py-1 pl-4 pr-3 transition-colors group-hover/row:bg-slate-50">
                                             <button
                                                 onClick={() => openSymbol(symbol)}
                                                 title={`All transactions for ${symbol}`}
                                                 style={DISPLAY}
                                                 className={clsx(
-                                                    "text-[12px] font-semibold uppercase leading-none tracking-[-0.03em] transition-colors hover:text-sky-600",
+                                                    "text-[11px] font-semibold uppercase leading-none tracking-[-0.03em] transition-colors hover:text-sky-600",
                                                     isExited ? "text-rose-600" : "text-slate-900"
                                                 )}
                                             >
@@ -362,7 +399,7 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
                                                         onMouseEnter={() => setHoveredMonth(col)}
                                                         onMouseLeave={() => setHoveredMonth(null)}
                                                         className={clsx(
-                                                            "border-r border-slate-100 px-3 py-1.5 text-right text-slate-200 transition-colors last:border-r-0 group-hover/row:bg-slate-50",
+                                                            "border-r border-slate-100 px-2.5 py-1 text-right text-slate-200 transition-colors last:border-r-0 group-hover/row:bg-slate-50",
                                                             hoveredMonth === col && "bg-slate-50"
                                                         )}
                                                     >
@@ -381,19 +418,31 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
 
                                             const isSell = data.shares < 0 || (data.shares === 0 && data.hasSell);
 
-                                            // This month's buying reads as already selected -- the same sky
-                                            // wash a cell takes on hover -- so the column you are actually
-                                            // working in stands out of a long history without being clicked.
-                                            // Sells are left alone: the highlight is about where the money
-                                            // went this month.
-                                            const isCurrentBuy = columnKey(selectedMonth) === col && !isSell;
-
                                             // Share of that column's buying. Sells get none -- they are not part
                                             // of how the money was split.
                                             const monthBuys = colBuyTotals.get(col) ?? 0;
                                             const share = !isSell && monthBuys > 0
                                                 ? (data.totalAmount / monthBuys) * 100
                                                 : null;
+
+                                            /*
+                                             * How strongly the cell is tinted: its size against the heaviest buy
+                                             * of the same month, so the biggest cell in every column reads at full
+                                             * strength and the rest fall away from it.
+                                             *
+                                             * Floored well above zero. A cell that exists is a month you put money
+                                             * into that symbol, and that fact should never fade to the point of
+                                             * looking like the empty ones beside it -- the tint ranks the cells, it
+                                             * does not decide which ones count. Capped low too: this sits behind
+                                             * 11px figures, and anything heavier starts costing legibility to say
+                                             * something the number already says exactly.
+                                             */
+                                            const monthPeak = colMaxBuys.get(col) ?? 0;
+                                            const heat = isSell
+                                                ? 0.10
+                                                : monthPeak > 0
+                                                    ? 0.06 + (data.totalAmount / monthPeak) * 0.20
+                                                    : 0;
 
 
                                             return (
@@ -407,21 +456,33 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
                                                     onMouseEnter={() => setHoveredMonth(col)}
                                                     onMouseLeave={() => setHoveredMonth(null)}
                                                     className={clsx(
-                                                        "cursor-pointer border-r border-slate-100 px-3 py-1.5 text-right transition-colors last:border-r-0",
+                                                        "relative cursor-pointer border-r border-slate-100 px-2.5 py-1 text-right transition-colors last:border-r-0",
                                                         "group-hover/row:bg-slate-50 hover:!bg-sky-50",
-                                                        hoveredMonth === col && "bg-slate-50",
-                                                        // Beats the row and column washes, and still yields to
-                                                        // the hover rule, which Tailwind emits after it.
-                                                        isCurrentBuy && "!bg-sky-50"
+                                                        hoveredMonth === col && "bg-slate-50"
                                                     )}
                                                 >
+                                                    {/* The tint is a layer of its own rather than a background on
+                                                        the cell, so it composes with the row and column washes
+                                                        instead of fighting them for the same property -- hover
+                                                        still reads through it, and neither needs `!important` to
+                                                        win. Costs no height and no width: it sits behind the
+                                                        figures that were already there. */}
+                                                    <span
+                                                        aria-hidden
+                                                        className={clsx(
+                                                            'pointer-events-none absolute inset-0',
+                                                            isSell ? 'bg-rose-500' : 'bg-sky-500'
+                                                        )}
+                                                        style={{ opacity: heat }}
+                                                    />
+
                                                     {/* Amount and its share of the month sit on one line: a second
                                                         line would double every row and cost the grid its no-scroll
                                                         fit. The share is dimmed so the rupee figure still leads. */}
-                                                    <span className="inline-flex items-baseline justify-end gap-1.5">
+                                                    <span className="relative inline-flex items-baseline justify-end gap-1">
                                                         <span
                                                             className={clsx(
-                                                                "text-[12px] leading-none tabular-nums",
+                                                                "text-[11px] leading-none tabular-nums",
                                                                 isSell ? "text-rose-600" : "text-slate-700"
                                                             )}
                                                             style={NUMERIC}
@@ -431,7 +492,7 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
                                                         </span>
                                                         {showPercentages && share != null && (
                                                             <span
-                                                                className="w-8 text-right text-[10px] leading-none tabular-nums text-slate-400"
+                                                                className="w-7 text-right text-[9px] leading-none tabular-nums text-slate-400"
                                                                 style={NUMERIC}
                                                             >
                                                                 {share.toFixed(0)}%
@@ -452,7 +513,7 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
                             <tr className="border-t border-slate-100 bg-slate-50/60">
                                 <td
                                     style={DISPLAY}
-                                    className={clsx(HEAD, 'sticky left-0 z-20 border-r border-slate-100 bg-slate-50 pl-5 pr-4 text-slate-500')}
+                                    className={clsx(HEAD, 'sticky left-0 z-20 border-r border-slate-100 bg-slate-50 pl-4 pr-3 text-slate-500')}
                                 >
                                     Net
                                 </td>
@@ -464,13 +525,13 @@ const MonthlyView: React.FC<MonthlyViewProps> = ({ showPercentages, period = 'mo
                                         onMouseEnter={() => setHoveredMonth(col)}
                                         onMouseLeave={() => setHoveredMonth(null)}
                                         className={clsx(
-                                            "border-r border-slate-100 px-3 py-2.5 text-center transition-colors last:border-r-0",
+                                            "border-r border-slate-100 px-2.5 py-2 text-center transition-colors last:border-r-0",
                                             hoveredMonth === col && "bg-slate-100/70"
                                         )}
                                     >
                                             <span
                                                 className={clsx(
-                                                    'text-[12px] font-semibold leading-none tabular-nums',
+                                                    'text-[11px] font-semibold leading-none tabular-nums',
                                                     net < 0 ? 'text-rose-600' : 'text-slate-600'
                                                 )}
                                                 style={NUMERIC}

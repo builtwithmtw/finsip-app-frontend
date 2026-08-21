@@ -27,7 +27,7 @@ export const queryKeys = {
     ["index-companies", index, proxyId] as const,
 };
 
-export type MarketIndex = "KMI30" | "ALLSHR";
+export type MarketIndex = "KMI30" | "KSE30" | "ALLSHR";
 
 /* -------------------------------------------------------------------------- */
 /* Watchlist                                                                  */
@@ -79,6 +79,7 @@ export async function fetchRememberedEntries(
 
 const FEED_LIMITS: Record<MarketIndex, number> = {
   KMI30: 100,
+  KSE30: 100,
   // The whole market: the price and logo source for the user's own symbols.
   ALLSHR: 1000,
 };

@@ -1,11 +1,14 @@
 "use client";
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import clsx from 'clsx';
 import { useCurrency, useMask } from '../../context/PrivacyContext';
 import type { AllocationResult, AllocationRow } from '../../hooks/useAllocations';
 import { DISPLAY, NUMERIC } from '../../utils/typography';
 import { Panel } from '../Panel';
+import { usePortfolio } from '../../context/PortfolioContext';
+import { useShariah } from '../../hooks/useShariah';
+import { computeHoldings } from '../../utils/holdings';
 
 interface AllocationTableProps {
     rows: AllocationRow[];
@@ -20,7 +23,64 @@ interface AllocationTableProps {
     weightValue?: (row: AllocationRow) => string;
     onWeightChange?: (row: AllocationRow, value: string) => void;
     onWeightCommit?: (row: AllocationRow) => void;
+    /**
+     * Mark the Shariah-compliant rows. Off for KMI, where every constituent is
+     * compliant by construction and the badge would sit on all fifteen saying nothing
+     * -- the same reason the screener drops its marker once the Shariah filter is on.
+     */
+    showShariah?: boolean;
+    /** Mark the rows already held, so an index list says what is new to you. */
+    showPortfolio?: boolean;
 }
+
+/**
+ * Shariah compliance, drawn rather than typed.
+ *
+ * lucide has no mosque, so this is one in its house style -- 24 unit box, 2 unit
+ * strokes, round caps, `currentColor` -- which is what keeps it a sibling of every
+ * other icon in the app instead of a picture pasted next to them. That is also the
+ * whole difference from the 🕌 it replaces: an emoji arrives at whatever size, weight
+ * and colour the reader's font vendor chose, full-bleed and usually multicolour, which
+ * is why it read as an ornament. This one is a hairline in the row's own green.
+ *
+ * Kept to seven strokes -- finial, dome, two walls, two minarets, ground -- because it
+ * is drawn at 13px and an arched doorway at that size is a smudge.
+ */
+const ShariahMark: React.FC = () => (
+    <svg
+        role="img"
+        aria-label="Shariah compliant"
+        viewBox="0 0 24 24"
+        width={13}
+        height={13}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="shrink-0 text-emerald-600"
+    >
+        <title>Shariah compliant</title>
+        <path d="M12 4v1.5" />
+        <path d="M7.5 12.5a4.5 4.5 0 0 1 9 0" />
+        <path d="M7.5 12.5V20" />
+        <path d="M16.5 12.5V20" />
+        <path d="M4 9.5V20" />
+        <path d="M20 9.5V20" />
+        <path d="M3 20h18" />
+    </svg>
+);
+
+/** The "you already hold this" marker, in the dress the global search uses for it. */
+const Badge: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+    <span
+        title={title}
+        style={DISPLAY}
+        className="shrink-0 rounded bg-sky-500/10 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] text-sky-600 ring-1 ring-sky-500/15"
+    >
+        {children}
+    </span>
+);
 
 // Sized so a full 15-row allocation clears the fold on a laptop without its own scroller.
 // Anything tighter than this reads as cramped rather than dense.
@@ -39,9 +99,23 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
     weightValue,
     onWeightChange,
     onWeightCommit,
+    showShariah = false,
+    showPortfolio = false,
 }) => {
     const formatCurrency = useCurrency();
     const mask = useMask();
+
+    // The app's one answer to both questions. `useShariah` rides the same /api/stocks
+    // cache the screener's own badges come from, so an index row and a screener row can
+    // never disagree about a symbol; holdings come from the ledger the rest of the app
+    // is computed off.
+    const { isShariah } = useShariah();
+    const { transactions } = usePortfolio();
+
+    const heldSymbols = useMemo(
+        () => new Set(computeHoldings(transactions).map((h) => h.symbol.toUpperCase())),
+        [transactions]
+    );
 
     return (
         <Panel flush>
@@ -97,6 +171,12 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                                             >
                                                 {mask(r.name)}
                                             </span>
+
+                                            {showShariah && isShariah(r.name) && <ShariahMark />}
+
+                                            {showPortfolio && heldSymbols.has(r.name.toUpperCase()) && (
+                                                <Badge title="You already hold this">Portfolio</Badge>
+                                            )}
                                         </div>
                                     </td>
 

@@ -10,7 +10,7 @@ export type { MarketIndex };
 /**
  * Companies of a PSX index, with their index weight and last price.
  *
- * Both feeds (KMI30 and ALLSHR) are pulled by the boot gate, so the Allocation
+ * Every feed (KMI30, KSE30 and ALLSHR) is pulled by the boot gate, so the Allocation
  * tab and its sub-tabs render from cache: no fetch on mount, no five-minute TTL
  * that could expire mid-session and drop the user back onto a skeleton. The
  * cache is held for the whole session and only refilled when `refetch` is called

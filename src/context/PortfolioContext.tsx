@@ -16,6 +16,9 @@ interface PortfolioContextType {
     // Month the entry form writes to; picked in the nav bar.
     selectedMonth: string;
     setSelectedMonth: (month: string) => void;
+    /** The date new entries are filed under, 'YYYY-MM-DD'. Today unless changed. */
+    entryDate: string;
+    setEntryDate: (date: string) => void;
     /**
      * True while *anything* the portfolio needs is still in flight, including the
      * auth session. Kept for screens that genuinely need all three tables before
@@ -56,6 +59,30 @@ interface PortfolioContextType {
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
 
+/**
+ * Today as 'YYYY-MM-DD' in the reader's own timezone.
+ *
+ * Not `toISOString().slice(0, 10)`, which is the UTC date: east of Greenwich that is
+ * still yesterday for the first hours of every morning, so a SIP filed at 3am in
+ * Karachi would be dated the day before it was entered.
+ */
+const localDateKey = (at: Date = new Date()): string => {
+    const year = at.getFullYear();
+    const month = String(at.getMonth() + 1).padStart(2, '0');
+    const day = String(at.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+/**
+ * The timestamp a chosen entry date is stored as.
+ *
+ * Midday UTC, so the calendar date survives being read back anywhere: every consumer
+ * takes the day with `createdAt.slice(0, 10)`, which is a UTC read, and a local-midnight
+ * timestamp would slip to the previous day for any reader ahead of UTC. Noon is far
+ * enough from both edges that no plausible timezone can push it across one.
+ */
+const entryTimestamp = (dateKey: string): string => `${dateKey}T12:00:00.000Z`;
+
 export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user, loading: authLoading } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -70,6 +97,21 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const [transactionsLoading, setTransactionsLoading] = useState(true);
     const [realizedLoading, setRealizedLoading] = useState(true);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+
+    /**
+     * The date new entries are filed under, as 'YYYY-MM-DD'. Today unless changed.
+     *
+     * A transaction carries a month and no trade date of its own, so `created_at` --
+     * when the row was written -- is the only day-level fact about it, and everything
+     * that needs a day reads it: the ledger's date column, the activity grouping, the
+     * SIP date range. Left to the database default that is always "now", which is right
+     * for an entry filed the day it was traded and wrong for every month caught up
+     * later, where it stamps the day of the catching-up onto trades that happened weeks
+     * earlier.
+     *
+     * Making it settable is what lets a backfilled month say when it actually happened.
+     */
+    const [entryDate, setEntryDate] = useState(() => localDateKey());
 
     // Centralized Live Market State
     const [livePrices, setLivePrices] = useState<Record<string, number>>({});
@@ -481,7 +523,12 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                 total_amount: totalAmount,
                 type: data.type,
                 month: data.month,
-                user_id: user.id
+                user_id: user.id,
+                // Only sent when the entry date has been moved off today. Filed today,
+                // the column is left to its own default, which is a real timestamp with
+                // the time of day in it -- worth keeping, since it is what orders two
+                // entries made minutes apart.
+                ...(entryDate !== localDateKey() ? { created_at: entryTimestamp(entryDate) } : {}),
             }])
             .select()
             .single();
@@ -627,6 +674,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             realizedProfits,
             selectedMonth,
             setSelectedMonth,
+            entryDate,
+            setEntryDate,
             loading: authLoading || stocksLoading || transactionsLoading || realizedLoading,
             stocksLoading,
             transactionsLoading,

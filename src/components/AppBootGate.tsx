@@ -32,7 +32,7 @@ const BOOT_TIMEOUT_MS = 20_000;
  * needs has come back.
  *
  * The app used to fetch per tab: Watchlist read Supabase on mount, Allocation
- * pulled two index feeds on mount, Monthly Entry loaded its remembered
+ * pulled its index feeds on mount, Monthly Entry loaded its remembered
  * quantities on mount, and each one showed a skeleton while it did -- every
  * time the tab was opened, because the views unmount on navigation. This gate
  * moves all of it in front of Overview and warms the react-query cache, which is
@@ -44,7 +44,7 @@ const BOOT_TIMEOUT_MS = 20_000;
  *  - the CORS gateway list, since three of the fetches below route through it
  *  - stocks / transactions / realized P&L (PortfolioContext fetches these itself)
  *  - the first live-price sweep
- *  - /api/stocks, the watchlist, remembered entries, and the KMI30 + ALLSHR feeds
+ *  - /api/stocks, the watchlist, remembered entries, and the index feeds
  *
  * It does not gate the public pages -- it sits inside ProtectedRoute, so "/" and
  * /screener never reach it.
@@ -103,7 +103,7 @@ const AppBootGate: React.FC<{ children: ReactNode }> = ({ children }) => {
             }),
         ];
 
-        // Both index feeds go through the gateway. With none resolved there is
+        // The index feeds all go through the gateway. With none resolved there is
         // nothing to route through, and the Allocation tab will offer its own
         // Retry rather than the gate hanging on a request it cannot make.
         if (proxyUrl) {
@@ -112,6 +112,10 @@ const AppBootGate: React.FC<{ children: ReactNode }> = ({ children }) => {
                 queryClient.prefetchQuery({
                     queryKey: queryKeys.indexCompanies("KMI30", proxyId),
                     queryFn: () => fetchIndexCompanies("KMI30", proxyUrl),
+                }),
+                queryClient.prefetchQuery({
+                    queryKey: queryKeys.indexCompanies("KSE30", proxyId),
+                    queryFn: () => fetchIndexCompanies("KSE30", proxyUrl),
                 }),
                 queryClient.prefetchQuery({
                     queryKey: queryKeys.indexCompanies("ALLSHR", proxyId),

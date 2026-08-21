@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, Search } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,8 @@ import { usePrivacy, useCurrency } from '../context/PrivacyContext';
 import { useAppRefresh } from '../hooks/useAppRefresh';
 import { Avatar } from './Avatar';
 import MonthPicker from './MonthPicker';
+import EntryDatePicker from './EntryDatePicker';
+import GlobalSearch from './GlobalSearch';
 import { getInitials } from '../utils/formatters';
 import { isAdmin } from '../lib/admins';
 import { VerifiedBadge } from './VerifiedBadge';
@@ -63,6 +65,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const router = useRouter();
 
     const [menuOpen, setMenuOpen] = useState(false);
+
+    // Lifted out of GlobalSearch so the nav icon and Ctrl+K drive the one overlay.
+    const [searchOpen, setSearchOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
     // PSX Regular Market state, re-derived on a timer so the chip flips at the
@@ -359,7 +364,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                         {/* Feed status + gateway + lock */}
                         <div className="flex items-center justify-end gap-3">
-                            <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
+                            {/* Day and month, flush against each other so they read as one
+                                date -- "21 Aug 2026" -- rather than two controls that
+                                happen to be adjacent. The wrapper carries the slab's own
+                                background, which fills the notch the two rounded corners
+                                would otherwise leave at the seam; each chip keeps its own
+                                ring, and the pair of them at the join reads as the divider
+                                between the day and the month. */}
+                            <div className="flex shrink-0 items-center rounded-xl">
+                                <EntryDatePicker />
+                                <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
+                            </div>
 
                             {/* Gateway picker and manual refresh stay wired up, just hidden from the nav bar. */}
                             <div className="hidden items-center gap-1 bg-white p-1.5 rounded-lg border border-slate-100 shadow-sm">
@@ -399,6 +414,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                 )}
                             >
                                 <RefreshCw size={15} className={clsx(refreshing && "animate-spin")} />
+                            </button>
+
+                            {/* The shortcut is the fast way in, but a chord nobody has been
+                                told about is invisible; the icon is what makes the feature
+                                findable at all. Both drive the same overlay. */}
+                            <button
+                                onClick={() => setSearchOpen(true)}
+                                title="Search everything (Ctrl+K)"
+                                aria-label="Search everything"
+                                className="rounded-xl p-2 text-slate-400 ring-1 ring-slate-900/5 transition-all hover:bg-slate-100 hover:text-slate-900"
+                            >
+                                <Search size={15} />
                             </button>
 
                             {/* Stays out of the menu on purpose: hiding amounts is a panic
@@ -546,6 +573,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     </div>
                 </div>
             </main>
+
+            {/* Mounted once for the whole signed-in app, and inert until Cmd/Ctrl+K.
+                It lives here rather than on a page because it searches across all of
+                them, and because the shortcut has to work wherever you are. */}
+            <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
         </div>
     );
 };
