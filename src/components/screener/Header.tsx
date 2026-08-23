@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { LogIn, LayoutDashboard } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { NUMERIC, WORDMARK } from "@/utils/typography";
+import { WORDMARK } from "@/utils/typography";
 
 /**
  * The standalone app's header, with ThemeToggle swapped for the way into FINSIP

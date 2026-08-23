@@ -117,9 +117,6 @@ export const summarizeLive = (holdings: LiveHolding[]): LiveTotals =>
     }), { totalCost: 0, totalValue: 0, totalPL: 0, unpricedCount: 0 });
 
 // Cost basis of the shares still held right now.
-export const totalCostFrom = (transactions: Transaction[]): number =>
-    computeHoldings(transactions).reduce((sum, h) => sum + h.totalCostBasis, 0);
-
 // Average cost of the shares currently held, used to price a brand new sell.
 export const avgBuyPriceFor = (transactions: Transaction[], symbol: string): number =>
     computeHoldings(transactions).find(h => h.symbol === symbol)?.avgPrice ?? 0;

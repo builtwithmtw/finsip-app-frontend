@@ -121,7 +121,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     const [consecutiveFailures, setConsecutiveFailures] = useState(0);
     const [nextRefreshAt, setNextRefreshAt] = useState<number | null>(null);
 
-    const { selectedProxy, setShowModal, setRetryFetch } = useProxy();
+    const { selectedProxy, setRetryFetch } = useProxy();
 
     const fetchMarketData = useCallback(async () => {
         // No gateway resolved yet: an empty prefix would send this at our own
@@ -183,14 +183,12 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             console.error("[PortfolioContext] Market Data Fetch Warning:", err);
             setIsMarketLive(false);
             setConsecutiveFailures((n) => n + 1);
-            // setShowModal(true);
-            // toast.error(`Connection failed via ${selectedProxy.name}. Please select another gateway.`);
         } finally {
             setMarketLoading(false);
         }
-    }, [selectedProxy, setShowModal]);
+    }, [selectedProxy]);
 
-    // Register retry function for the Proxy Terminal
+    // The nav bar's Retry button reaches the sweep through this.
     useEffect(() => {
         setRetryFetch(() => fetchMarketData);
     }, [fetchMarketData, setRetryFetch]);

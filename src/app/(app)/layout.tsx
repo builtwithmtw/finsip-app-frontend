@@ -9,7 +9,6 @@ import { SettingsProvider } from "@/context/SettingsContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppBootGate from "@/components/AppBootGate";
 import QueryCacheReset from "@/components/QueryCacheReset";
-import ProxyModal from "@/components/ProxyModal";
 import Layout from "@/components/Layout";
 import { Providers } from "@/app/providers";
 
@@ -36,25 +35,22 @@ export default function AppLayout({
           itself, read by the nav bar and set on the Settings page, and they depend
           on nothing below them. */}
       <SettingsProvider>
-      <PrivacyProvider>
-        <ProxyProvider>
-          <PortfolioProvider>
-            <ConfirmProvider>
-              {/* ProxyModal stays mounted but only opens on demand; the changelog used to
-                  auto-open on every new version and greeted users with a popup on launch. */}
-              <ProxyModal />
-              <ProtectedRoute>
-                {/* Inside ProtectedRoute so it only ever gates a signed-in user,
-                    and outside Layout so the nav bar appears with the data
-                    rather than above a set of empty panels. */}
-                <AppBootGate>
-                  <Layout>{children}</Layout>
-                </AppBootGate>
-              </ProtectedRoute>
-            </ConfirmProvider>
-          </PortfolioProvider>
-        </ProxyProvider>
-      </PrivacyProvider>
+        <PrivacyProvider>
+          <ProxyProvider>
+            <PortfolioProvider>
+              <ConfirmProvider>
+                <ProtectedRoute>
+                  {/* Inside ProtectedRoute so it only ever gates a signed-in user,
+                      and outside Layout so the nav bar appears with the data
+                      rather than above a set of empty panels. */}
+                  <AppBootGate>
+                    <Layout>{children}</Layout>
+                  </AppBootGate>
+                </ProtectedRoute>
+              </ConfirmProvider>
+            </PortfolioProvider>
+          </ProxyProvider>
+        </PrivacyProvider>
       </SettingsProvider>
     </Providers>
   );

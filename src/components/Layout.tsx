@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, Activity, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, Search, SlidersHorizontal } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, Search, SlidersHorizontal, UserRound } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
@@ -56,11 +56,11 @@ const Rule: React.FC = () => (
 // active page in as `children` from the (app) route-group layout instead.
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { transactions, livePrices, isMarketLive, marketLoading, consecutiveFailures, selectedMonth, setSelectedMonth } = usePortfolio();
-    const { selectedProxy, setShowModal, retryFetch } = useProxy();
+    const { retryFetch } = useProxy();
     const { refreshAll, refreshing } = useAppRefresh();
     const { signOut, user } = useAuth();
     const { hidden, toggleHidden } = usePrivacy();
-    const { compactNavAmounts } = useSettings();
+    const { compactNavAmounts, displayName, avatarUrl } = useSettings();
     const formatCurrency = useCurrency();
     const { confirm } = useConfirm();
     const pathname = usePathname();
@@ -383,7 +383,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             </div>
                         </div>
 
-                        {/* Feed status + gateway + lock */}
+                        {/* Date pickers, refresh, the privacy lock and the account menu. */}
                         <div className="flex items-center justify-end gap-3">
                             {/* Day and month, flush against each other so they read as one
                                 date -- "21 Aug 2026" -- rather than two controls that
@@ -395,28 +395,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             <div className="flex shrink-0 items-center rounded-xl">
                                 <EntryDatePicker />
                                 <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
-                            </div>
-
-                            {/* Gateway picker and manual refresh stay wired up, just hidden from the nav bar. */}
-                            <div className="hidden items-center gap-1 bg-white p-1.5 rounded-lg border border-slate-100 shadow-sm">
-                                <button
-                                    onClick={() => setShowModal(true)}
-                                    className="px-3 py-1.5 hover:bg-slate-50 rounded-md flex flex-col items-start transition-all group"
-                                >
-                                    <span className="mb-1 text-[8px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400" style={DISPLAY}>Gateway</span>
-                                    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[-0.03em] text-sky-600" style={DISPLAY}>
-                                        {selectedProxy.name}
-                                        <Activity size={10} className="text-slate-300 transition-colors group-hover:text-sky-500" />
-                                    </span>
-                                </button>
-                                <div className="w-px h-7 bg-slate-100" />
-                                <button
-                                    onClick={() => retryFetch()}
-                                    className="p-2 hover:bg-emerald-50 text-slate-300 hover:text-emerald-500 rounded-md transition-all active:rotate-180 duration-500"
-                                    title="Refresh live feed"
-                                >
-                                    <Activity size={16} />
-                                </button>
                             </div>
 
                             {/* The one way to get current numbers. Nothing in the app
@@ -479,10 +457,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                         menuOpen && "ring-4 ring-slate-900/10"
                                     )}
                                 >
-                                    {/* The mark is generated from the address, so it only falls
-                                        back to initials for a session with no email at all. */}
-                                    {user?.email
-                                        ? <Avatar seed={user.email} className="h-full w-full" />
+                                    {/* An uploaded picture if there is one, otherwise the mark
+                                        generated from the address -- and only initials for a
+                                        session with no email at all. */}
+                                    {avatarUrl || user?.email
+                                        ? <Avatar seed={user?.email} src={avatarUrl} alt="" className="h-full w-full" />
                                         : getInitials(user?.email)}
                                 </button>
 
@@ -498,10 +477,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                             >
                                                 Signed in as
                                             </span>
-                                            {/* Local part only -- the domain is noise you already know. */}
+                                            {/* The chosen name leads; without one it falls back to
+                                                the email's local part, the domain being noise you
+                                                already know. */}
                                             <span className="flex items-start gap-0.5">
                                                 <span className="break-all text-xs font-semibold text-slate-900">
-                                                    {user?.email?.split('@')[0] ?? '—'}
+                                                    {displayName?.trim() || user?.email?.split('@')[0] || '—'}
                                                 </span>
                                                 {isAdmin(user?.email) && (
                                                     <VerifiedBadge
@@ -511,14 +492,37 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                                     />
                                                 )}
                                             </span>
+                                            {/* The address stays visible whenever a name is
+                                                covering it -- which account you are in is not
+                                                something a display name should be able to hide. */}
+                                            {displayName?.trim() && (
+                                                <span className="mt-1 block break-all text-[11px] font-medium text-slate-400">
+                                                    {user?.email}
+                                                </span>
+                                            )}
                                         </div>
+
+                                        {/* Profile above Settings: who you are, then how the
+                                            app draws itself. Both live here rather than in the
+                                            tab rail -- the rail is the portfolio, and neither of
+                                            these is part of reading it. */}
+                                        <Link
+                                            href="/profile"
+                                            role="menuitem"
+                                            onClick={() => setMenuOpen(false)}
+                                            style={DISPLAY}
+                                            className="flex w-full items-center gap-2.5 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                                        >
+                                            <UserRound size={14} />
+                                            Profile
+                                        </Link>
 
                                         <Link
                                             href="/settings"
                                             role="menuitem"
                                             onClick={() => setMenuOpen(false)}
                                             style={DISPLAY}
-                                            className="flex w-full items-center gap-2.5 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                                            className="flex w-full items-center gap-2.5 border-t border-slate-100 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
                                         >
                                             <SlidersHorizontal size={14} />
                                             Settings

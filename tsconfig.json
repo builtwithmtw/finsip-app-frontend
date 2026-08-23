@@ -30,7 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  // mtwkse130-app-frontend is the standalone screener this app was ported from.
-  // It carries its own node_modules and @types/react, which collide with ours.
-  "exclude": ["node_modules", "mtwkse130-app-frontend", "kmi-30-allocation"]
+  "exclude": ["node_modules"]
 }

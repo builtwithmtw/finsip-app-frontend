@@ -4,6 +4,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
+import RetiredStorageSweep from "@/components/RetiredStorageSweep";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -42,6 +43,9 @@ export function RootProviders({ children }: { children: React.ReactNode }) {
       {/* Outside AuthProvider: it hides its children behind a loader, which would take the
           Toaster with it and swallow any toast raised during that window. */}
       <Toaster position="top-right" richColors closeButton />
+      {/* Outside AuthProvider too: the keys it clears were written on the public
+          pages as well, so it must not wait on a session that may never arrive. */}
+      <RetiredStorageSweep />
       <AuthProvider>
         <AuthRecoveryHandler />
         {children}

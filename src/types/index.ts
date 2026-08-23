@@ -33,29 +33,6 @@ export interface Transaction {
 }
 
 
-export interface PortfolioSummary {
-  totalInvested: number;
-  currentValue: number;
-  totalShares: number;
-}
-
-export interface Holding {
-  symbol: string;
-  totalShares: number;
-  avgPrice: number;
-  currentPrice: number;
-  marketValue: number;
-  totalInvested: number;
-  profitLoss: number;
-  profitLossPercentage: number;
-}
-
-export interface MonthlySummary {
-  month: string; // YYYY-MM
-  totalInvested: number;
-  transactionCount: number;
-}
-
 export interface RealizedProfit {
   id: string;
   symbol: string;

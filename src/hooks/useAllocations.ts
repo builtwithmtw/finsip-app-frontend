@@ -56,7 +56,7 @@ const EMPTY: AllocationResult = {
  * its share of the money allows, and whatever cash is left over is then spent on the
  * rows that fell furthest short of their target.
  */
-export function calculateAllocations(
+function calculateAllocations(
     companies: AllocationInput[],
     investment: number,
     /** How many of the highest-weighted rows get funded. Defaults to the usual cap. */

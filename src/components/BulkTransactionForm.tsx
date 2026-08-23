@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
-import { Save, TrendingUp, TrendingDown, Info, Calculator, CopyPlus, Share2, Bookmark, BookmarkCheck } from 'lucide-react';
+import { Save, TrendingUp, TrendingDown, Info, CopyPlus, Share2, Bookmark, BookmarkCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCurrency, usePartialMask } from '../context/PrivacyContext';
 import { formatMonth } from '../utils/formatters';

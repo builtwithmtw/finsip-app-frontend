@@ -63,6 +63,7 @@ const Setting: React.FC<{
     </div>
 );
 
+
 const SettingsPage: React.FC = () => {
     const {
         compactNavAmounts,

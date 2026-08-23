@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import clsx from 'clsx';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { DISPLAY } from '../../utils/typography';

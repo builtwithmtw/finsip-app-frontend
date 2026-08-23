@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from 'react';
+import clsx from 'clsx';
 
 /**
  * A deterministic identicon drawn from a seed -- in practice, the signed-in email.
@@ -45,10 +46,18 @@ const bitsFrom = (hash: number, count: number): boolean[] => {
 interface AvatarProps {
     /** Usually the email. Falsy renders the empty slab rather than a mark for "".  */
     seed?: string | null;
+    /**
+     * An uploaded picture, which wins over the generated mark when there is one. The
+     * identicon is what an account gets until it chooses otherwise, not a placeholder
+     * to be replaced on load -- so this is a swap, not a fallback chain.
+     */
+    src?: string | null;
     className?: string;
+    /** Names the picture for a screen reader. The generated mark is decorative and takes none. */
+    alt?: string;
 }
 
-export const Avatar: React.FC<AvatarProps> = ({ seed, className }) => {
+export const Avatar: React.FC<AvatarProps> = ({ seed, src, className, alt = '' }) => {
     const mark = useMemo(() => {
         const normalized = seed?.trim().toLowerCase();
         if (!normalized) return null;
@@ -77,6 +86,14 @@ export const Avatar: React.FC<AvatarProps> = ({ seed, className }) => {
             accent: `hsl(${(hue + 42) % 360} 90% 74%)`,
         };
     }, [seed]);
+
+    /* Ahead of the mark, and outside the memo: an uploaded picture makes the seed
+       irrelevant, including for an account that has no seed to draw from. */
+    if (src) {
+        // object-cover, because callers size this to a square and the stored picture is
+        // already square -- but a stale URL from before the crop existed need not be.
+        return <img src={src} alt={alt} className={clsx(className, 'object-cover')} loading="lazy" decoding="async" />;
+    }
 
     if (!mark) return null;
 

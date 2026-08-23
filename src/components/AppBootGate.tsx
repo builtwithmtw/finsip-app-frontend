@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { usePortfolio } from "../context/PortfolioContext";
 import { useProxy } from "../context/ProxyContext";
+import { useSettings } from "../context/SettingsContext";
 import { fetchStocks } from "../lib/api";
 import {
     fetchIndexCompanies,
@@ -41,6 +42,7 @@ const BOOT_TIMEOUT_MS = 20_000;
  *
  * What it waits on:
  *  - the Supabase session
+ *  - the user's display preferences, which the nav bar draws its figures by
  *  - the CORS gateway list, since three of the fetches below route through it
  *  - stocks / transactions / realized P&L (PortfolioContext fetches these itself)
  *  - the first live-price sweep
@@ -52,6 +54,7 @@ const BOOT_TIMEOUT_MS = 20_000;
 const AppBootGate: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user, loading: authLoading } = useAuth();
     const { proxiesSettled, selectedProxy } = useProxy();
+    const { settingsLoaded } = useSettings();
     const {
         stocksLoading,
         transactionsLoading,
@@ -157,6 +160,10 @@ const AppBootGate: React.FC<{ children: ReactNode }> = ({ children }) => {
 
     const steps: BootStep[] = [
         { label: "Session", done: !authLoading && Boolean(user) },
+        // Ahead of the shell rather than beside it: the nav bar's figures are drawn
+        // by `compactNavAmounts`, so letting it render first would have Worth switch
+        // format a tick after the app opened.
+        { label: "Preferences", done: settingsLoaded },
         { label: "Gateway", done: proxiesSettled },
         {
             label: "Holdings",

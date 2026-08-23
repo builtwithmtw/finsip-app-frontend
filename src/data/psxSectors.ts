@@ -11,7 +11,7 @@
 // extend coverage, just add more `SYMBOL: 'Label'` entries below -- keep them
 // grouped by sector and keep the label spelling identical to StockManager.
 
-export const PSX_SECTORS: Record<string, string> = {
+const PSX_SECTORS: Record<string, string> = {
     // Banks (Commercial Banks)
     HBL: 'Banks', UBL: 'Banks', MCB: 'Banks', ABL: 'Banks', NBP: 'Banks',
     BAHL: 'Banks', BAFL: 'Banks', MEBL: 'Banks', FABL: 'Banks', AKBL: 'Banks',
