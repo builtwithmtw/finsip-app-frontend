@@ -63,3 +63,24 @@ export interface IndexCompany {
   sector: string;
   companyName: string;
 }
+
+/**
+ * Another account, as the admin-only Peers tab sees it: who they are, plus their
+ * whole ledger so every figure on that screen is derived by `utils/holdings.ts`
+ * rather than by a second implementation of the same arithmetic in SQL.
+ *
+ * Only the admin can ever hold one of these -- the two RPCs behind it refuse
+ * anyone else (see supabase/add_admin_peers.sql).
+ */
+export interface Peer {
+  userId: string;
+  email: string;
+  /** The name they chose, if any; the table falls back to the address. */
+  displayName: string | null;
+  avatarUrl: string | null;
+  /** When the account was created. */
+  createdAt: string;
+  transactions: Transaction[];
+  /** Booked profits, from the peer's `realized_pnl` rows. */
+  realized: RealizedProfit[];
+}

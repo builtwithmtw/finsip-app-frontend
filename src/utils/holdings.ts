@@ -116,6 +116,63 @@ export const summarizeLive = (holdings: LiveHolding[]): LiveTotals =>
         unpricedCount: acc.unpricedCount + (h.isPriced ? 0 : 1),
     }), { totalCost: 0, totalValue: 0, totalPL: 0, unpricedCount: 0 });
 
+export interface DaySummary {
+    /** What the whole book moved today, in rupees. */
+    move: number;
+    /** That move against yesterday's close of the same positions. */
+    percent: number;
+    /** The day's strongest and weakest holdings, by the feed's own 1D figure. */
+    best: { symbol: string; change: number } | null;
+    worst: { symbol: string; change: number } | null;
+}
+
+/**
+ * The day's move across a whole portfolio.
+ *
+ * Rupees, not an average of percentages: a 5% day on a token position and a 5%
+ * day on the largest one are not the same event, and averaging them says they
+ * are. Each holding's contribution is derived by backing yesterday's close out
+ * of the live price -- `close = price / (1 + change/100)` -- because the feed
+ * publishes a percentage rather than a previous close.
+ *
+ * Only priced holdings count. An unpriced one is held at cost (see
+ * `computeLiveHoldings`), which is a position with no day move rather than a
+ * position that did not move.
+ */
+export const summarizeDay = (
+    holdings: LiveHolding[],
+    liveChanges: Record<string, number>
+): DaySummary => {
+    let move = 0;
+    let previousValue = 0;
+    let best: DaySummary['best'] = null;
+    let worst: DaySummary['worst'] = null;
+
+    holdings.forEach(h => {
+        const change = liveChanges[h.symbol];
+        if (!h.isPriced || !Number.isFinite(change)) return;
+
+        // A -100% print would put the close at infinity; there is no sane day
+        // move to read off that, so the position sits this out.
+        const factor = 1 + change / 100;
+        if (factor <= 0) return;
+
+        const previousClose = h.currentPrice / factor;
+        move += h.totalShares * (h.currentPrice - previousClose);
+        previousValue += h.totalShares * previousClose;
+
+        if (!best || change > best.change) best = { symbol: h.symbol, change };
+        if (!worst || change < worst.change) worst = { symbol: h.symbol, change };
+    });
+
+    return {
+        move,
+        percent: previousValue > 0 ? (move / previousValue) * 100 : 0,
+        best,
+        worst,
+    };
+};
+
 // Cost basis of the shares still held right now.
 // Average cost of the shares currently held, used to price a brand new sell.
 export const avgBuyPriceFor = (transactions: Transaction[], symbol: string): number =>

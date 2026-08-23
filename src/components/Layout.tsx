@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, Search, SlidersHorizontal, UserRound } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, Search, SlidersHorizontal, UserRound, Users } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
@@ -24,7 +24,7 @@ import { DISPLAY, NUMERIC, WORDMARK } from '../utils/typography';
 import { Amount } from './Amount';
 import clsx from 'clsx';
 
-const navItems = [
+const baseNavItems = [
     { path: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { path: '/live', label: 'Live Portfolio', icon: Landmark },
     { path: '/entry', label: 'Monthly Entry', icon: Calendar },
@@ -32,6 +32,11 @@ const navItems = [
     { path: '/allocation', label: 'Allocation', icon: PieChart },
     { path: '/watchlist', label: 'Watchlist', icon: Star },
 ];
+
+// The one tab that isn't about your own portfolio, and the only one that isn't
+// always there. Hiding it is presentation, not protection -- the RPCs it reads
+// refuse a non-admin regardless of what the client chooses to draw.
+const peersNavItem = { path: '/peers', label: 'Peers', icon: Users };
 
 // Micro-label stacked over its figure — reads as an instrument panel rather than a
 // sentence, and lets each metric keep a fixed column as values change width.
@@ -67,6 +72,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const router = useRouter();
 
     const [menuOpen, setMenuOpen] = useState(false);
+
+    // Drives the rail, the document title and the Left/Right tab walk alike, so
+    // an account without the Peers tab never steps onto it with the keyboard.
+    const navItems = useMemo(
+        () => isAdmin(user?.email) ? [...baseNavItems, peersNavItem] : baseNavItems,
+        [user?.email]
+    );
 
     // Lifted out of GlobalSearch so the nav icon and Ctrl+K drive the one overlay.
     const [searchOpen, setSearchOpen] = useState(false);
@@ -115,7 +127,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     useEffect(() => {
         const currentNav = navItems.find(item => item.path === pathname);
         document.title = currentNav ? `${currentNav.label} | FINSIP` : 'FINSIP';
-    }, [pathname]);
+    }, [pathname, navItems]);
 
     /**
      * Left/Right step through the tabs in nav-bar order, wrapping at both ends.
@@ -158,7 +170,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [pathname, router]);
+    }, [pathname, router, navItems]);
 
     // Unpriced symbols are held at cost inside summarizeLive, so a gap in the feed can no
     // longer shrink the portfolio or report the missing position's whole cost as a loss.

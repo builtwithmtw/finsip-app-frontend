@@ -12,6 +12,7 @@ const PRIVATE_PATHS = [
   "/entry/:path*",
   "/allocation/:path*",
   "/live/:path*",
+  "/peers/:path*",
   "/reset-password/:path*",
   "/profile/:path*",
   "/settings/:path*",

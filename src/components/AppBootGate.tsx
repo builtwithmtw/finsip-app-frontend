@@ -7,8 +7,10 @@ import { usePortfolio } from "../context/PortfolioContext";
 import { useProxy } from "../context/ProxyContext";
 import { useSettings } from "../context/SettingsContext";
 import { fetchStocks } from "../lib/api";
+import { isAdmin } from "../lib/admins";
 import {
     fetchIndexCompanies,
+    fetchPeers,
     fetchRememberedEntries,
     fetchWatchlist,
     queryKeys,
@@ -64,6 +66,10 @@ const AppBootGate: React.FC<{ children: ReactNode }> = ({ children }) => {
     const queryClient = useQueryClient();
 
     const userId = user?.id ?? null;
+    // Peers is an admin-only tab, and its two RPCs would only come back as an
+    // error for anyone else -- so it is warmed for the accounts that have it and
+    // for no one else.
+    const admin = isAdmin(user?.email);
 
     const [prefetchDone, setPrefetchDone] = useState(false);
     const [timedOut, setTimedOut] = useState(false);
@@ -106,6 +112,15 @@ const AppBootGate: React.FC<{ children: ReactNode }> = ({ children }) => {
             }),
         ];
 
+        if (admin) {
+            warm.push(
+                queryClient.prefetchQuery({
+                    queryKey: queryKeys.peers(userId),
+                    queryFn: fetchPeers,
+                }),
+            );
+        }
+
         // The index feeds all go through the gateway. With none resolved there is
         // nothing to route through, and the Allocation tab will offer its own
         // Retry rather than the gate hanging on a request it cannot make.
@@ -130,7 +145,7 @@ const AppBootGate: React.FC<{ children: ReactNode }> = ({ children }) => {
         // allSettled: one feed being down must not strand the gate. prefetchQuery
         // already absorbs rejections, but this does not depend on that.
         Promise.allSettled(warm).then(() => setPrefetchDone(true));
-    }, [userId, proxiesSettled, selectedProxy.url, selectedProxy.id, queryClient]);
+    }, [userId, admin, proxiesSettled, selectedProxy.url, selectedProxy.id, queryClient]);
 
     // Losing the user returns the gate to its starting state, so whoever signs in
     // next loads from scratch rather than inheriting the last session's progress.

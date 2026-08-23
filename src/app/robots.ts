@@ -21,6 +21,7 @@ export default function robots(): MetadataRoute.Robots {
         "/entry",
         "/allocation",
         "/live",
+        "/peers",
         "/reset-password",
         "/profile",
         "/settings",
