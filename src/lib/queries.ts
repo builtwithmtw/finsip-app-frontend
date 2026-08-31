@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type {
   IndexCompany,
+  MomentumIndex,
   Peer,
   RealizedProfit,
   RememberedEntries,
@@ -38,6 +39,8 @@ export const queryKeys = {
    * -- the data in it belongs to nobody who could legitimately read it there.
    */
   peers: (userId: string) => ["peers", userId] as const,
+  /** The scraped JS Momentum Factor Index, for the Allocation tab. */
+  momentum: ["momentum"] as const,
 };
 
 export type MarketIndex = "KMI30" | "KSE30" | "ALLSHR";
@@ -262,4 +265,27 @@ export async function fetchPeers(): Promise<Peer[]> {
     transactions: byUser.get(p.user_id) ?? [],
     realized: bankedByUser.get(p.user_id) ?? [],
   }));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Momentum index                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The JS Momentum Factor Index constituents, through our own route.
+ *
+ * The route scrapes JS Investments' page server-side -- the browser could not
+ * read that HTML itself, and this is not a feed we should be hitting on every
+ * view -- and holds the result for the calendar day. `force` is the Rescrape
+ * button: it asks the route to go upstream now rather than answer from that
+ * day cache.
+ */
+export async function fetchMomentum(force = false): Promise<MomentumIndex> {
+  const res = await fetch(force ? "/api/momentum?refresh=1" : "/api/momentum", {
+    // The day cache lives on the server, where it is shared. A browser cache in
+    // front of it would only make "rescrape" mean "re-read what I already had".
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to load the momentum index: ${res.status}`);
+  return (await res.json()) as MomentumIndex;
 }

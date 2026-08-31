@@ -2,13 +2,14 @@
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { RefreshCw, LineChart, Scale } from 'lucide-react';
+import { RefreshCw, LineChart, Scale, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency } from '../context/PrivacyContext';
 import { useIndexCompanies, type MarketIndex } from '../hooks/useIndexCompanies';
 import { useAllocations, MAX_ALLOCATION_HOLDINGS, type AllocationInput, type AllocationRow } from '../hooks/useAllocations';
+import { useMomentum } from '../hooks/useMomentum';
 import AllocationTable from '../components/allocation/AllocationTable';
 import CurrentAllocationTable, { type CurrentAllocationRow } from '../components/allocation/CurrentAllocationTable';
 import RebalanceTable from '../components/allocation/RebalanceTable';
@@ -21,7 +22,7 @@ import { DISPLAY, NUMERIC } from '../utils/typography';
  * the top fifteen of KMI 30, KSE 15 the top fifteen of KSE 30. The index itself stays a
  * `MarketIndex` and is never the tab's own name.
  */
-type AllocationView = 'KMI15' | 'KSE15' | 'MINE' | 'CURRENT';
+type AllocationView = 'KMI15' | 'KSE15' | 'MINE' | 'CURRENT' | 'MOMENTUM';
 
 /**
  * Tabs that no longer exist, and where a stored value for one lands instead.
@@ -43,6 +44,7 @@ type RebalanceBasis = 'custom' | 'invested';
 const VIEWS: Array<{ id: AllocationView; label: string }> = [
     { id: 'CURRENT', label: 'Invested' },
     { id: 'MINE', label: 'Custom' },
+    { id: 'MOMENTUM', label: 'Momentum' },
     { id: 'KMI15', label: 'KMI 15' },
     { id: 'KSE15', label: 'KSE 15' },
 ];
@@ -233,6 +235,127 @@ const MySymbolsView: React.FC<{ investment: number }> = ({ investment }) => {
                 <p className={clsx(NOTE, 'ml-auto text-slate-300')} style={DISPLAY}>
                     Weights are relative — they don&apos;t need to total 100
                 </p>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * The JS Momentum Factor Index, funded like any other index tab.
+ *
+ * The one tab whose weights are not a feed. JSMFI is published as a table on JS
+ * Investments' ETF page and nowhere else, so `/api/momentum` reads it out of
+ * that page's markup server-side -- the browser cannot fetch that HTML itself --
+ * and holds the result for the calendar day. The index rebalances monthly, so a
+ * day is already far more often than the figures can change; Rescrape is there
+ * for the day the rebalance lands.
+ *
+ * Prices and logos come from the market feed the app already shares, exactly as
+ * the Custom tab gets them, so nothing here waits on a second request.
+ */
+const MomentumView: React.FC<{ investment: number }> = ({ investment }) => {
+    const { index, loading, error, rescrape, rescraping } = useMomentum();
+    const { livePrices } = usePortfolio();
+    const { companies } = useIndexCompanies('ALLSHR');
+
+    const rows: AllocationInput[] = useMemo(() => {
+        if (!index) return [];
+
+        const feed = new Map(companies.map((c) => [c.name.toUpperCase(), c]));
+
+        return index.constituents.map((c) => {
+            const symbol = c.symbol.toUpperCase();
+            const listed = feed.get(symbol);
+
+            return {
+                name: symbol,
+                logo: listed?.logo ?? '',
+                // The live sweep first, the index feed behind it: the same two
+                // sources the rest of the page prices from, in the same order.
+                price: livePrices[symbol] || listed?.price || 0,
+                weight: c.weight,
+            };
+        });
+    }, [index, companies, livePrices]);
+
+    // Every constituent is funded -- the index is ten deep, well inside the cap,
+    // and truncating a published index would misstate what it is.
+    const allocation = useAllocations(rows, investment, rows.length || MAX_ALLOCATION_HOLDINGS);
+
+    if (loading && !index) return <TableSkeleton />;
+
+    const unpriced = rows.filter((r) => r.price <= 0).map((r) => r.name);
+
+    return (
+        <div className="flex flex-col gap-2">
+            {error && !index && (
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-amber-50 px-4 py-2.5 text-amber-700 ring-1 ring-amber-500/15">
+                    <p className={NOTE} style={DISPLAY}>
+                        Could not read the momentum index
+                    </p>
+                    <button
+                        onClick={() => rescrape()}
+                        style={DISPLAY}
+                        className={clsx(NOTE, 'flex items-center gap-1.5 transition-colors hover:text-amber-900')}
+                    >
+                        <RefreshCw size={12} />
+                        Retry
+                    </button>
+                </div>
+            )}
+
+            <AllocationTable
+                rows={allocation.results}
+                summary={allocation}
+                emptyMessage={error ? 'Index unavailable' : 'No constituents'}
+                showShariah
+                showPortfolio
+            />
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+                {/* The table is a scrape of someone else's page, so it says which
+                    month it is a scrape of -- a stale month is the one failure
+                    mode a table of weights cannot show on its own. */}
+                {index?.asOf && (
+                    <p className={clsx(NOTE, 'text-slate-500')} style={DISPLAY}>
+                        JSMFI — {index.asOf}
+                    </p>
+                )}
+                {unpriced.length > 0 && (
+                    <p className={clsx(NOTE, 'flex items-center gap-1.5 text-amber-600')} style={DISPLAY}>
+                        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        No live price: {unpriced.join(', ')}
+                    </p>
+                )}
+
+                <div className="ml-auto flex items-center gap-3">
+                    {index?.sourceUrl && (
+                        <a
+                            href={index.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={DISPLAY}
+                            className={clsx(NOTE, 'flex items-center gap-1.5 text-slate-300 transition-colors hover:text-slate-600')}
+                        >
+                            <ExternalLink size={11} />
+                            Source
+                        </a>
+                    )}
+                    <button
+                        onClick={() => rescrape()}
+                        disabled={rescraping}
+                        title="Read the index off jsil.com again"
+                        style={DISPLAY}
+                        className={clsx(
+                            NOTE,
+                            'flex items-center gap-1.5 transition-colors',
+                            rescraping ? 'text-sky-500' : 'text-slate-400 hover:text-slate-900'
+                        )}
+                    >
+                        <RefreshCw size={12} className={clsx(rescraping && 'animate-spin')} />
+                        {rescraping ? 'Scraping' : 'Rescrape'}
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -582,6 +705,8 @@ const AllocationPage: React.FC = () => {
                 <CurrentAllocationView rebalancing={rebalancing} basis={basis} />
             ) : view === 'MINE' ? (
                 <MySymbolsView investment={investment} />
+            ) : view === 'MOMENTUM' ? (
+                <MomentumView investment={investment} />
             ) : (
                 <IndexAllocationView
                     index={view === 'KSE15' ? 'KSE30' : 'KMI30'}

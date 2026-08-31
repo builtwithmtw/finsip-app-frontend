@@ -10,6 +10,7 @@ import { fetchStocks } from "../lib/api";
 import { isAdmin } from "../lib/admins";
 import {
     fetchIndexCompanies,
+    fetchMomentum,
     fetchPeers,
     fetchRememberedEntries,
     fetchWatchlist,
@@ -109,6 +110,13 @@ const AppBootGate: React.FC<{ children: ReactNode }> = ({ children }) => {
             queryClient.prefetchQuery({
                 queryKey: queryKeys.rememberedEntries(userId),
                 queryFn: () => fetchRememberedEntries(userId),
+            }),
+            // Served from the route's day cache almost always, so this is a
+            // local round trip rather than a scrape -- and it means the
+            // Momentum tab opens with its table already drawn.
+            queryClient.prefetchQuery({
+                queryKey: queryKeys.momentum,
+                queryFn: () => fetchMomentum(),
             }),
         ];
 

@@ -84,3 +84,26 @@ export interface Peer {
   /** Booked profits, from the peer's `realized_pnl` rows. */
   realized: RealizedProfit[];
 }
+
+/** One constituent of the JS Momentum Factor Index. */
+export interface MomentumConstituent {
+  symbol: string;
+  /** Index weight as a percentage, e.g. 18.7 for "18.7%". */
+  weight: number;
+}
+
+/**
+ * A scrape of the JS Momentum Factor Index, as `/api/momentum` returns it.
+ *
+ * The index has no feed -- it is published as a table on JS Investments' ETF
+ * page -- so this is read out of markup rather than off an API. See
+ * `lib/momentum.ts`.
+ */
+export interface MomentumIndex {
+  /** The month the page labels the table with, e.g. "August, 2026". */
+  asOf: string;
+  constituents: MomentumConstituent[];
+  /** When this snapshot was scraped, ISO. */
+  scrapedAt: string;
+  sourceUrl: string;
+}
