@@ -23,6 +23,7 @@ export const queryKeys = {
   /** The screener universe from our own /api/stocks route. */
   stocks: ["stocks"] as const,
   watchlist: (userId: string) => ["watchlist", userId] as const,
+  sipDeposits: (userId: string) => ["sip-deposits", userId] as const,
   rememberedEntries: (userId: string) => ["remembered-entries", userId] as const,
   /**
    * Keyed by gateway as well as index: these feeds are only reachable through
@@ -288,4 +289,57 @@ export async function fetchMomentum(force = false): Promise<MomentumIndex> {
   });
   if (!res.ok) throw new Error(`Failed to load the momentum index: ${res.status}`);
   return (await res.json()) as MomentumIndex;
+}
+
+/* -------------------------------------------------------------------------- */
+/* SIP deposits                                                               */
+/* -------------------------------------------------------------------------- */
+
+/** Money put into the brokerage account, as recorded by the user. */
+export interface SipDeposit {
+  id: string;
+  /** YYYY-MM-DD. */
+  date: string;
+  /**
+   * What the entry is, which decides where it counts.
+   *
+   *   deposit        money in from you            -> a contribution, and cash
+   *   dividend       money the holdings produced  -> cash only
+   *   reconciliation a correction against the broker -> cash only
+   *
+   * Only a deposit is a contribution. A dividend counted as one would inflate the
+   * capital the return is measured against and report the portfolio as having earned
+   * less than it did; a correction counted as one would credit you for having been
+   * wrong about a balance.
+   */
+  kind: 'deposit' | 'dividend' | 'reconciliation';
+  /** Signed. A reconciliation can go either way. */
+  amount: number;
+  note: string | null;
+}
+
+/**
+ * The account's deposits, oldest first.
+ *
+ * Oldest first because this is a cashflow series before it is a list: XIRR reads it in
+ * order, and the one screen that shows it can reverse for display.
+ */
+export async function fetchSipDeposits(userId: string): Promise<SipDeposit[]> {
+  const { data, error } = await supabase
+    .from("sip_deposits")
+    .select("*")
+    .eq("user_id", userId)
+    .order("deposit_date", { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    date: String(r.deposit_date).slice(0, 10),
+    // Anything unrecognised reads as a deposit: an older row written before a kind
+    // existed is a deposit, and that is the safe reading either way.
+    kind: r.kind === 'reconciliation' || r.kind === 'dividend' ? r.kind : 'deposit',
+    amount: Number(r.amount) || 0,
+    note: (r.note as string | null) ?? null,
+  }));
 }

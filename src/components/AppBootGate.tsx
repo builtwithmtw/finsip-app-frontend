@@ -13,6 +13,7 @@ import {
     fetchMomentum,
     fetchPeers,
     fetchRememberedEntries,
+    fetchSipDeposits,
     fetchWatchlist,
     queryKeys,
 } from "../lib/queries";
@@ -110,6 +111,11 @@ const AppBootGate: React.FC<{ children: ReactNode }> = ({ children }) => {
             queryClient.prefetchQuery({
                 queryKey: queryKeys.rememberedEntries(userId),
                 queryFn: () => fetchRememberedEntries(userId),
+            }),
+            // Read on the Ledger's Returns panel, which computes XIRR from them.
+            queryClient.prefetchQuery({
+                queryKey: queryKeys.sipDeposits(userId),
+                queryFn: () => fetchSipDeposits(userId),
             }),
             // Served from the route's day cache almost always, so this is a
             // local round trip rather than a scrape -- and it means the

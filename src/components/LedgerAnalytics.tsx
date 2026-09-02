@@ -6,13 +6,16 @@ import { format, parseISO } from 'date-fns';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
-import { computeSipStreak, computeSipWindow, computeSipDays } from '../utils/sipStreak';
+import { computeSipStreak, computeSipWindow, computeSipDays, sipWindowFromDays } from '../utils/sipStreak';
 import { describeMonthActivity } from '../utils/monthNarrative';
+import { computeXirr, buildPortfolioFlows } from '../utils/xirr';
+import { useSipDeposits } from '../hooks/useSipDeposits';
 import { splitMonthActivity, type ActivityDay, type SoloGroup } from '../utils/monthActivity';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Amount } from './Amount';
 import { MetricLabel, Panel, PanelHeader } from './Panel';
 import SipHistoryModal from './SipHistoryModal';
+import DepositsModal from './DepositsModal';
 
 /** Emerald above zero, rose below, neutral at exactly nothing. */
 const toneFor = (value: number) =>
@@ -77,6 +80,35 @@ const Result: React.FC<{ amount: string; percent: number }> = ({ amount, percent
 export const LedgerReturns: React.FC = () => {
     const { transactions, realizedProfits, livePrices } = usePortfolio();
     const formatCurrency = useCurrency();
+    const { deposits } = useSipDeposits();
+
+    /**
+     * Money handed to the broker, as recorded. Only 'deposit' rows count -- a
+     * reconciliation corrects a balance rather than funding one.
+     */
+    const totalDeposits = useMemo(
+        () => deposits.filter((d) => d.kind === 'deposit').reduce((sum, d) => sum + d.amount, 0),
+        [deposits]
+    );
+
+    /**
+     * Everything that reached the account without you sending it: dividends the holdings
+     * paid, and the corrections that keep the balance agreeing with the broker.
+     *
+     * Both belong in cash and in nothing else. A dividend is money the portfolio earned,
+     * so counting it as a contribution would measure the return against capital you
+     * never supplied -- on this book that one entry was the difference between reading
+     * -1.83% and +3.82% a year. A correction counted the same way would credit you for
+     * having been wrong about a balance.
+     */
+    const totalReconciled = useMemo(
+        () =>
+            deposits
+                .filter((d) => d.kind === 'reconciliation' || d.kind === 'dividend')
+                .reduce((sum, d) => sum + d.amount, 0),
+        [deposits]
+    );
+
 
     // Same derivation the rest of the app uses for "now" (PortfolioContext seeds its
     // selected month the same way), so the two can never disagree about the month.
@@ -97,21 +129,40 @@ export const LedgerReturns: React.FC = () => {
     const strip = streak.months.slice(-STRIP_MONTHS);
 
     /**
-     * The SIP each month: the day that bought the most, and what went in that day.
+     * The SIP each month.
      *
-     * The same reading the SIP Date Range is built on, so the two cards can never
-     * disagree about which day of a month was the SIP -- one says when it lands, the
-     * other what it costs, off one calculation.
+     * Read straight off the recorded deposits when there are any: they say what was
+     * transferred and on what day, which is the fact these figures are about. The
+     * trade-derived version below is the fallback for a book that has not recorded them
+     * -- it takes each month's heaviest buying day as a stand-in, which is a good guess
+     * and only ever a guess.
+     *
+     * Corrections are excluded. A reconciliation is not a contribution and would drag
+     * the average toward zero if counted as one.
      */
-    const sipMonths = useMemo(() => computeSipDays(transactions), [transactions]);
+    const sipMonths = useMemo(() => {
+        const recorded = deposits.filter((d) => d.kind === 'deposit');
+
+        if (recorded.length === 0) return computeSipDays(transactions);
+
+        // One row per deposit rather than per month: two transfers in a month are two
+        // SIPs, and folding them together would report an instalment nobody made.
+        return recorded
+            .map((d) => ({
+                month: d.date.slice(0, 7),
+                day: Number(d.date.slice(8, 10)) || null,
+                amount: d.amount,
+                monthTotal: d.amount,
+            }))
+            .sort((a, b) => a.month.localeCompare(b.month));
+    }, [deposits, transactions]);
 
     /**
      * What a contribution typically is, averaged over the months that had one.
      *
-     * The heaviest buying day of each month, not the month's whole buy total. A SIP is
-     * one deliberate transfer; the odd lots bought on other days are top-ups, and
-     * folding them in answers "what did I buy that month" -- a different question, and
-     * a larger number than any instalment actually was.
+     * Straight off `sipMonths`, which is the recorded deposits wherever there are any,
+     * so this is what was actually transferred rather than what a month's buying implies
+     * about it.
      *
      * Still only the months that were funded: a skipped month contributed nothing, and
      * letting it pull the figure down would answer "how much do I invest per calendar
@@ -123,9 +174,24 @@ export const LedgerReturns: React.FC = () => {
         return sipMonths.reduce((sum, m) => sum + m.amount, 0) / sipMonths.length;
     }, [sipMonths]);
 
-    const sipWindow = useMemo(() => computeSipWindow(transactions), [transactions]);
+    /**
+     * When in the month the money goes in, off the same rows the average is taken from,
+     * so the two cards can never disagree about which dates they are describing.
+     */
+    const sipWindow = useMemo(() => {
+        const recorded = deposits.filter((d) => d.kind === 'deposit');
+
+        if (recorded.length === 0) return computeSipWindow(transactions);
+
+        return sipWindowFromDays(
+            recorded
+                .map((d) => Number(d.date.slice(8, 10)))
+                .filter((day) => Number.isFinite(day) && day >= 1 && day <= 31)
+        );
+    }, [deposits, transactions]);
 
     const [sipHistoryOpen, setSipHistoryOpen] = useState(false);
+    const [xirrOpen, setXirrOpen] = useState(false);
 
     const realized = useMemo(() => {
         let profit = 0;
@@ -139,31 +205,119 @@ export const LedgerReturns: React.FC = () => {
         return { profit, percent: cost > 0 ? (profit / cost) * 100 : 0, cost };
     }, [realizedProfits]);
 
-    const unrealized = useMemo(() => {
-        const totals = summarizeLive(computeLiveHoldings(transactions, livePrices));
-        return {
-            profit: totals.totalPL,
-            percent: totals.totalCost > 0 ? (totals.totalPL / totals.totalCost) * 100 : 0,
-            unpriced: totals.unpricedCount,
-        };
-    }, [transactions, livePrices]);
+    const liveTotals = useMemo(
+        () => summarizeLive(computeLiveHoldings(transactions, livePrices)),
+        [transactions, livePrices]
+    );
+    /**
+     * What is not in the market: deposits less the cost of what is currently held.
+     *
+     * Deliberately the plain subtraction of the two figures beside it, so the footer ties
+     * out by eye -- a reader can check it without being told what else went into it.
+     *
+     * It therefore reads cost basis, not cash: money made on a sale is not counted until
+     * it is spent again, because the invested figure it is subtracted from only ever
+     * knows what shares cost. The reconciliations are then added on top, which is exactly
+     * what they are for -- each one is the gap between this arithmetic and what the
+     * broker actually says, written down so the two agree.
+     *
+     * Null until deposits exist, since without them this is just the negative of the
+     * cost basis and would read as an overdraft rather than an unknown.
+     */
+    const cashAvailable = useMemo(
+        () =>
+            deposits.length === 0
+                ? null
+                : totalDeposits - liveTotals.totalCost + totalReconciled,
+        [deposits.length, totalDeposits, totalReconciled, liveTotals.totalCost]
+    );
+
+    const unrealized = useMemo(
+        () => ({
+            profit: liveTotals.totalPL,
+            percent: liveTotals.totalCost > 0 ? (liveTotals.totalPL / liveTotals.totalCost) * 100 : 0,
+            unpriced: liveTotals.unpricedCount,
+        }),
+        [liveTotals]
+    );
+
+    /**
+     * The annualised return the book has actually earned.
+     *
+     * The one figure here that accounts for *when* the money went in. Profit over cost
+     * treats a rupee invested last month and one invested two years ago as the same
+     * rupee, which for a SIP -- where the whole point is that money arrives in
+     * instalments -- flatters a young book and punishes a patient one. XIRR discounts
+     * every contribution by how long it was actually working.
+     *
+     * Scored against what the holdings are worth right now, so it moves with the market
+     * like the unrealized figure above it does.
+     */
+    const xirrData = useMemo(
+        () => buildPortfolioFlows(transactions, liveTotals.totalValue, deposits, cashAvailable),
+        [transactions, liveTotals.totalValue, deposits, cashAvailable]
+    );
+
+    const xirrFlows = xirrData.flows;
+    const xirr = useMemo(() => computeXirr(xirrFlows), [xirrFlows]);
+
+    /*
+     * The month the clock starts: the first contribution, which for a backfilled month
+     * is the month it was filed under and not the day it was typed in. Shown on the card
+     * because "since when" is the first thing anyone asks of an annualised figure, and
+     * an unlabelled percentage invites the reader to assume the wrong period.
+     */
+    const xirrSince = useMemo(() => {
+        if (xirrFlows.length === 0) return null;
+        const earliest = Math.min(...xirrFlows.map((f) => f.date.getTime()));
+        return format(new Date(earliest), 'MMM yyyy');
+    }, [xirrFlows]);
 
     return (
         <Panel className="flex h-full flex-col">
             <PanelHeader title="Returns" caption="The Whole Book" />
 
             <div className="flex flex-col gap-3">
-                <Tile
-                    label="Realized Profit"
-                    caption={realized.cost > 0 ? 'On Closed Positions' : 'Nothing Closed Yet'}
+                {/* Cash rather than deposits, because this is the only figure on the panel
+                    that can be acted on today: it is what is available to buy with. The
+                    deposits it was derived from -- along with invested and worth -- are a
+                    tap away in the ledger this opens. */}
+                <button
+                    type="button"
+                    onClick={() => setXirrOpen(true)}
+                    title="Record and review your deposits"
+                    className="rounded-xl text-left transition-opacity hover:opacity-80"
                 >
-                    <span className={toneFor(realized.profit)}>
-                        <Result
-                            amount={formatCurrency(Math.round(realized.profit))}
-                            percent={realized.percent}
-                        />
-                    </span>
-                </Tile>
+                    <Tile
+                        label="Cash Available"
+                        caption={
+                            cashAvailable === null
+                                ? 'Record Deposits To See It'
+                                : 'With Your Broker · Tap For Detail'
+                        }
+                    >
+                        {cashAvailable === null ? (
+                            <span
+                                className="block text-[17px] font-semibold leading-none tabular-nums text-slate-300"
+                                style={NUMERIC}
+                            >
+                                —
+                            </span>
+                        ) : (
+                            // Negative means the ledger says you have spent more than
+                            // reached the account -- a missing deposit, not an overdraft.
+                            <span className={clsx(cashAvailable < 0 && 'text-rose-600')}>
+                                <Amount value={formatCurrency(Math.round(cashAvailable))} />
+                            </span>
+                        )}
+                    </Tile>
+                </button>
+
+                {/* Realized profit is not shown. Everything closed on this book was put
+                    straight back to work, so it is not a result sitting beside the
+                    portfolio -- it is already inside it, in the shares it bought and in
+                    the XIRR above. Reporting it separately would invite it to be added to
+                    a total it is already part of. */}
 
                 <Tile
                     label="Unrealized Profit"
@@ -183,6 +337,49 @@ export const LedgerReturns: React.FC = () => {
                         />
                     </span>
                 </Tile>
+
+                {/* Sits under the two profit figures because it is the answer they raise:
+                    they say how much was made, this says whether that was any good for
+                    the time the money spent in the market. */}
+                <button
+                    type="button"
+                    onClick={() => setXirrOpen(true)}
+                    title="See every cashflow behind this"
+                    className="rounded-xl text-left transition-opacity hover:opacity-80"
+                >
+                <Tile
+                    label="XIRR"
+                    caption={
+                        xirr === null
+                            ? 'Needs A Deposit And A Value'
+                            : xirrSince
+                                // Names its basis, because the same book has a different
+                                // rate measured on deposits and the two are both right.
+                                ? `Since ${xirrSince}`
+                                : 'Annualised'
+                    }
+                >
+                    {xirr === null ? (
+                        <span
+                            className="block text-[17px] font-semibold leading-none tabular-nums text-slate-300"
+                            style={NUMERIC}
+                        >
+                            —
+                        </span>
+                    ) : (
+                        <span
+                            className={clsx(
+                                'block text-[17px] font-semibold leading-none tabular-nums',
+                                toneFor(xirr)
+                            )}
+                            style={NUMERIC}
+                        >
+                            {xirr >= 0 ? '+' : '−'}
+                            {Math.abs(xirr * 100).toFixed(2)}%
+                        </span>
+                    )}
+                </Tile>
+                </button>
 
                 <Tile label="Symbols Traded" caption="Till Today">
                     <span
@@ -325,6 +522,16 @@ export const LedgerReturns: React.FC = () => {
                 onClose={() => setSipHistoryOpen(false)}
                 months={sipMonths}
                 average={averageSip}
+            />
+
+            <DepositsModal
+                isOpen={xirrOpen}
+                onClose={() => setXirrOpen(false)}
+                rate={xirr}
+                invested={liveTotals.totalCost}
+                worth={liveTotals.totalValue}
+                reconciled={totalReconciled}
+                cashAvailable={cashAvailable}
             />
         </Panel>
     );

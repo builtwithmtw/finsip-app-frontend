@@ -148,10 +148,22 @@ const EMPTY: SipStreak = { current: 0, longest: 0, fundedCount: 0, totalMonths: 
 export const computeSipWindow = (transactions: Transaction[]): SipWindow | null => {
     // Only the months that actually produced a date. A month entered without usable
     // timestamps has a SIP amount but nothing to say about when it went in.
-    const sipDays = computeSipDays(transactions)
-        .map((s) => s.day)
-        .filter((day): day is number => day !== null);
+    return sipWindowFromDays(
+        computeSipDays(transactions)
+            .map((s) => s.day)
+            .filter((day): day is number => day !== null)
+    );
+};
 
+/**
+ * The window itself, over any set of days-of-month.
+ *
+ * Split out so a book with recorded deposits can be read the same way as one whose SIP
+ * dates have to be inferred from its buying. The clustering is the same question either
+ * way -- which part of the month does the money go in on -- and only the source of the
+ * dates differs.
+ */
+export const sipWindowFromDays = (sipDays: number[]): SipWindow | null => {
     if (sipDays.length === 0) return null;
 
     const total = sipDays.length;
