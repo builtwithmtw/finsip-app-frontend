@@ -1,17 +1,18 @@
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { format, parseISO } from 'date-fns';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext';
 import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
-import { computeSipStreak, computeSipWindow } from '../utils/sipStreak';
+import { computeSipStreak, computeSipWindow, computeSipDays } from '../utils/sipStreak';
 import { describeMonthActivity } from '../utils/monthNarrative';
 import { splitMonthActivity, type ActivityDay, type SoloGroup } from '../utils/monthActivity';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 import { Amount } from './Amount';
 import { MetricLabel, Panel, PanelHeader } from './Panel';
+import SipHistoryModal from './SipHistoryModal';
 
 /** Emerald above zero, rose below, neutral at exactly nothing. */
 const toneFor = (value: number) =>
@@ -96,24 +97,35 @@ export const LedgerReturns: React.FC = () => {
     const strip = streak.months.slice(-STRIP_MONTHS);
 
     /**
+     * The SIP each month: the day that bought the most, and what went in that day.
+     *
+     * The same reading the SIP Date Range is built on, so the two cards can never
+     * disagree about which day of a month was the SIP -- one says when it lands, the
+     * other what it costs, off one calculation.
+     */
+    const sipMonths = useMemo(() => computeSipDays(transactions), [transactions]);
+
+    /**
      * What a contribution typically is, averaged over the months that had one.
      *
-     * Deliberately not averaged over every month since the first buy: a skipped month
-     * contributed nothing, and letting it pull the figure down would answer "how much
-     * do I invest per calendar month" when the question here is "when I do fund the
-     * SIP, what does it cost me". The streak strip directly above already says how
-     * often the plan was kept, so the two are not telling the same story twice.
+     * The heaviest buying day of each month, not the month's whole buy total. A SIP is
+     * one deliberate transfer; the odd lots bought on other days are top-ups, and
+     * folding them in answers "what did I buy that month" -- a different question, and
+     * a larger number than any instalment actually was.
      *
-     * Buys only, on the same footing as the streak itself -- `SipMonth.amount` is the
-     * month's buy total, so a month that also sold does not net off against it.
+     * Still only the months that were funded: a skipped month contributed nothing, and
+     * letting it pull the figure down would answer "how much do I invest per calendar
+     * month" when the question here is "when I do fund the SIP, what does it cost me".
+     * The streak strip directly above already says how often the plan was kept.
      */
     const averageSip = useMemo(() => {
-        const funded = streak.months.filter((m) => m.funded);
-        if (funded.length === 0) return 0;
-        return funded.reduce((sum, m) => sum + m.amount, 0) / funded.length;
-    }, [streak]);
+        if (sipMonths.length === 0) return 0;
+        return sipMonths.reduce((sum, m) => sum + m.amount, 0) / sipMonths.length;
+    }, [sipMonths]);
 
     const sipWindow = useMemo(() => computeSipWindow(transactions), [transactions]);
+
+    const [sipHistoryOpen, setSipHistoryOpen] = useState(false);
 
     const realized = useMemo(() => {
         let profit = 0;
@@ -266,27 +278,54 @@ export const LedgerReturns: React.FC = () => {
                 SIP keeps the full width rather than leaving half the row empty. */}
             {streak.fundedCount > 0 && (
                 <div className={clsx('mt-3.5 grid gap-3', sipWindow ? 'grid-cols-2' : 'grid-cols-1')}>
-                    <Tile label="Average SIP">
-                        <Amount value={formatCurrency(Math.round(averageSip))} />
-                    </Tile>
+                    {/* The one tile here that opens: an average is a summary of months,
+                        and "which months" is the question it raises. */}
+                    <button
+                        type="button"
+                        onClick={() => setSipHistoryOpen(true)}
+                        title="See every month's SIP"
+                        className="rounded-xl text-left transition-opacity hover:opacity-80"
+                    >
+                        <Tile label="Average SIP">
+                            <Amount value={formatCurrency(Math.round(averageSip))} />
+                        </Tile>
+                    </button>
 
                     {/* When in the month it actually goes in. Not masked: a date is not a
                         figure, and hiding it would say nothing to anyone looking over your
                         shoulder that the streak strip does not already say. */}
                     {sipWindow && (
-                        <Tile label="SIP Date Range">
-                            <span
-                                className="block text-[17px] font-semibold leading-none tabular-nums text-slate-900"
-                                style={NUMERIC}
-                            >
-                                {sipWindow.earliest === sipWindow.latest
-                                    ? ordinal(sipWindow.earliest)
-                                    : `${ordinal(sipWindow.earliest)} – ${ordinal(sipWindow.latest)}`}
-                            </span>
-                        </Tile>
+                        <button
+                            type="button"
+                            onClick={() => setSipHistoryOpen(true)}
+                            title={
+                                sipWindow.outliers > 0
+                                    ? `Covers ${sipWindow.months} of ${sipWindow.total} months — see every one`
+                                    : "See every month's SIP date"
+                            }
+                            className="rounded-xl text-left transition-opacity hover:opacity-80"
+                        >
+                            <Tile label="SIP Date Range">
+                                <span
+                                    className="block text-[17px] font-semibold leading-none tabular-nums text-slate-900"
+                                    style={NUMERIC}
+                                >
+                                    {sipWindow.earliest === sipWindow.latest
+                                        ? ordinal(sipWindow.earliest)
+                                        : `${ordinal(sipWindow.earliest)} – ${ordinal(sipWindow.latest)}`}
+                                </span>
+                            </Tile>
+                        </button>
                     )}
                 </div>
             )}
+
+            <SipHistoryModal
+                isOpen={sipHistoryOpen}
+                onClose={() => setSipHistoryOpen(false)}
+                months={sipMonths}
+                average={averageSip}
+            />
         </Panel>
     );
 };

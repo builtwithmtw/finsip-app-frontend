@@ -22,13 +22,20 @@ import { MetricLabel, Panel, PanelHeader } from './Panel';
 interface Point {
     month: string; // YYYY-MM
     label: string;
-    /** Everything the month moved: buys plus sells, not their difference. */
-    total: number;
+    /**
+     * New money: buys less sells. Negative when the month took more out than it put in.
+     *
+     * This used to be buys *plus* sells, which counted a rotation twice over: selling
+     * 100k of one symbol to buy 100k of another moved no new money into the book, and
+     * reported 200k. Turnover is not investment, and on a month that funded the SIP out
+     * of a sale it is not even close.
+     */
+    net: number;
     buy: number;
     sell: number;
 }
 
-const TOTAL = '#0EA5E9'; // Sky 500
+const NET = '#0EA5E9';   // Sky 500
 const BUY = '#10B981';   // Emerald 500
 const SELL = '#F43F5E';  // Rose 500
 
@@ -49,10 +56,18 @@ const monthRange = (first: string, last: string): string[] => {
 };
 
 /**
- * What each month moved, as three bars: everything traded, the buying inside it, and
- * the selling. Sells are drawn as their own positive bar rather than as a dip below
- * zero -- at a glance the question is how much went each way, and two directions on
- * one axis answers it faster than one signed line did.
+ * What each month moved, as three bars: the new money that went in, and the buying and
+ * selling it came out of.
+ *
+ * Buys and sells are each drawn as their own positive bar, because at a glance the
+ * question is how much went each way and two directions on one axis answers it faster
+ * than one signed line did. The net bar is the one that carries a sign: it drops below
+ * the axis on a month that took more out than it put in, which is the only honest place
+ * for it.
+ *
+ * Net rather than the two added together, which is what this used to show. Buys plus
+ * sells is turnover, and turnover counts a rotation twice: selling one symbol to buy
+ * another is a large number on both sides and no new money at all.
  *
  * Deliberately not cumulative: a running total only ever rises and would say nothing
  * about whether the SIP was kept up, which is what the ledger is read to answer.
@@ -86,7 +101,7 @@ const MonthlyInvestedChart: React.FC = () => {
             return {
                 month,
                 label: format(parseISO(`${month}-01`), "MMM ''yy"),
-                total: buy + sell,
+                net: buy - sell,
                 buy,
                 sell,
             };
@@ -95,16 +110,21 @@ const MonthlyInvestedChart: React.FC = () => {
 
     if (points.length < 2) return null;
 
-    const invested = points.reduce((sum, p) => sum + p.buy, 0);
-    // Averaged over the months that actually bought: a run of untouched months would
-    // otherwise drag the figure down and read as a smaller SIP than was paid.
+    /*
+     * Averaged over the months that actually bought -- a run of untouched months would
+     * otherwise drag the figure down and read as a smaller SIP than was paid -- but on
+     * the net each of those months put in, not on what it spent. A month that bought
+     * entirely out of a sale spent plenty and added nothing, and this is the figure that
+     * says so.
+     */
     const funded = points.filter((p) => p.buy > 0);
+    const invested = funded.reduce((sum, p) => sum + p.net, 0);
     const average = funded.length > 0 ? invested / funded.length : 0;
 
     return (
         <Panel className="flex flex-col">
-            <PanelHeader title="Monthly Flow" caption="Traded, Bought, Sold">
-                <MetricLabel label="Avg Buy / Funded Month" className="justify-end" />
+            <PanelHeader title="Monthly Flow" caption="Net In, Bought, Sold">
+                <MetricLabel label="Avg Net / Funded Month" className="justify-end" />
                 <Amount
                     value={formatCurrency(Math.round(average))}
                     size="text-lg"
@@ -116,7 +136,7 @@ const MonthlyInvestedChart: React.FC = () => {
                 voice above the plot instead of stealing a row from it. */}
             <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
                 {[
-                    { label: 'Total', color: TOTAL },
+                    { label: 'Net In', color: NET },
                     { label: 'Bought', color: BUY },
                     { label: 'Sold', color: SELL },
                 ].map((item) => (
@@ -189,7 +209,7 @@ const MonthlyInvestedChart: React.FC = () => {
                             rest are dimmed, so the chart and the table below it agree on where
                             you are without a second highlight of its own. */}
                         {[
-                            { key: 'total', name: 'Total', color: TOTAL },
+                            { key: 'net', name: 'Net In', color: NET },
                             { key: 'buy', name: 'Bought', color: BUY },
                             { key: 'sell', name: 'Sold', color: SELL },
                         ].map((series) => (
@@ -204,7 +224,12 @@ const MonthlyInvestedChart: React.FC = () => {
                                 {points.map((p) => (
                                     <Cell
                                         key={p.month}
-                                        fill={series.color}
+                                        // A month that took more out than it put in draws
+                                        // below the axis, and takes the colour the rest of
+                                        // the app gives money going the wrong way rather
+                                        // than staying sky and relying on the reader
+                                        // noticing which side of zero it is on.
+                                        fill={series.key === 'net' && p.net < 0 ? SELL : series.color}
                                         fillOpacity={!selectedMonth || p.month === selectedMonth ? 1 : 0.45}
                                     />
                                 ))}
