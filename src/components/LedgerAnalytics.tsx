@@ -232,6 +232,30 @@ export const LedgerReturns: React.FC = () => {
         [deposits.length, totalDeposits, totalReconciled, liveTotals.totalCost]
     );
 
+    /**
+     * How the account is split today: the holdings at what they are worth now, against
+     * the cash sitting beside them.
+     *
+     * Measured on worth rather than cost, because the question is what proportion of the
+     * account is currently in the market -- and that is what today's prices say it is,
+     * not what the shares originally cost.
+     *
+     * Withheld when cash is negative. The two shares would then have to sum past 100 to
+     * mean anything, and a bar that overflows its own track is worse than no bar: a
+     * negative balance is a missing deposit, and the figure to fix is that one.
+     */
+    const deployment = useMemo(() => {
+        if (cashAvailable === null || cashAvailable < 0) return null;
+
+        const account = liveTotals.totalValue + cashAvailable;
+        if (account <= 0) return null;
+
+        const invested = (liveTotals.totalValue / account) * 100;
+        // Taken as the remainder rather than computed separately, so the pair always
+        // reads as 100 even where rounding would otherwise leave 99 or 101.
+        return { invested, cash: 100 - invested };
+    }, [cashAvailable, liveTotals.totalValue]);
+
     const unrealized = useMemo(
         () => ({
             profit: liveTotals.totalPL,
@@ -293,7 +317,9 @@ export const LedgerReturns: React.FC = () => {
                         caption={
                             cashAvailable === null
                                 ? 'Record Deposits To See It'
-                                : 'With Your Broker · Tap For Detail'
+                                : deployment
+                                    ? `${deployment.invested.toFixed(1)}% Invested · ${deployment.cash.toFixed(1)}% In Cash`
+                                    : 'With Your Broker · Tap For Detail'
                         }
                     >
                         {cashAvailable === null ? (
@@ -308,6 +334,22 @@ export const LedgerReturns: React.FC = () => {
                             // reached the account -- a missing deposit, not an overdraft.
                             <span className={clsx(cashAvailable < 0 && 'text-rose-600')}>
                                 <Amount value={formatCurrency(Math.round(cashAvailable))} />
+                            </span>
+                        )}
+
+                        {/* The same split the caption states, drawn -- sky is the part in
+                            the market, the track behind it the part still in cash. A
+                            proportion is read faster as a length than as two figures, and
+                            this is the one number on the panel you might act on. */}
+                        {deployment && (
+                            <span
+                                aria-hidden
+                                className="mt-2.5 block h-1 w-full overflow-hidden rounded-full bg-sky-500/15"
+                            >
+                                <span
+                                    className="block h-full rounded-full bg-sky-500 transition-[width] duration-500"
+                                    style={{ width: `${deployment.invested}%` }}
+                                />
                             </span>
                         )}
                     </Tile>
