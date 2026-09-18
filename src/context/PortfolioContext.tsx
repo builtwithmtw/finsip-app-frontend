@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, type ReactNode, useCallback } from 'react';
 import { useProxy } from './ProxyContext';
 import { supabase } from '../lib/supabase';
-import type { Transaction, Stock, RealizedProfit } from '../types';
+import type { Transaction, Stock, RealizedProfit, IndexPulse } from '../types';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
 import { avgBuyPriceFor } from '../utils/holdings';
@@ -33,6 +33,12 @@ interface PortfolioContextType {
     livePrices: Record<string, number>;
     /** Percent move on the day, per symbol, from the same feed row as the price. */
     liveChanges: Record<string, number>;
+    /**
+     * Where KSE100 stands today -- the market the portfolio is being read
+     * against. Null until the first index fetch lands, and it keeps its last
+     * good reading if a later one fails.
+     */
+    kse100: IndexPulse | null;
     isMarketLive: boolean;
     // True until the first market fetch settles, win or lose.
     marketLoading: boolean;
@@ -116,6 +122,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
     // Centralized Live Market State
     const [livePrices, setLivePrices] = useState<Record<string, number>>({});
     const [liveChanges, setLiveChanges] = useState<Record<string, number>>({});
+    const [kse100, setKse100] = useState<IndexPulse | null>(null);
     const [isMarketLive, setIsMarketLive] = useState(false);
     const [marketLoading, setMarketLoading] = useState(true);
     const [consecutiveFailures, setConsecutiveFailures] = useState(0);
@@ -123,12 +130,69 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     const { selectedProxy, setRetryFetch } = useProxy();
 
+    /**
+     * KSE100's own level and day move, for the header readout.
+     *
+     * Its own request with its own error handling, running beside the price
+     * sweep rather than inside it. The portfolio's prices are the job and this
+     * is the context they are read against, so a gateway that serves one
+     * endpoint and not the other must not cost us the prices: nothing in here
+     * touches `isMarketLive`, `consecutiveFailures` or `marketLoading`, and a
+     * failure simply leaves the last good reading on screen.
+     *
+     * `/api/indices` is the whole index list -- ten rows, so cheap next to the
+     * 500-company sweep it rides along with.
+     */
+    const fetchIndexPulse = useCallback(async (proxyPrefix: string) => {
+        try {
+            const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices";
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+            const response = await fetch(proxyPrefix + encodeURIComponent(targetUrl), {
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            const json = await response.json();
+            const rows: any[] = json?.response?.data ?? json?.data ?? (Array.isArray(json) ? json : []);
+            const row = rows.find(
+                (r: any) => (r?.symbol ?? "").toString().toUpperCase().trim() === "KSE100"
+            );
+
+            const level = Number(row?.curr);
+            const change = Number(row?.change);
+            const changePercent = Number(row?.changePercent);
+
+            // This feed reports a missing reading as 0 rather than omitting it, and
+            // an index level of 0 is impossible -- so that is what "no reading"
+            // looks like, and it must not be drawn as a real one.
+            if (!Number.isFinite(level) || level <= 0) return;
+
+            setKse100({
+                symbol: "KSE100",
+                level,
+                // Unlike the level, a flat 0 is a real reading for a move.
+                change: Number.isFinite(change) ? change : 0,
+                changePercent: Number.isFinite(changePercent) ? changePercent : 0,
+            });
+        } catch (err) {
+            console.warn("[PortfolioContext] KSE100 index fetch failed:", err);
+        }
+    }, []);
+
     const fetchMarketData = useCallback(async () => {
         // No gateway resolved yet: an empty prefix would send this at our own
         // origin, 404, and burn a failure the retry logic then has to walk back.
         // `marketLoading` deliberately stays true -- the feed hasn't been tried,
         // and reporting it as settled would let the boot gate through early.
         if (!selectedProxy.url) return;
+
+        // Outside the try on purpose -- it owns its failures, see above.
+        void fetchIndexPulse(selectedProxy.url);
 
         try {
             const targetUrl = "https://beta-restapi.sarmaaya.pk/api/indices/ALLSHR/companies?page=1&limit=500";
@@ -186,7 +250,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
         } finally {
             setMarketLoading(false);
         }
-    }, [selectedProxy]);
+    }, [selectedProxy, fetchIndexPulse]);
 
     // The nav bar's Retry button reaches the sweep through this.
     useEffect(() => {
@@ -680,6 +744,7 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
             realizedLoading,
             livePrices,
             liveChanges,
+            kse100,
             isMarketLive,
             marketLoading,
             consecutiveFailures,

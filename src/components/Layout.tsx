@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useConfirm } from '../context/ConfirmContext';
-import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, RefreshCw, UserX, Eye, EyeOff, PieChart, Moon, Star, Search, SlidersHorizontal, UserRound, Users } from 'lucide-react';
+import { LayoutDashboard, Calendar, Landmark, LogOut, Table2, RefreshCw, UserX, Eye, EyeOff, PieChart, Star, Search, SlidersHorizontal, UserRound, Users } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useProxy } from '../context/ProxyContext';
 import { useAuth } from '../context/AuthContext';
@@ -18,7 +18,7 @@ import GlobalSearch from './GlobalSearch';
 import { getInitials, formatCompactCurrency } from '../utils/formatters';
 import { isAdmin } from '../lib/admins';
 import { VerifiedBadge } from './VerifiedBadge';
-import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
+import { computeLiveHoldings, summarizeLive, summarizeDay } from '../utils/holdings';
 import { getPsxMarketState } from '../utils/marketSchedule';
 import { DISPLAY, NUMERIC, WORDMARK } from '../utils/typography';
 import { Amount } from './Amount';
@@ -57,10 +57,31 @@ const Rule: React.FC = () => (
     <span aria-hidden className="h-8 w-px shrink-0 bg-gradient-to-b from-transparent via-white/15 to-transparent" />
 );
 
+/**
+ * A move as the bar prints it: "1.09%" up, "−1.09%" down.
+ *
+ * No "+" on the upside. The sign is here to mark the downside, which is the case
+ * colour alone would leave a red/green-blind reader guessing at; a plus on every
+ * gain would be noise on the common case. The minus is the typographic one, to
+ * match the figures it sits beside rather than the ASCII hyphen.
+ */
+const signedPercent = (value: number) =>
+    `${value < 0 ? '−' : ''}${Math.abs(value).toFixed(2)}%`;
+
+/**
+ * `formatCurrency` output with the "Rs" taken off -- the same job `Amount`'s
+ * `bare` does, for the one figure the bar prints as plain text instead.
+ *
+ * The privacy mask carries neither symbol nor sign, so it matches nothing here
+ * and falls through untouched, exactly as it should.
+ */
+const bareAmount = (formatted: string) =>
+    formatted.replace(/^(-?)Rs\s*/, (_match, minus: string) => (minus ? '−' : ''));
+
 // Took its children from <Outlet /> under react-router; the App Router hands the
 // active page in as `children` from the (app) route-group layout instead.
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { transactions, livePrices, isMarketLive, marketLoading, consecutiveFailures, selectedMonth, setSelectedMonth } = usePortfolio();
+    const { transactions, livePrices, liveChanges, kse100, isMarketLive, marketLoading, consecutiveFailures, selectedMonth, setSelectedMonth } = usePortfolio();
     const { retryFetch } = useProxy();
     const { refreshAll, refreshing } = useAppRefresh();
     const { signOut, user } = useAuth();
@@ -172,11 +193,39 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [pathname, router, navItems]);
 
+    // Held once rather than recomputed per summary: Worth/Cost/Overall and Today
+    // are four readings off the same set of positions, and they must agree.
+    const liveHoldings = useMemo(
+        () => computeLiveHoldings(transactions, livePrices),
+        [livePrices, transactions]
+    );
+
     // Unpriced symbols are held at cost inside summarizeLive, so a gap in the feed can no
     // longer shrink the portfolio or report the missing position's whole cost as a loss.
     const { totalValue: totalMarketValue, totalCost: totalInvestedCost, totalPL: netChange } = useMemo(
-        () => summarizeLive(computeLiveHoldings(transactions, livePrices)),
-        [livePrices, transactions]
+        () => summarizeLive(liveHoldings),
+        [liveHoldings]
+    );
+
+    /**
+     * The session's move, beside the lifetime one.
+     *
+     * Overall is P&L against what was paid, which barely shifts day to day; Today
+     * is the figure the bar was being watched for and the reason anyone opened
+     * the tab. summarizeDay does the work -- rupees weighted by position size,
+     * not an average of percentages.
+     */
+    const day = useMemo(() => summarizeDay(liveHoldings, liveChanges), [liveHoldings, liveChanges]);
+
+    /**
+     * Whether the feed actually carried a day figure for anything held. Without
+     * this a missing `liveChanges` reads as a dead-flat session -- "Rs 0 / 0.00%"
+     * is a claim about the market, and we shouldn't make it when what happened is
+     * that nobody told us.
+     */
+    const hasDayData = useMemo(
+        () => liveHoldings.some(h => h.isPriced && Number.isFinite(liveChanges[h.symbol])),
+        [liveHoldings, liveChanges]
     );
 
     /**
@@ -185,8 +234,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
      * Only these two, and only here. They are the widest figures in the app sitting in
      * the narrowest strip it has, and in the bar they are a headline rather than a
      * reading anyone acts on -- the exact number is a tab away on Live Portfolio. The
-     * Change figure beside them stays in full: it is small enough not to need this, and
-     * abbreviating a move to "Rs 1k" would round away the thing being watched.
+     * Overall and Today figures beside them stay in full: they are small enough not to
+     * need this, and abbreviating a move to "Rs 1k" would round away the thing being
+     * watched.
      *
      * Routed through the privacy formatter first, so hiding amounts still hides them --
      * a compact figure is still a figure.
@@ -301,93 +351,150 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                                 />
                                             </Metric>
 
-                                            {hasValuation && (
+                                            {/* KSE100's day move, labelled "Market" -- the only figure on
+                                                the bar that isn't about this portfolio. It is what the
+                                                next two are read against, which is why it leads them,
+                                                and the label says what it is for rather than which
+                                                index supplies it.
+
+                                                The percentage only. The index level (170,884) is five
+                                                digits of context nobody acts on, and next to Worth and
+                                                Cost it read as a third rupee figure. The move is the
+                                                part that answers "was it me or was it the market?", and
+                                                it carries no rupees, so the privacy mask has nothing
+                                                here to hide. */}
+                                            {kse100 && (
                                                 <>
                                                     <Rule />
-                                                    <Metric label="Change">
-                                                        <span className={clsx(
-                                                            "flex items-baseline gap-1.5",
-                                                            netChange >= 0 ? "text-emerald-400" : "text-rose-400"
-                                                        )}>
-                                                            <span className="text-[9px] leading-none" style={NUMERIC}>
-                                                                {netChange >= 0 ? '▲' : '▼'}
-                                                            </span>
-                                                            <Amount
-                                                                value={formatCurrency(Math.round(Math.abs(netChange)))}
-                                                                size="text-[15px]"
-                                                                bare
-                                                                roll
-                                                            />
-                                                        </span>
+                                                    <Metric label="Market">
                                                         <span
                                                             className={clsx(
-                                                                "rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums",
-                                                                netChange >= 0
-                                                                    ? "bg-emerald-400/10 text-emerald-400"
-                                                                    : "bg-rose-400/10 text-rose-400"
+                                                                "text-[15px] font-semibold leading-none tabular-nums",
+                                                                kse100.changePercent >= 0 ? "text-emerald-400" : "text-rose-400"
                                                             )}
                                                             style={NUMERIC}
                                                         >
-                                                            {totalInvestedCost > 0
-                                                                ? `${netChange >= 0 ? '+' : '−'}${Math.abs(netChange / totalInvestedCost * 100).toFixed(2)}`
-                                                                : '0.00'}%
+                                                            {signedPercent(kse100.changePercent)}
                                                         </span>
                                                     </Metric>
                                                 </>
                                             )}
 
-                                            <Rule />
+                                            {/* Today leads Overall: the session is what the bar is
+                                                watched for, and the lifetime figure is the context
+                                                behind it.
 
-                                            {/* One readout carries both facts: the PSX schedule (Market Open /
-                                        Closed) and, while Open, whether the feed is actually streaming
-                                        ("Live") or has stalled ("Static"). Outside Open hours the schedule
-                                        label wins — there's nothing live to show. No chip fill here;
-                                        the dot and the colour do the work. */}
-                                            {marketState.isOpen ? (
-                                                <span className="flex shrink-0 items-center gap-2">
-                                                    <span className="relative flex h-1.5 w-1.5">
-                                                        {isLive && (
+                                                A percentage, like Market beside it, and for the same
+                                                reason -- the two sit next to each other precisely to be
+                                                compared, and a rupee figure cannot be read against an
+                                                index move. The rupees are a tab away on Live Portfolio.
+
+                                                The tint comes off `percent` rather than `move` so it
+                                                can never disagree with the number printed beside it. */}
+                                            {hasValuation && hasDayData && (
+                                                <>
+                                                    <Rule />
+                                                    <Metric label="Today">
+                                                        <span
+                                                            className={clsx(
+                                                                "text-[15px] font-semibold leading-none tabular-nums",
+                                                                day.percent >= 0 ? "text-emerald-400" : "text-rose-400"
+                                                            )}
+                                                            style={NUMERIC}
+                                                        >
+                                                            {signedPercent(day.percent)}
+                                                        </span>
+                                                    </Metric>
+                                                </>
+                                            )}
+
+                                            {/* Same colour-only percentage as the two before it, so all
+                                                three read as one row of moves. Overall alone keeps its
+                                                rupees, bracketed and dimmed behind the percentage: this
+                                                is lifetime P&L, the one figure here people quote as an
+                                                amount, and it does not need to line up against an index
+                                                the way Today does.
+
+                                                Through `formatCurrency`, so Shift+H masks it -- unlike
+                                                the percentages, this one is a rupee figure. */}
+                                            {hasValuation && (
+                                                <>
+                                                    <Rule />
+                                                    <Metric label="Overall">
+                                                        <span
+                                                            className={clsx(
+                                                                "text-[15px] font-semibold leading-none tabular-nums",
+                                                                netChange >= 0 ? "text-emerald-400" : "text-rose-400"
+                                                            )}
+                                                            style={NUMERIC}
+                                                        >
+                                                            {signedPercent(
+                                                                totalInvestedCost > 0
+                                                                    ? (netChange / totalInvestedCost) * 100
+                                                                    : 0
+                                                            )}
+                                                        </span>
+                                                        <span
+                                                            className="text-[11px] leading-none text-slate-400 tabular-nums"
+                                                            style={NUMERIC}
+                                                        >
+                                                            ({bareAmount(formatCurrency(Math.round(netChange)))})
+                                                        </span>
+                                                    </Metric>
+                                                </>
+                                            )}
+
+                                            {/* Only the good news is written. "Live" appears when the feed
+                                                really is streaming; every other state -- market closed,
+                                                or open with a stalled feed -- prints nothing at all, and
+                                                the absence is the message. A "Market Closed" label was a
+                                                line of text standing there permanently to say that
+                                                nothing was happening.
+
+                                                The Rule comes with it rather than sitting outside: with
+                                                the label gone there would otherwise be a separator
+                                                hanging off the end of the strip with nothing after it. */}
+                                            {isLive && (
+                                                <>
+                                                    <Rule />
+                                                    <span className="flex shrink-0 items-center gap-2">
+                                                        <span className="relative flex h-1.5 w-1.5">
                                                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                                                        )}
-                                                        <span className={clsx(
-                                                            "relative inline-flex h-1.5 w-1.5 rounded-full",
-                                                            isLive ? "bg-emerald-400" : "bg-slate-500"
-                                                        )} />
+                                                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                                        </span>
+                                                        <span
+                                                            className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-400"
+                                                            style={DISPLAY}
+                                                        >
+                                                            Live
+                                                        </span>
                                                     </span>
-                                                    <span
-                                                        className={clsx(
-                                                            "text-[10px] font-semibold uppercase tracking-[0.18em]",
-                                                            isLive ? "text-emerald-400" : "text-slate-400"
-                                                        )}
-                                                        style={DISPLAY}
-                                                    >
-                                                        {isLive ? 'Live' : 'Static'}
-                                                    </span>
-                                                </span>
-                                            ) : (
-                                                <span className="flex shrink-0 items-center gap-2 text-slate-400">
-                                                    <Moon size={11} className="fill-slate-500/30 text-slate-500" />
-                                                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
-                                                        {marketState.label}
-                                                    </span>
-                                                </span>
+                                                </>
                                             )}
 
                                             {/* Feed is down while the market is Open: it retries on its own every few
                                         seconds, so we stay quiet through the first couple of misses and only
                                         offer a manual nudge once it has failed repeatedly. When the market is
-                                        closed a dead feed is expected, so no Retry button at all. */}
+                                        closed a dead feed is expected, so no Retry button at all.
+
+                                        This one still speaks up when nothing else does: silence means "not
+                                        live", which is fine for a closed market but not for a broken feed
+                                        the reader can actually do something about. It brings its own Rule,
+                                        since the Live label it used to follow is absent by definition here. */}
                                             {marketState.isOpen && !isMarketLive && consecutiveFailures >= 3 && (
-                                                <button
-                                                    onClick={() => retryFetch()}
-                                                    title="Retry live feed"
-                                                    className="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-amber-400 ring-1 ring-amber-400/20 transition-colors hover:bg-amber-400/10"
-                                                >
-                                                    <RefreshCw size={11} className="transition-transform duration-500 group-active:rotate-180" />
-                                                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
-                                                        Retry
-                                                    </span>
-                                                </button>
+                                                <>
+                                                    <Rule />
+                                                    <button
+                                                        onClick={() => retryFetch()}
+                                                        title="Retry live feed"
+                                                        className="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-amber-400 ring-1 ring-amber-400/20 transition-colors hover:bg-amber-400/10"
+                                                    >
+                                                        <RefreshCw size={11} className="transition-transform duration-500 group-active:rotate-180" />
+                                                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={DISPLAY}>
+                                                            Retry
+                                                        </span>
+                                                    </button>
+                                                </>
                                             )}
                                         </>
                                     )}

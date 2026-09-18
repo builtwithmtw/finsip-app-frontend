@@ -54,6 +54,23 @@ export type RememberedEntries = Record<
   { shares: string; type: "buy" | "sell" }
 >;
 
+/**
+ * Where a PSX index stands today, as the header's KSE100 readout needs it.
+ *
+ * Distinct from `IndexCompany`, which is a constituent of an index. This is the
+ * index itself: the level and what it has done since yesterday's close.
+ */
+export interface IndexPulse {
+  /** e.g. "KSE100". */
+  symbol: string;
+  /** The index level, in points. */
+  level: number;
+  /** Move since the previous close, in points. */
+  change: number;
+  /** The same move as a percentage. */
+  changePercent: number;
+}
+
 /** A company as returned by an index feed. */
 export interface IndexCompany {
   name: string;
