@@ -11,6 +11,7 @@ interface AuthContextType {
     signIn: (email: string, password: string) => Promise<{ error: any; data?: any }>;
     signUp: (email: string, password: string) => Promise<{ error: any; data?: any }>;
     signOut: () => Promise<void>;
+    resetPassword: (email: string) => Promise<{ error: any; data?: any }>;
     updatePassword: (password: string) => Promise<{ error: any; data?: any }>;
 }
 
@@ -85,6 +86,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await supabase.auth.signOut();
     };
 
+    /**
+     * Mails the recovery link. `redirectTo` is read off the live origin rather
+     * than SITE_URL so a localhost run gets a localhost link instead of one that
+     * lands on production -- both origins have to be listed under Supabase's
+     * Authentication > URL Configuration > Redirect URLs, or the link falls back
+     * to the project Site URL and the reset form never sees a token.
+     *
+     * Supabase answers the same way whether or not the address has an account,
+     * and callers are expected to preserve that: reporting "no such user" would
+     * turn this form into a way of asking which emails are registered.
+     */
+    const resetPassword = async (email: string) => {
+        const redirectTo =
+            typeof window === 'undefined'
+                ? undefined
+                : `${window.location.origin}/reset-password`;
+        return supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    };
+
     const updatePassword = async (password: string) => {
         return supabase.auth.updateUser({ password });
     };
@@ -105,6 +125,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             signIn,
             signUp,
             signOut,
+            resetPassword,
             updatePassword,
         }}>
             {children}

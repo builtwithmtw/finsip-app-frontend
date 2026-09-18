@@ -19,10 +19,14 @@ const AuthRecoveryHandler: React.FC = () => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        console.log("Password recovery event detected, navigating to reset page");
-        router.push("/reset-password");
-      }
+      if (event !== "PASSWORD_RECOVERY") return;
+
+      // The common case is a link that already pointed at /reset-password, where
+      // this fires as that page consumes the token -- navigating again would
+      // stack a second history entry on the page we are already on. `replace`
+      // for the rest: the URL being left behind still has the token in it.
+      if (window.location.pathname === "/reset-password") return;
+      router.replace("/reset-password");
     });
 
     return () => subscription.unsubscribe();

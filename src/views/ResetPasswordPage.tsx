@@ -2,206 +2,326 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../context/AuthContext';
-import { ChevronRight, ShieldCheck, Key, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Eye, EyeOff, AlertCircle, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import { DISPLAY } from '../utils/typography';
+
+/**
+ * Where the emailed recovery link lands.
+ *
+ * `checking` is the honest starting state and the whole reason this page was
+ * rewritten. It used to derive validity from AuthContext's `isAuthenticated`,
+ * which starts false and only becomes true once Supabase has parsed the token
+ * out of the URL -- so a signed-out visitor, which is every visitor arriving
+ * from their inbox, saw "link is invalid" for the tick before the perfectly
+ * good token resolved. Nothing here reads `isAuthenticated` any more; the
+ * session is established once, explicitly, below.
+ */
+type LinkState = 'checking' | 'ready' | 'invalid';
+
+/**
+ * Supabase has sent recovery links in two shapes over the years and a project's
+ * email template decides which one arrives, so both are handled:
+ *
+ *  - `#access_token=...&type=recovery` -- the implicit flow. The client picks
+ *    this up on its own (`detectSessionInUrl` is on by default), which is why
+ *    there is no branch for it: `getSession()` below awaits that same
+ *    initialisation and returns the session it established.
+ *  - `?token_hash=...&type=recovery` -- the newer template. Nothing consumes it
+ *    automatically; it has to be handed to `verifyOtp`.
+ */
+const readRecoveryParams = () => {
+    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
+    const hashParams = new URLSearchParams(hash);
+    const queryParams = new URLSearchParams(window.location.search);
+    const pick = (key: string) => hashParams.get(key) ?? queryParams.get(key);
+
+    return {
+        errorCode: pick('error_code') ?? pick('error'),
+        errorDescription: pick('error_description'),
+        tokenHash: pick('token_hash'),
+    };
+};
+
+/** Turns Supabase's wording into something a person can act on. */
+const describeError = (raw: string): string => {
+    if (/expired/i.test(raw)) return 'That link has expired. Reset links are good for one hour.';
+    if (/already been used|invalid|not found/i.test(raw)) return 'That link is no longer valid. It may already have been used, or replaced by a newer one.';
+    if (/session missing|session_not_found/i.test(raw)) return 'This link did not carry a valid session. Please request a fresh one.';
+    if (/should be different|same as the old/i.test(raw)) return 'That is already your password. Please choose a different one.';
+    if (/at least/i.test(raw)) return 'Password must be at least 6 characters.';
+    if (/fetch|network/i.test(raw)) return 'Could not reach the server. Check your connection.';
+    return raw || 'Something went wrong. Please try again.';
+};
 
 const ResetPasswordPage: React.FC = () => {
-    const { updatePassword, isAuthenticated, loading: authLoadingState } = useAuth();
+    const { updatePassword } = useAuth();
     const router = useRouter();
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [isSessionValid, setIsSessionValid] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [linkState, setLinkState] = useState<LinkState>('checking');
+    const [linkError, setLinkError] = useState<string | null>(null);
+    const [formError, setFormError] = useState<string | null>(null);
+
+    /**
+     * A recovery token is single-use, and StrictMode runs this effect twice on the
+     * same instance in development -- the second `verifyOtp` would be redeeming a
+     * token the first one already spent, and the page would call a perfectly good
+     * link invalid. The ref survives the double-invoke (it is one instance, not
+     * two), so the exchange happens exactly once.
+     */
+    const startedRef = React.useRef(false);
 
     useEffect(() => {
-        // Supabase should have automatically established a session from the recovery link hash
-        // If there's no session after loading finishes, the link might be invalid/expired
-        if (!authLoadingState && !isAuthenticated) {
-            setIsSessionValid(false);
-        }
-    }, [isAuthenticated, authLoadingState]);
+        if (startedRef.current) return;
+        startedRef.current = true;
+
+        const settle = (state: LinkState, message?: string) => {
+            setLinkState(state);
+            if (message) setLinkError(message);
+        };
+
+        const establishSession = async () => {
+            const { errorCode, errorDescription, tokenHash } = readRecoveryParams();
+
+            // Supabase redirects here with the failure spelled out when it rejects
+            // the token itself -- an expired link never reaches getSession().
+            if (errorCode) {
+                settle('invalid', describeError(errorDescription ?? errorCode));
+                return;
+            }
+
+            if (tokenHash) {
+                const { error } = await supabase.auth.verifyOtp({
+                    type: 'recovery',
+                    token_hash: tokenHash,
+                });
+
+                if (error) {
+                    settle('invalid', describeError(error.message));
+                    return;
+                }
+
+                settle('ready');
+                return;
+            }
+
+            // getSession() awaits the client's own initialisation, and that is
+            // where the `#access_token` fragment is consumed -- so by the time
+            // this resolves there is either a session or there was never a token.
+            const { data: { session } } = await supabase.auth.getSession();
+
+            settle(
+                session ? 'ready' : 'invalid',
+                session ? undefined : 'This page needs a recovery link to work. Request one from the sign-in form.',
+            );
+        };
+
+        establishSession()
+            .catch((err: any) => {
+                console.error('Recovery link check failed:', err);
+                settle('invalid', describeError(err?.message ?? ''));
+            })
+            .finally(() => {
+                // The token is a credential and has no business sitting in the
+                // address bar or the back-forward history once it is spent.
+                if (typeof window !== 'undefined' && (window.location.hash || window.location.search)) {
+                    window.history.replaceState(null, '', window.location.pathname);
+                }
+            });
+    }, []);
 
     const handleResetSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
-        if (password !== confirmPassword) {
-            toast.error('Sync Mismatch', {
-                description: 'The passcodes entered do not match. Please verify and retry.'
-            });
-            return;
-        }
+        setFormError(null);
 
         if (password.length < 6) {
-            toast.error('Complexity Requirement', {
-                description: 'Passcode must be at least 6 characters long.'
-            });
+            setFormError('Password must be at least 6 characters.');
             return;
         }
 
-        setLoading(true);
+        if (password !== confirmPassword) {
+            setFormError('The two passwords do not match.');
+            return;
+        }
+
+        setSaving(true);
 
         try {
             const { error } = await updatePassword(password);
 
             if (error) {
                 console.error('Password reset error:', error);
-                toast.error('Re-initialization Failed', {
-                    description: error.message || 'An error occurred while updating your passcode.'
-                });
-            } else {
-                toast.success('Passcode Re-established', {
-                    description: 'Your security credentials have been updated successfully.'
-                });
-                // Redirect to dashboard or login
-                setTimeout(() => {
-                    router.replace('/dashboard');
-                }, 2000);
+                const message = describeError(error.message ?? '');
+                setFormError(message);
+                toast.error('Could not update password', { description: message });
+                setSaving(false);
+                return;
             }
+
+            // The recovery link signed them in, so there is nothing left to do but
+            // let them in. `replace`, not `push`: this page is spent and must not
+            // come back on the back button.
+            toast.success('Password updated', { description: 'You are signed in with the new password.' });
+            router.replace('/dashboard');
         } catch (err: any) {
             console.error('Reset exception:', err);
-            toast.error('System Failure', {
-                description: err?.message || 'An unexpected error occurred. Please try again.'
-            });
-        } finally {
-            setLoading(false);
+            const message = describeError(err?.message ?? '');
+            setFormError(message);
+            toast.error('Something went wrong', { description: message });
+            setSaving(false);
         }
     };
 
-    if (!isSessionValid && !authLoadingState) {
-        return (
-            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden font-sans uppercase">
-                <div className="absolute top-0 right-0 w-full h-full pointer-events-none">
-                    <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-red-600/10 blur-[120px] rounded-full animate-pulse-slow" />
-                </div>
+    // Matches the sign-in form on "/" -- this page is the far end of a journey
+    // that starts there, and the app is light-only.
+    const inputClass =
+        "h-14 w-full rounded-xl border border-slate-200 bg-white px-4 text-[15px] font-medium text-slate-900 outline-none transition-colors placeholder:text-slate-300 focus:border-slate-400 focus:ring-4 focus:ring-slate-900/5";
 
-                <div className="w-full max-w-md relative z-10 text-center">
-                    <div className="inline-flex p-4 bg-slate-900 border border-red-500/20 rounded-3xl shadow-2xl mb-8">
-                        <AlertCircle className="text-red-500" size={32} />
-                    </div>
-                    <h1 className="text-2xl font-black text-white tracking-widest mb-4">Invalid Access Uplink</h1>
-                    <p className="text-slate-400 text-[10px] font-bold tracking-widest leading-loose mb-8">
-                        The security token has expired or is invalid. Please request a new recovery uplink.
-                    </p>
-                    <button
-                        onClick={() => router.push('/dashboard')}
-                        className="bg-slate-900 hover:bg-slate-800 text-white border border-white/5 py-3 px-8 rounded-xl text-[9px] font-black tracking-widest transition-all"
-                    >
-                        RETURN TO GATEWAY
-                    </button>
-                </div>
-            </div>
+    const labelClass =
+        "mb-2.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400";
+
+    const buttonClass =
+        "mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-[11px] font-bold uppercase tracking-[0.18em] text-white transition-colors hover:bg-slate-800 disabled:pointer-events-none disabled:opacity-50";
+
+    const shell = (children: React.ReactNode) => (
+        <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-16">
+            <div className="w-full max-w-md animate-in fade-in duration-500">{children}</div>
+        </main>
+    );
+
+    if (linkState === 'checking') {
+        return shell(
+            <div className="flex flex-col items-center gap-4 text-center">
+                <span className="size-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-900" />
+                <p className="text-[13px] text-slate-400">Checking your reset link&hellip;</p>
+            </div>,
         );
     }
 
-    return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden font-sans uppercase selection:bg-blue-500/30">
-            {/* Ambient Lighting */}
-            <div className="absolute top-0 right-0 w-full h-full pointer-events-none">
-                <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full animate-pulse-slow" />
-                <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full animate-pulse-slow delay-1000" />
+    if (linkState === 'invalid') {
+        return shell(
+            <>
+                <div className="mb-7 inline-flex size-12 items-center justify-center rounded-xl border border-rose-200 bg-rose-50">
+                    <AlertCircle size={20} className="text-rose-500" />
+                </div>
+                <h1
+                    className="text-[32px] font-semibold leading-tight tracking-[-0.03em] text-slate-900"
+                    style={DISPLAY}
+                >
+                    This link won&rsquo;t work
+                </h1>
+                <p className="mt-3 text-[15px] leading-relaxed text-slate-500">
+                    {linkError ?? 'The reset link is no longer valid.'}
+                </p>
+
+                {/* "/" rather than /dashboard: whoever is reading this is signed out,
+                    and the dashboard would only bounce them back here via
+                    ProtectedRoute. The sign-in form, and the "Forgot?" link that
+                    sends a fresh email, are both on "/". */}
+                <Link href="/" style={DISPLAY} className={buttonClass}>
+                    Back to Sign In
+                    <ArrowRight size={15} />
+                </Link>
+            </>,
+        );
+    }
+
+    return shell(
+        <>
+            <div className="mb-7 inline-flex size-12 items-center justify-center rounded-xl border border-slate-200 bg-white">
+                <KeyRound size={20} className="text-slate-700" />
             </div>
+            <h1
+                className="text-[32px] font-semibold leading-tight tracking-[-0.03em] text-slate-900"
+                style={DISPLAY}
+            >
+                Set a new password
+            </h1>
+            <p className="mt-3 text-[15px] leading-relaxed text-slate-500">
+                Choose something at least 6 characters long. You&rsquo;ll be signed in straight
+                after.
+            </p>
 
-            <div className="w-full max-w-md relative z-10 animate-in fade-in zoom-in-95 duration-700">
+            {formError && (
+                <div className="mt-7 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <AlertCircle size={16} className="mt-px shrink-0 text-rose-500" />
+                    <p className="text-[13px] leading-snug text-rose-700">{formError}</p>
+                </div>
+            )}
 
-                {/* Header */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex p-4 bg-slate-900 border border-white/5 rounded-3xl shadow-2xl mb-8 group relative overflow-hidden">
-                        <div className="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                        <ShieldCheck className="text-blue-500 relative z-10" size={32} />
-                    </div>
-                    <h1 className="text-3xl font-black text-white tracking-widest mb-2">Credential Reset</h1>
-                    <div className="flex items-center justify-center gap-2 text-[10px] text-slate-500 font-bold tracking-[0.2em]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                        SECURITY RECOVERY ACTIVE
+            <form onSubmit={handleResetSubmit} className="mt-8">
+                <div>
+                    <label htmlFor="new-password" className={labelClass} style={DISPLAY}>
+                        New password
+                    </label>
+                    <div className="relative">
+                        <input
+                            id="new-password"
+                            type={showPassword ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className={`${inputClass} pr-12`}
+                            required
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword((prev) => !prev)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 transition-colors hover:text-slate-600"
+                        >
+                            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
                     </div>
                 </div>
 
-                {/* Glass Card */}
-                <div className="bg-slate-900/60 backdrop-blur-2xl p-2 rounded-[2.5rem] border border-white/5 shadow-2xl ring-1 ring-white/5">
-                    <div className="bg-slate-950/50 rounded-[2rem] p-6 sm:p-8">
-                        
-                        <p className="text-[10px] text-slate-500 font-bold tracking-widest mb-8 text-center leading-relaxed">
-                            ESTABLISH A NEW ENCRYPTED PASSCODE TO REGAIN ACCESS TO THE FINSIP PROTOCOL.
-                        </p>
-
-                        <form onSubmit={handleResetSubmit} className="space-y-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[9px] font-bold text-slate-500 ml-4 tracking-widest">New Passcode</label>
-                                <div className="relative group">
-                                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors duration-300" size={16} />
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        placeholder="••••••••••••"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full bg-slate-900 border border-white/5 rounded-2xl py-4 pl-12 pr-12 text-white text-xs font-bold tracking-wider focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700"
-                                        required
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(prev => !prev)}
-                                        aria-label={showPassword ? 'Hide passcode' : 'Show passcode'}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-500 transition-colors duration-300"
-                                    >
-                                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[9px] font-bold text-slate-500 ml-4 tracking-widest">Confirm Passcode</label>
-                                <div className="relative group">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors duration-300" size={16} />
-                                    <input
-                                        type={showConfirmPassword ? 'text' : 'password'}
-                                        placeholder="••••••••••••"
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        className="w-full bg-slate-900 border border-white/5 rounded-2xl py-4 pl-12 pr-12 text-white text-xs font-bold tracking-wider focus:border-blue-500/50 focus:bg-slate-900/80 outline-none transition-all placeholder:text-slate-700"
-                                        required
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowConfirmPassword(prev => !prev)}
-                                        aria-label={showConfirmPassword ? 'Hide passcode' : 'Show passcode'}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-500 transition-colors duration-300"
-                                    >
-                                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={loading || authLoadingState}
-                                className="w-full bg-white hover:bg-slate-200 text-slate-950 h-14 rounded-2xl font-black text-[10px] tracking-[0.2em] transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 shadow-xl mt-6 disabled:opacity-50 disabled:pointer-events-none"
-                            >
-                                {loading || authLoadingState ? (
-                                    <div className="w-4 h-4 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin" />
-                                ) : (
-                                    <>
-                                        UPDATE GATEWAY ACCESS
-                                        <ChevronRight size={16} />
-                                    </>
-                                )}
-                            </button>
-                        </form>
+                <div className="mt-6">
+                    <label htmlFor="confirm-password" className={labelClass} style={DISPLAY}>
+                        Confirm password
+                    </label>
+                    <div className="relative">
+                        <input
+                            id="confirm-password"
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            placeholder="••••••••"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className={`${inputClass} pr-12`}
+                            required
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword((prev) => !prev)}
+                            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 transition-colors hover:text-slate-600"
+                        >
+                            {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="text-center mt-12 flex flex-col items-center gap-3">
-                    <div className="space-y-1">
-                        <p className="text-slate-500 text-[10px] font-black tracking-[0.2em]">FINSIP PROTOCOL SECURE RECOVERY</p>
-                        <p className="text-slate-700 text-[8px] font-bold tracking-widest">RSA-4096 ENCRYPTED TRANSACTION</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+                <button type="submit" disabled={saving} style={DISPLAY} className={buttonClass}>
+                    {saving ? (
+                        <span className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    ) : (
+                        <>
+                            Update Password
+                            <ArrowRight size={15} />
+                        </>
+                    )}
+                </button>
+            </form>
+        </>,
     );
 };
 
