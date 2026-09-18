@@ -11,7 +11,7 @@ import { useIndexCompanies, type MarketIndex } from '../hooks/useIndexCompanies'
 import { useAllocations, MAX_ALLOCATION_HOLDINGS, type AllocationInput, type AllocationRow } from '../hooks/useAllocations';
 import { useMomentum } from '../hooks/useMomentum';
 import AllocationTable from '../components/allocation/AllocationTable';
-import CurrentAllocationTable, { type CurrentAllocationRow } from '../components/allocation/CurrentAllocationTable';
+import CurrentAllocationTable, { ALLOCATION_LISTS, LIST_LABELS, type AllocationList, type CurrentAllocationRow } from '../components/allocation/CurrentAllocationTable';
 import RebalanceTable from '../components/allocation/RebalanceTable';
 import { computeLiveHoldings } from '../utils/holdings';
 import { computeRebalance } from '../utils/rebalance';
@@ -375,7 +375,43 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean; basis: RebalanceBa
     // Warm in the boot cache already -- the KMI 30 tab reads the same query, so putting
     // its weights in this table costs no request.
     const { companies: kmiCompanies } = useIndexCompanies('KMI30');
+    // Same deal: the boot gate warms KSE 30 and the momentum scrape too, so the
+    // Indices column is read off caches the other tabs already filled.
+    const { companies: kseCompanies } = useIndexCompanies('KSE30');
+    const { index: momentum } = useMomentum();
     const currency = useCurrency();
+
+    /**
+     * The three funding lists, as sets of symbols.
+     *
+     * KMI 15 and KSE 15 are the leading slice of their index, not the whole thing:
+     * `fetchIndexCompanies` returns these feeds heaviest-first, so the first
+     * MAX_ALLOCATION_HOLDINGS rows are exactly what those two tabs fund. Taking the
+     * full index here would badge symbols the tabs would never buy.
+     */
+    const lists = useMemo<Record<AllocationList, Set<string>>>(
+        () => ({
+            MOMENTUM: new Set((momentum?.constituents ?? []).map((c) => c.symbol.toUpperCase())),
+            KMI15: new Set(
+                kmiCompanies.slice(0, MAX_ALLOCATION_HOLDINGS).map((c) => c.name.toUpperCase())
+            ),
+            KSE15: new Set(
+                kseCompanies.slice(0, MAX_ALLOCATION_HOLDINGS).map((c) => c.name.toUpperCase())
+            ),
+        }),
+        [momentum, kmiCompanies, kseCompanies]
+    );
+
+    /**
+     * Lists whose source hasn't answered. An empty set is indistinguishable from
+     * "this symbol is on nothing" once it reaches the table, so the names are
+     * carried out to a note rather than letting the column quietly report every
+     * holding as a non-member of a list we simply could not read.
+     */
+    const unreadLists = useMemo(
+        () => ALLOCATION_LISTS.filter((l) => lists[l].size === 0),
+        [lists]
+    );
 
     const logos = useMemo(
         () => new Map(companies.map((c) => [c.name, c.logo])),
@@ -454,10 +490,13 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean; basis: RebalanceBa
                 const marketShare = totalValue > 0 ? (h.marketValue / totalValue) * 100 : 0;
 
                 const key = h.symbol.toUpperCase();
+                const memberships = ALLOCATION_LISTS.filter((l) => lists[l].has(key));
 
                 return {
                     symbol: h.symbol,
                     logo: logos.get(key) ?? '',
+                    memberships,
+                    indexCount: memberships.length,
                     investedShare,
                     customShare: customShares.get(key) ?? null,
                     kmiShare: kmiShares.get(key) ?? null,
@@ -469,7 +508,7 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean; basis: RebalanceBa
             // Heaviest position first: the rows that move the portfolio most are the
             // ones worth reading, and the drift on a 0.4% holding is noise.
             .sort((a, b) => b.marketShare - a.marketShare);
-    }, [holdings, logos, customShares, kmiShares]);
+    }, [holdings, logos, customShares, kmiShares, lists]);
 
     if (transactionsLoading) return <TableSkeleton />;
 
@@ -518,6 +557,15 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean; basis: RebalanceBa
 
                     {rows.length > 0 && (
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+                            {/* Without this the Indices column would report "not a member"
+                                for a list it never managed to read, which looks identical
+                                to a genuine no. */}
+                            {unreadLists.length > 0 && (
+                                <p className={clsx(NOTE, 'flex items-center gap-1.5 text-amber-600')} style={DISPLAY}>
+                                    <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                    Could not read: {unreadLists.map((l) => LIST_LABELS[l]).join(', ')}
+                                </p>
+                            )}
                             <p className={clsx(NOTE, 'ml-auto text-slate-300')} style={DISPLAY}>
                                 Difference is market share minus invested share
                             </p>

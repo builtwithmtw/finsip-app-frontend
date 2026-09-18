@@ -7,9 +7,47 @@ import { DISPLAY, NUMERIC } from '../../utils/typography';
 import { Panel } from '../Panel';
 import { SortHeader, sortRows, useTableSort } from './sorting';
 
+/**
+ * The funding lists a held symbol can also appear on, as the tabs name them.
+ * KMI 15 and KSE 15 are the top fifteen of KMI 30 and KSE 30 -- the same slice
+ * those tabs actually fund, not the whole index.
+ */
+export type AllocationList = 'MOMENTUM' | 'KMI15' | 'KSE15';
+
+/**
+ * Fixed render order, so a row with two badges lines its badges up under a row
+ * with three instead of shuffling them by whatever order they were collected in.
+ */
+export const ALLOCATION_LISTS: AllocationList[] = ['MOMENTUM', 'KMI15', 'KSE15'];
+
+/**
+ * One place for the names, because the page prints them outside this table too
+ * (the "could not read" note), and a badge that disagrees with that note would
+ * be worse than either.
+ *
+ * Spelled "KSE 15" rather than "KSE", because "KMI Allocation" further along the
+ * same row is a KMI *30* weight -- a bare "KMI" badge beside it would be read as
+ * the same thing.
+ */
+export const LIST_LABELS: Record<AllocationList, string> = {
+    MOMENTUM: 'Momentum',
+    KMI15: 'KMI 15',
+    KSE15: 'KSE 15',
+};
+
+const LIST_BADGE: Record<AllocationList, string> = {
+    MOMENTUM: 'bg-violet-50 text-violet-600',
+    KMI15: 'bg-emerald-50 text-emerald-600',
+    KSE15: 'bg-sky-50 text-sky-600',
+};
+
 export interface CurrentAllocationRow {
     symbol: string;
     logo?: string;
+    /** Which funding lists this symbol is on. Empty when it is on none of them. */
+    memberships: AllocationList[];
+    /** `memberships.length`, kept as a field so the column can be sorted on it. */
+    indexCount: number;
     /** Share of the portfolio's cost basis. */
     investedShare: number;
     /** The Custom tab's weight for this symbol, normalised. Null when none is set. */
@@ -30,9 +68,13 @@ interface CurrentAllocationTableProps {
 }
 
 const bodyCell = 'px-3.5 py-2 text-[13px] leading-5 tabular-nums';
-const footCell = 'px-3.5 py-2.5 text-right text-[13px] font-semibold tabular-nums';
+// Split so the one left-aligned footer cell can drop `text-right` rather than
+// fight it with an important modifier -- which this codebase uses nowhere else,
+// and which Tailwind v4 spells as a suffix anyway.
+const footCellBase = 'px-3.5 py-2.5 text-[13px] font-semibold tabular-nums';
+const footCell = `${footCellBase} text-right`;
 
-type SortKey = 'symbol' | 'investedShare' | 'customShare' | 'kmiShare' | 'marketShare' | 'difference';
+type SortKey = 'symbol' | 'indexCount' | 'investedShare' | 'customShare' | 'kmiShare' | 'marketShare' | 'difference';
 
 const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
     rows,
@@ -52,14 +94,19 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
     const totalMarket = rows.reduce((sum, r) => sum + r.marketShare, 0);
     const totalCustom = rows.reduce((sum, r) => sum + (r.customShare ?? 0), 0);
     const totalKmi = rows.reduce((sum, r) => sum + (r.kmiShare ?? 0), 0);
+    const inAnyList = rows.reduce((n, r) => n + (r.memberships.length > 0 ? 1 : 0), 0);
 
     return (
         <Panel flush>
             <div className="overflow-x-auto scrollbar-hide-auto">
-                <table className="w-full min-w-[760px] text-left border-collapse">
+                <table className="w-full min-w-[960px] text-left border-collapse">
                     <thead className="border-b border-slate-100 bg-slate-50/60">
                         <tr>
                             <SortHeader label="Equity" sortKey="symbol" sort={sort} onToggle={toggle} naturalDirection="asc" align="left" />
+                            {/* Sorts on how many lists the row is on, so "on all three"
+                                comes to the top -- the sort a badge column is actually
+                                read for. */}
+                            <SortHeader label="Indices" sortKey="indexCount" sort={sort} onToggle={toggle} align="left" />
                             <SortHeader label="Invested Allocation" sortKey="investedShare" sort={sort} onToggle={toggle} />
                             <SortHeader label="Custom Allocation" sortKey="customShare" sort={sort} onToggle={toggle} />
                             <SortHeader label="KMI Allocation" sortKey="kmiShare" sort={sort} onToggle={toggle} />
@@ -72,7 +119,7 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                         {rows.length === 0 ? (
                             <tr>
                                 <td
-                                    colSpan={6}
+                                    colSpan={7}
                                     style={DISPLAY}
                                     className="px-3.5 py-12 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400"
                                 >
@@ -118,6 +165,32 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                                                 </span>
                                             )}
                                         </div>
+                                    </td>
+
+                                    {/* Not a figure -- which of the other tabs would also
+                                        fund this symbol. A dash means none of them do, which
+                                        is a real answer; a feed that could not be read is
+                                        called out in the note under the table instead, since
+                                        it would otherwise look the same from here. */}
+                                    <td className={clsx(bodyCell, 'whitespace-nowrap')}>
+                                        {r.memberships.length === 0 ? (
+                                            <span className="text-slate-300" style={NUMERIC}>—</span>
+                                        ) : (
+                                            <span className="flex items-center gap-1">
+                                                {ALLOCATION_LISTS.filter((l) => r.memberships.includes(l)).map((l) => (
+                                                    <span
+                                                        key={l}
+                                                        className={clsx(
+                                                            'rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]',
+                                                            LIST_BADGE[l]
+                                                        )}
+                                                        style={DISPLAY}
+                                                    >
+                                                        {LIST_LABELS[l]}
+                                                    </span>
+                                                ))}
+                                            </span>
+                                        )}
                                     </td>
 
                                     <td className={clsx(bodyCell, 'text-right text-slate-500')} style={NUMERIC}>
@@ -177,6 +250,12 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                                     className="px-3.5 py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-500"
                                 >
                                     Total
+                                </td>
+                                {/* How many holdings are on at least one list -- the one
+                                    summary a badge column has. Left-aligned to sit under the
+                                    badges rather than under the figures. */}
+                                <td className={clsx(footCellBase, 'text-left text-slate-500')} style={NUMERIC}>
+                                    {inAnyList > 0 ? `${inAnyList}/${rows.length}` : '—'}
                                 </td>
                                 <td className={clsx(footCell, 'text-slate-900')} style={NUMERIC}>
                                     {totalInvested.toFixed(0)}%
