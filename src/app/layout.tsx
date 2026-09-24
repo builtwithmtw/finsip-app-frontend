@@ -40,14 +40,14 @@ export const metadata: Metadata = {
   // warns at build time and falls back to localhost.
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "FinSIP",
+    default: "FINSIP",
     // Pages set a bare title; this appends the brand once, in one place, so
-    // "FinSIP Screener | FinSIP" can't happen.
-    template: "%s | FinSIP",
+    // "FINSIP Screener | FINSIP" can't happen.
+    template: "%s | FINSIP",
   },
   description:
     "Screen Pakistan Stock Exchange tickers by Shariah and sector filters, and track your SIP portfolio.",
-  applicationName: "FinSIP",
+  applicationName: "FINSIP",
   // Every page is its own canonical unless it overrides this. Relative values
   // resolve against metadataBase.
   alternates: { canonical: "/" },
@@ -66,20 +66,20 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    siteName: "FinSIP",
+    siteName: "FINSIP",
     locale: "en_US",
     url: "/",
-    title: "FinSIP — PSX Screener & SIP Portfolio Tracker",
+    title: "FINSIP — PSX Screener & SIP Portfolio Tracker",
     description:
       "Screen Pakistan Stock Exchange tickers by Shariah and sector filters, and track your SIP portfolio.",
     // No purpose-built 1200x630 card exists yet, so this reuses the PWA icon.
     // It renders as a small square in most unfurls -- worth replacing with a
     // real og-image.png when there is one.
-    images: [{ url: "/pwa-512x512.png", width: 512, height: 512, alt: "FinSIP" }],
+    images: [{ url: "/pwa-512x512.png", width: 512, height: 512, alt: "FINSIP" }],
   },
   twitter: {
     card: "summary",
-    title: "FinSIP — PSX Screener & SIP Portfolio Tracker",
+    title: "FINSIP — PSX Screener & SIP Portfolio Tracker",
     description:
       "Screen Pakistan Stock Exchange tickers by Shariah and sector filters, and track your SIP portfolio.",
     images: ["/pwa-512x512.png"],
@@ -96,7 +96,7 @@ export const metadata: Metadata = {
   // Screen", so they have to agree with app/manifest.ts.
   appleWebApp: {
     capable: true,
-    title: "FinSIP",
+    title: "FINSIP",
     statusBarStyle: "black-translucent",
   },
 };

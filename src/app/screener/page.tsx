@@ -3,14 +3,14 @@ import { Providers } from "../providers";
 import { Screener } from "@/components/screener/Screener";
 
 export const metadata: Metadata = {
-  // The root layout's template appends "| FinSIP".
+  // The root layout's template appends "| FINSIP".
   title: "Screener",
   description:
     "Screen Pakistan Stock Exchange tickers by Shariah and sector filters.",
   alternates: { canonical: "/screener" },
   openGraph: {
     url: "/screener",
-    title: "FinSIP Screener",
+    title: "FINSIP Screener",
     description:
       "Screen Pakistan Stock Exchange tickers by Shariah and sector filters.",
   },

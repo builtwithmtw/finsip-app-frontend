@@ -12,8 +12,8 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "FinSIP",
-    short_name: "FinSIP",
+    name: "FINSIP",
+    short_name: "FINSIP",
     description:
       "Screen Pakistan Stock Exchange tickers by Shariah and sector filters, and track your SIP portfolio.",
     start_url: "/",

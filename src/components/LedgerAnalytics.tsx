@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext';
 import { computeHoldings, computeLiveHoldings, summarizeLive } from '../utils/holdings';
-import { SIZING_RULES, computeSizing } from '../utils/positionSizing';
+import { SIZING_RULES, computeSizing, type SizingGrade } from '../utils/positionSizing';
 import { computeSipStreak, computeSipWindow, computeSipDays, sipWindowFromDays } from '../utils/sipStreak';
 import { describeMonthActivity } from '../utils/monthNarrative';
 import { computeXirr, buildPortfolioFlows } from '../utils/xirr';
@@ -21,6 +21,21 @@ import DepositsModal from './DepositsModal';
 /** Emerald above zero, rose below, neutral at exactly nothing. */
 const toneFor = (value: number) =>
     value > 0 ? 'text-emerald-600' : value < 0 ? 'text-rose-600' : 'text-slate-900';
+
+/**
+ * One colour per sizing grade, worn by the tile's tick, its score, its meter and the
+ * grade word alike -- so the four can never read as four different verdicts.
+ *
+ * Balanced is sky rather than a neutral slate because this panel's other two bars (the
+ * cash split and the streak strip) are sky: a good-but-not-perfect reading should look
+ * like the panel's normal, not like an absence of colour.
+ */
+const GRADE_TONE: Record<SizingGrade, { text: string; bar: string }> = {
+    Disciplined: { text: 'text-emerald-600', bar: 'bg-emerald-500' },
+    Balanced: { text: 'text-sky-600', bar: 'bg-sky-500' },
+    Drifting: { text: 'text-amber-600', bar: 'bg-amber-500' },
+    Concentrated: { text: 'text-rose-600', bar: 'bg-rose-500' },
+};
 
 /** The strip shows a year at a time: enough to read a habit, short enough to stay legible. */
 const STRIP_MONTHS = 12;
@@ -38,12 +53,21 @@ const ordinal = (day: number): string => {
 
 // `caption` is optional: a figure that speaks for itself takes the card without a
 // qualifying line under it, rather than one padded out with something to say.
-const Tile: React.FC<{ label: string; caption?: string; children: React.ReactNode }> = ({
-    label,
-    caption,
-    children,
-}) => (
-    <div className="rounded-xl bg-slate-50/70 px-3.5 py-3 ring-1 ring-slate-900/5">
+//
+// `className` is there for the tiles that share a row: they need `h-full` to fill the
+// grid cell, or the one with the shorter caption sits an inch short of its neighbour.
+const Tile: React.FC<{
+    label: string;
+    caption?: string;
+    className?: string;
+    children: React.ReactNode;
+}> = ({ label, caption, className, children }) => (
+    <div
+        className={clsx(
+            'rounded-xl bg-slate-50/70 px-3.5 py-3 ring-1 ring-slate-900/5',
+            className
+        )}
+    >
         <MetricLabel label={label} />
         <div className="mt-2.5">{children}</div>
         {caption && (
@@ -87,17 +111,6 @@ const SizingLine: React.FC<{
             {cap != null && <span className="text-slate-300"> / {cap}%</span>}
         </span>
     </div>
-);
-
-/** A money figure with its own percentage beside it, in the panel's colour for the sign. */
-const Result: React.FC<{ amount: string; percent: number }> = ({ amount, percent }) => (
-    <span className={clsx('flex flex-wrap items-baseline gap-x-2 gap-y-1')}>
-        <Amount value={amount} />
-        <span className="text-[11px] font-semibold leading-none tabular-nums opacity-80" style={NUMERIC}>
-            {percent >= 0 ? '+' : '−'}
-            {Math.abs(percent).toFixed(2)}%
-        </span>
-    </span>
 );
 
 /**
@@ -319,10 +332,11 @@ export const LedgerReturns: React.FC = () => {
         return computeSizing(computeHoldings(transactions), targets, sectors);
     }, [transactions, stocks]);
 
+    // No percentage: the tile shows the rupee figure alone, so the return on cost that
+    // used to sit beside it has nothing left reading it.
     const unrealized = useMemo(
         () => ({
             profit: liveTotals.totalPL,
-            percent: liveTotals.totalCost > 0 ? (liveTotals.totalPL / liveTotals.totalCost) * 100 : 0,
             unpriced: liveTotals.unpricedCount,
         }),
         [liveTotals]
@@ -421,70 +435,76 @@ export const LedgerReturns: React.FC = () => {
                 {/* Realized profit is not shown. Everything closed on this book was put
                     straight back to work, so it is not a result sitting beside the
                     portfolio -- it is already inside it, in the shares it bought and in
-                    the XIRR above. Reporting it separately would invite it to be added to
+                    the XIRR below. Reporting it separately would invite it to be added to
                     a total it is already part of. */}
 
-                <Tile
-                    label="Unrealized Profit"
-                    caption={
-                        // An unpriced symbol is held at cost, so it scores as flat rather than
-                        // as a loss -- worth saying, because the figure is otherwise
-                        // indistinguishable from a fully priced one.
-                        unrealized.unpriced > 0
-                            ? `${unrealized.unpriced} Unpriced, Held At Cost`
-                            : 'On Open Positions'
-                    }
-                >
-                    <span className={toneFor(unrealized.profit)}>
-                        <Result
-                            amount={formatCurrency(Math.round(unrealized.profit))}
-                            percent={unrealized.percent}
-                        />
-                    </span>
-                </Tile>
+                {/* Side by side because they are one reading in two halves: what the open
+                    positions have made, and whether that was any good for the time the
+                    money spent in the market. Reading them as a pair is the point, and at
+                    half width each they still carry a 17px figure. */}
+                <div className="grid grid-cols-2 gap-3">
+                    <Tile
+                        label="Unrealized"
+                        className="h-full"
+                        caption={
+                            // An unpriced symbol is held at cost, so it scores as flat rather than
+                            // as a loss -- worth saying, because the figure is otherwise
+                            // indistinguishable from a fully priced one.
+                            unrealized.unpriced > 0
+                                ? `${unrealized.unpriced} Unpriced, Held At Cost`
+                                : 'On Open Positions'
+                        }
+                    >
+                        {/* The figure alone: no percentage beside it and no "Rs" in front.
+                            The sign still reads -- `Amount` brackets a negative rather
+                            than leaning on the colour, which a reader who isn't looking
+                            for it would miss. */}
+                        <span className={toneFor(unrealized.profit)}>
+                            <Amount value={formatCurrency(Math.round(unrealized.profit))} bare />
+                        </span>
+                    </Tile>
 
-                {/* Sits under the two profit figures because it is the answer they raise:
-                    they say how much was made, this says whether that was any good for
-                    the time the money spent in the market. */}
-                <button
-                    type="button"
-                    onClick={() => setXirrOpen(true)}
-                    title="See every cashflow behind this"
-                    className="rounded-xl text-left transition-opacity hover:opacity-80"
-                >
-                <Tile
-                    label="XIRR"
-                    caption={
-                        xirr === null
-                            ? 'Needs A Deposit And A Value'
-                            : xirrSince
-                                // Names its basis, because the same book has a different
-                                // rate measured on deposits and the two are both right.
-                                ? `Since ${xirrSince}`
-                                : 'Annualised'
-                    }
-                >
-                    {xirr === null ? (
-                        <span
-                            className="block text-[17px] font-semibold leading-none tabular-nums text-slate-300"
-                            style={NUMERIC}
+                    <button
+                        type="button"
+                        onClick={() => setXirrOpen(true)}
+                        title="See every cashflow behind this"
+                        className="h-full rounded-xl text-left transition-opacity hover:opacity-80"
+                    >
+                        <Tile
+                            label="XIRR"
+                            className="h-full"
+                            caption={
+                                xirr === null
+                                    ? 'Needs A Deposit And A Value'
+                                    : xirrSince
+                                        // Names its basis, because the same book has a different
+                                        // rate measured on deposits and the two are both right.
+                                        ? `Since ${xirrSince}`
+                                        : 'Annualised'
+                            }
                         >
-                            —
-                        </span>
-                    ) : (
-                        <span
-                            className={clsx(
-                                'block text-[17px] font-semibold leading-none tabular-nums',
-                                toneFor(xirr)
+                            {xirr === null ? (
+                                <span
+                                    className="block text-[17px] font-semibold leading-none tabular-nums text-slate-300"
+                                    style={NUMERIC}
+                                >
+                                    —
+                                </span>
+                            ) : (
+                                <span
+                                    className={clsx(
+                                        'block text-[17px] font-semibold leading-none tabular-nums',
+                                        toneFor(xirr)
+                                    )}
+                                    style={NUMERIC}
+                                >
+                                    {xirr >= 0 ? '+' : '−'}
+                                    {Math.abs(xirr * 100).toFixed(2)}%
+                                </span>
                             )}
-                            style={NUMERIC}
-                        >
-                            {xirr >= 0 ? '+' : '−'}
-                            {Math.abs(xirr * 100).toFixed(2)}%
-                        </span>
-                    )}
-                </Tile>
-                </button>
+                        </Tile>
+                    </button>
+                </div>
 
                 {/* The shape of the book rather than its result, which is why it sits under
                     XIRR: that says whether the money did well, this says whether it was
@@ -494,27 +514,65 @@ export const LedgerReturns: React.FC = () => {
                     that has been fully exited has nothing to score but still has symbols
                     traded, and that figure lives in here now. */}
                 <Tile label="Position Sizing">
-                    {sizing.empty ? (
+                    {/* The score and the word for it on one line, both in the grade's
+                        colour -- the figure says how far off a hundred, the word says what
+                        that amounts to, and neither has to be read to get the other. */}
+                    <div className="flex items-baseline justify-between gap-2">
+                        {sizing.empty ? (
+                            <span
+                                className="text-[17px] font-semibold leading-none tabular-nums text-slate-300"
+                                style={NUMERIC}
+                            >
+                                —
+                            </span>
+                        ) : (
+                            <>
+                                <span className="flex items-baseline gap-1">
+                                    <span
+                                        className={clsx(
+                                            'text-[17px] font-semibold leading-none tabular-nums',
+                                            GRADE_TONE[sizing.grade].text
+                                        )}
+                                        style={NUMERIC}
+                                    >
+                                        {sizing.score}
+                                    </span>
+                                    <span
+                                        className="text-[10px] font-semibold leading-none text-slate-300"
+                                        style={NUMERIC}
+                                    >
+                                        /100
+                                    </span>
+                                </span>
+                                <span
+                                    className={clsx(
+                                        'shrink-0 text-[9px] font-semibold uppercase leading-none tracking-[0.14em]',
+                                        GRADE_TONE[sizing.grade].text
+                                    )}
+                                    style={DISPLAY}
+                                >
+                                    {sizing.grade}
+                                </span>
+                            </>
+                        )}
+                    </div>
+
+                    {/* The score drawn, in the construction the cash split above already
+                        uses -- a proportion reads faster as a length than as a figure.
+                        Floored at 2% so a near-zero score is still a mark rather than an
+                        empty track that looks like a bug. */}
+                    {!sizing.empty && (
                         <span
-                            className="block text-[17px] font-semibold leading-none tabular-nums text-slate-300"
-                            style={NUMERIC}
+                            aria-hidden
+                            className="mt-2.5 block h-1 w-full overflow-hidden rounded-full bg-slate-100"
                         >
-                            —
-                        </span>
-                    ) : (
-                        <span className="flex items-baseline gap-1">
                             <span
-                                className="text-[17px] font-semibold leading-none tabular-nums text-slate-900"
-                                style={NUMERIC}
-                            >
-                                {sizing.score}
-                            </span>
-                            <span
-                                className="text-[11px] font-semibold leading-none text-slate-300"
-                                style={NUMERIC}
-                            >
-                                /100
-                            </span>
+                                className={clsx(
+                                    'block h-full rounded-full transition-[width] duration-500',
+                                    GRADE_TONE[sizing.grade].bar
+                                )}
+                                style={{ width: `${Math.max(sizing.score, 2)}%` }}
+                            />
                         </span>
                     )}
 
@@ -587,32 +645,22 @@ export const LedgerReturns: React.FC = () => {
                 picture of whether the plan was actually kept up. */}
             {streak.totalMonths > 0 && (
                 <div className="mt-4 border-t border-slate-100 pt-3.5">
-                    <div className="flex items-end justify-between gap-3">
-                        <div>
-                            <MetricLabel label="SIP Streak" />
-                            <p
-                                className="mt-1.5 text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
-                                style={DISPLAY}
-                            >
-                                Longest {streak.longest} · Funded {streak.fundedCount} of {streak.totalMonths}
-                            </p>
-                        </div>
-                        <span className="flex items-baseline gap-1.5">
-                            <span
-                                className={clsx(
-                                    'text-[17px] font-semibold leading-none tabular-nums',
-                                    streak.current > 0 ? 'text-sky-600' : 'text-slate-400'
-                                )}
-                                style={NUMERIC}
-                            >
-                                {streak.current}
-                            </span>
-                            <span
-                                className="text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
-                                style={DISPLAY}
-                            >
-                                {streak.current === 1 ? 'Month' : 'Months'}
-                            </span>
+                    {/* Label and figure on one line. The "Longest / Funded" gloss that used
+                        to sit under the label is gone, and with it the second line that
+                        `items-end` was aligning the figure against -- the strip below says
+                        which months were funded, in the one form you can read at a glance.
+                        The unit is gone too: the strip is months, so the figure can only be
+                        months. */}
+                    <div className="flex items-center justify-between gap-3">
+                        <MetricLabel label="SIP Streak" />
+                        <span
+                            className={clsx(
+                                'text-[17px] font-semibold leading-none tabular-nums',
+                                streak.current > 0 ? 'text-sky-600' : 'text-slate-400'
+                            )}
+                            style={NUMERIC}
+                        >
+                            {streak.current}
                         </span>
                     </div>
 

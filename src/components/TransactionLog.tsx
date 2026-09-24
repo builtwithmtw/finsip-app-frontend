@@ -41,12 +41,16 @@ const CELL = 'px-4 py-2 text-[12px] leading-5';
  * actually do, and when", which the matrix can't, because a matrix cell is already
  * several trades added together.
  *
- * The date column is the month traded, not `createdAt`. `createdAt` is when the row was
- * typed, and a ledger that was backfilled in one sitting has every row stamped with that
- * one day -- which made a year of 2025 trades all read "25 Jan 2026" and put them nowhere
- * near where anyone would look for them. The month is the only date that describes the
- * trade rather than the data entry, so it is what the column shows and what the rows are
- * ordered by. When the entry was recorded is still there, in the row's tooltip.
+ * The date column is the full entry date -- "24 Sep 2026" -- off `createdAt`, falling
+ * back to the month for a row that has no usable timestamp.
+ *
+ * `createdAt` is the day the entry is filed under: the nav bar's date picker writes it
+ * through `entryTimestamp`, so for anything entered since it is the trade's own date.
+ * The one case it is not is a ledger backfilled in a single sitting, where every row
+ * carries the day it was typed -- a year of trades all reading the same date. Rows are
+ * still ordered by `month` first, which is the field that describes the trade rather
+ * than the data entry, so on such a book the column can read out of order. The month is
+ * still in the row's tooltip either way.
  */
 const TransactionLog: React.FC = () => {
     const { transactions } = usePortfolio();
@@ -197,8 +201,12 @@ const TransactionLog: React.FC = () => {
                                                     aria-hidden
                                                     className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
                                                 />
+                                                {/* Day, month and year. The month alone is the
+                                                    fallback, for a row whose timestamp is
+                                                    missing or unparseable -- better a coarser
+                                                    date than none. */}
                                                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">
-                                                    {monthShort(t.month)}
+                                                    {entryDate(t.createdAt) ?? monthShort(t.month)}
                                                 </span>
                                             </td>
 

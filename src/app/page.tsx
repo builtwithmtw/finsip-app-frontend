@@ -8,15 +8,15 @@ import { AuthPanel } from "@/components/home/AuthPanel";
 import { DISPLAY, NUMERIC, WORDMARK } from "@/utils/typography";
 
 export const metadata: Metadata = {
-  // `absolute` opts out of the root layout's "%s | FinSIP" template -- the brand
+  // `absolute` opts out of the root layout's "%s | FINSIP" template -- the brand
   // is already in this title.
-  title: { absolute: "FinSIP — PSX Screener & SIP Portfolio Tracker" },
+  title: { absolute: "FINSIP — PSX Screener & SIP Portfolio Tracker" },
   description:
     "Screen Pakistan Stock Exchange tickers by Shariah and sector, track your SIP portfolio, and plan how each rupee is allocated.",
   alternates: { canonical: "/" },
   openGraph: {
     url: "/",
-    title: "FinSIP — PSX Screener & SIP Portfolio Tracker",
+    title: "FINSIP — PSX Screener & SIP Portfolio Tracker",
     description:
       "Screen Pakistan Stock Exchange tickers by Shariah and sector, track your SIP portfolio, and plan how each rupee is allocated.",
   },
@@ -103,7 +103,7 @@ const JSON_LD = {
       "@type": "WebSite",
       "@id": `${SITE_URL}/#website`,
       url: `${SITE_URL}/`,
-      name: "FinSIP",
+      name: "FINSIP",
       description:
         "Screen Pakistan Stock Exchange tickers by Shariah and sector, track your SIP portfolio, and plan how each rupee is allocated.",
       inLanguage: "en",
@@ -111,7 +111,7 @@ const JSON_LD = {
     {
       "@type": "WebApplication",
       "@id": `${SITE_URL}/#app`,
-      name: "FinSIP",
+      name: "FINSIP",
       url: `${SITE_URL}/`,
       applicationCategory: "FinanceApplication",
       operatingSystem: "Any",

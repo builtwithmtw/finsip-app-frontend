@@ -5,6 +5,7 @@ import { Trash2, ArrowUp, ArrowDown, ChevronsUpDown, ChevronDown, ChevronLeft, C
 import clsx from "clsx";
 import { DISPLAY, NUMERIC } from "@/utils/typography";
 import { Panel } from "@/components/Panel";
+import { ShariahMark } from "@/components/ShariahMark";
 
 /** Offered smallest-first; the list's own total is appended as the "everything" pick. */
 const PAGE_SIZE_OPTIONS = [10, 15, 20, 50];
@@ -12,6 +13,8 @@ const PAGE_SIZE_OPTIONS = [10, 15, 20, 50];
 export interface WatchlistRow {
   id: string;
   symbol: string;
+  /** KMIALLSHR membership, from the same answer the screener's badges are drawn from. */
+  isShariah: boolean;
   sector: string;
   price: number | null;
   d1: number | null;
@@ -208,17 +211,31 @@ const WatchlistTable: React.FC<Props> = ({ rows, onRemove }) => {
                     aria-hidden
                     className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-sky-400 opacity-0 transition-opacity group-hover:opacity-100"
                   />
-                  <span
-                    className="text-[13px] font-semibold uppercase tracking-[-0.03em] text-slate-900"
-                    style={DISPLAY}
-                  >
-                    {row.symbol}
+                  {/* The ticker and its mark sit on one baseline rather than the mark
+                      being tucked inside the text run, so the 13px glyph lines up with
+                      the cap height of the symbol beside it. */}
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="text-[13px] font-semibold uppercase tracking-[-0.03em] text-slate-900"
+                      style={DISPLAY}
+                    >
+                      {row.symbol}
+                    </span>
+                    {/* The allocation tables' drawn mosque, not the 🕌 emoji -- same
+                        compliance answer behind it (see hooks/useShariah.ts), same mark
+                        on screen. Nothing on this page filters by Shariah, so unlike the
+                        screener it has no reason to ever be switched off. */}
+                    {row.isShariah && <ShariahMark />}
                   </span>
                 </td>
                 <td className="px-4 py-2.5">
+                  {/* Unclamped: the full sector name prints, however long. The longest PSX
+                      one ("INV. BANKS / INV. COS. / SECURITIES COS.") runs about 300px,
+                      which this table has the room for -- and where it doesn't, the
+                      wrapper scrolls rather than cutting the name off. `whitespace-nowrap`
+                      keeps the pill one line instead of breaking at its spaces. */}
                   <span
-                    className="inline-flex max-w-[10rem] truncate rounded-md bg-slate-100 px-1.5 py-1 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-500"
-                    title={row.sector}
+                    className="inline-flex whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-1 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-500"
                     style={DISPLAY}
                   >
                     {row.sector}

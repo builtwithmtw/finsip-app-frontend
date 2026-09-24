@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { Plus, Star } from "lucide-react";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useStocks } from "@/hooks/useStocks";
+import { useShariah } from "@/hooks/useShariah";
 import { usePortfolio } from "@/context/PortfolioContext";
 import { computeHoldings } from "@/utils/holdings";
 import { useConfirm } from "@/context/ConfirmContext";
@@ -16,6 +17,10 @@ import { DISPLAY } from "@/utils/typography";
 const WatchlistPage: React.FC = () => {
   const { items, loading, adding, addItem, removeItem } = useWatchlist();
   const { data: stocks = [], isLoading: stocksLoading } = useStocks();
+  // Rides the same `/api/stocks` cache `useStocks` above just read, so this costs no
+  // second request -- and it answers for a symbol the feed never carried, which a bare
+  // `s?.isShariah` would silently call non-compliant.
+  const { isShariah } = useShariah();
   const { transactions } = usePortfolio();
   const { confirm } = useConfirm();
   const [modalOpen, setModalOpen] = useState(false);
@@ -33,6 +38,7 @@ const WatchlistPage: React.FC = () => {
         return {
           id: item.id,
           symbol: item.symbol,
+          isShariah: isShariah(item.symbol),
           sector: s?.sector ?? item.sector ?? "—",
           price: s?.price ?? null,
           d1: s?.d1 ?? null,
@@ -40,7 +46,7 @@ const WatchlistPage: React.FC = () => {
           volume: s?.volume ?? null,
         };
       }),
-    [items, stockBySymbol],
+    [items, stockBySymbol, isShariah],
   );
 
   // Anything you actually hold is already on Live Portfolio, priced and with its P/L --
