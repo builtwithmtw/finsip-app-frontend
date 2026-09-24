@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, AlertCircle, MailCheck } from "lucide-react";
@@ -15,6 +15,29 @@ import { DISPLAY } from "@/utils/typography";
  * visitor is one field into.
  */
 type AuthMode = "signin" | "register" | "forgot";
+
+/**
+ * A recovery link establishes a session like any other, so the redirect below
+ * has to be able to tell one apart from an ordinary visit. Both link shapes are
+ * covered -- `#access_token=...&type=recovery` and `?token_hash=...` -- along
+ * with the error form Supabase sends back for an expired one, which carries no
+ * session but still belongs to /reset-password rather than to the dashboard.
+ */
+const hasRecoveryParams = () => {
+    if (typeof window === "undefined") return false;
+
+    const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
+    const hashParams = new URLSearchParams(hash);
+    const queryParams = new URLSearchParams(window.location.search);
+    const pick = (key: string) => hashParams.get(key) ?? queryParams.get(key);
+
+    return (
+        pick("type") === "recovery" ||
+        !!pick("token_hash") ||
+        !!pick("error_code") ||
+        !!pick("error")
+    );
+};
 
 /**
  * The sign-in / create-account / forgot-password form that shares the home page
@@ -55,20 +78,23 @@ export function AuthPanel() {
     };
 
     /**
-     * Set the moment a submission succeeds, and the only thing that triggers the
-     * jump to the portfolio.
+     * A session on "/" means the visitor is already through the door, so the
+     * page takes them to the portfolio rather than showing them a button that
+     * says as much -- the only thing between here and the dashboard is the app's
+     * own boot loader. This fires for a fresh sign-in and for a return visit
+     * alike; there is no longer a state where "/" holds a signed-in visitor.
      *
-     * The old login page redirected on `isAuthenticated` alone, which was right
-     * for a page whose only purpose was logging in. On the home page it would
-     * mean an already-signed-in visitor could never look at "/" -- they would be
-     * bounced to the dashboard before the page finished painting. Signed-in
-     * visitors get the panel below instead, and can leave when they choose.
+     * The exception is a recovery link that landed here rather than on
+     * /reset-password: it signs the visitor in too, and bouncing it to the
+     * dashboard would strand someone who came to change their password.
+     * RootProviders' AuthRecoveryHandler owns that redirect, so this one stands
+     * aside whenever the URL is carrying recovery params.
      */
-    const signedInHere = useRef(false);
-
     useEffect(() => {
-        if (isAuthenticated && signedInHere.current) router.replace("/dashboard");
-    }, [isAuthenticated, router]);
+        if (!isAuthenticated || loading) return;
+        if (hasRecoveryParams()) return;
+        router.replace("/dashboard");
+    }, [isAuthenticated, loading, router]);
 
     // Supabase surfaces the useful text on .message; .code is often undefined, which is
     // why failures used to show up blank.
@@ -135,7 +161,6 @@ export function AuthPanel() {
             if (isRegisterMode) {
                 if (data?.session) {
                     // Confirmation disabled: signUp already returned a session, we are logged in.
-                    signedInHere.current = true;
                     toast.success("Account created");
                     return;
                 }
@@ -152,12 +177,10 @@ export function AuthPanel() {
                     return;
                 }
 
-                signedInHere.current = true;
                 toast.success("Account created");
                 return;
             }
 
-            signedInHere.current = true;
             toast.success("Welcome back");
         } catch (err: any) {
             console.error("Auth exception:", err);
@@ -187,8 +210,10 @@ export function AuthPanel() {
     const linkClass =
         "font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4 transition-colors hover:decoration-slate-900";
 
-    // Already signed in and just visiting: the way on, not a form asking for
-    // credentials they have already given.
+    // Already signed in: the redirect above is on its way, and this is what the
+    // moment before it looks like. The link underneath is a fallback for a
+    // navigation that stalls, not the way in -- nobody should have to reach for
+    // it.
     if (isAuthenticated && !loading) {
         return (
             <div className="w-full max-w-md animate-in fade-in duration-500">
@@ -196,19 +221,30 @@ export function AuthPanel() {
                     className="text-[32px] font-semibold leading-tight tracking-[-0.03em] text-slate-900"
                     style={DISPLAY}
                 >
-                    You&rsquo;re signed in
+                    Opening your portfolio
                 </h2>
                 <p className="mt-3 text-[15px] leading-relaxed text-slate-500">
                     {user?.email ? (
-                        <>as <span className="font-medium text-slate-700">{user.email}</span>.</>
+                        <>
+                            Signed in as{" "}
+                            <span className="font-medium text-slate-700">{user.email}</span>.
+                        </>
                     ) : null}{" "}
-                    Your portfolio is where you left it.
+                    One moment.
                 </p>
 
-                <Link href="/dashboard" style={DISPLAY} className={buttonClass}>
-                    Open Portfolio
-                    <ArrowRight size={15} />
-                </Link>
+                {/* The button's shape, so the panel keeps its proportions, but
+                    nothing to press: the navigation is the action here. */}
+                <div className={`${buttonClass} pointer-events-none`} aria-hidden>
+                    <span className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                </div>
+
+                <p className="mt-7 text-center text-[15px] text-slate-500">
+                    Not moving?{" "}
+                    <Link href="/dashboard" className={linkClass}>
+                        Open it manually
+                    </Link>
+                </p>
             </div>
         );
     }

@@ -84,8 +84,10 @@ Pages under `app/` are thin: they render a matching component from `src/views/`
 There is no `/login` route. `/` is both the landing page and the sign-in form —
 the pitch on the dark left, `components/home/AuthPanel.tsx` (the page's only client
 island) on the light right. `ProtectedRoute` redirects signed-out visitors there;
-`AuthPanel` sends them to `/dashboard` after a successful submit, but never
-auto-redirects an already-signed-in visitor away from `/`.
+`AuthPanel` sends anyone holding a session on to `/dashboard` — after a successful
+submit and on arrival alike — so a signed-in visitor lands on the boot loader rather
+than a button. A password-recovery link that lands on `/` is the one exception:
+`AuthRecoveryHandler` owns that redirect.
 
 `next.config.ts` sets `X-Robots-Tag: noindex` on the private paths; those layouts are
 client components and cannot export `metadata`, so the header is the only way. A new

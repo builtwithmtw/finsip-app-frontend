@@ -5,7 +5,8 @@ import clsx from 'clsx';
 import { format, parseISO } from 'date-fns';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext';
-import { computeLiveHoldings, summarizeLive } from '../utils/holdings';
+import { computeHoldings, computeLiveHoldings, summarizeLive } from '../utils/holdings';
+import { SIZING_RULES, computeSizing } from '../utils/positionSizing';
 import { computeSipStreak, computeSipWindow, computeSipDays, sipWindowFromDays } from '../utils/sipStreak';
 import { describeMonthActivity } from '../utils/monthNarrative';
 import { computeXirr, buildPortfolioFlows } from '../utils/xirr';
@@ -56,6 +57,38 @@ const Tile: React.FC<{ label: string; caption?: string; children: React.ReactNod
     </div>
 );
 
+/**
+ * One line in the sizing tile's footer: a dim label on the left, the reading on the
+ * right. `cap` makes it a cap reading -- "21.3% / 20%", red once it is over -- and is
+ * left off for a figure that is only a figure.
+ *
+ * Whatever the reading belongs to rides the tooltip rather than the line. In a column
+ * this narrow a full PSX sector name costs more width than it earns, and the figure is
+ * the part that gets acted on.
+ */
+const SizingLine: React.FC<{
+    label: string;
+    /** A percentage where there is a cap, a plain count otherwise. Null renders a dash. */
+    value: number | null;
+    cap?: number;
+    title?: string;
+}> = ({ label, value, cap, title }) => (
+    <div className="flex items-baseline justify-between gap-2" title={title}>
+        <span
+            className="text-[9px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
+            style={DISPLAY}
+        >
+            {label}
+        </span>
+        <span className="text-[10px] font-semibold leading-none tabular-nums" style={NUMERIC}>
+            <span className={cap != null && value != null && value > cap ? 'text-rose-600' : 'text-slate-600'}>
+                {value == null ? '—' : cap != null ? `${value.toFixed(1)}%` : value}
+            </span>
+            {cap != null && <span className="text-slate-300"> / {cap}%</span>}
+        </span>
+    </div>
+);
+
 /** A money figure with its own percentage beside it, in the panel's colour for the sign. */
 const Result: React.FC<{ amount: string; percent: number }> = ({ amount, percent }) => (
     <span className={clsx('flex flex-wrap items-baseline gap-x-2 gap-y-1')}>
@@ -78,8 +111,9 @@ const Result: React.FC<{ amount: string; percent: number }> = ({ amount, percent
  * percentage answer a question neither was asked.
  */
 export const LedgerReturns: React.FC = () => {
-    const { transactions, realizedProfits, livePrices } = usePortfolio();
+    const { transactions, stocks, realizedProfits, livePrices } = usePortfolio();
     const formatCurrency = useCurrency();
+    const mask = useMask();
     const { deposits } = useSipDeposits();
 
     /**
@@ -256,6 +290,35 @@ export const LedgerReturns: React.FC = () => {
         return { invested, cash: 100 - invested };
     }, [cashAvailable, liveTotals.totalValue]);
 
+    /**
+     * How the book measures up against the position-sizing plan: how many names this
+     * much capital wants against how many are held, and where the heaviest stock and
+     * sector stand against their caps.
+     *
+     * Cost basis, unlike every other figure on this panel. A position is over its cap
+     * here because it was bought that large, never because it rallied -- which is what
+     * makes the score a verdict on the sizing decisions rather than on the market's
+     * opinion of them, and what keeps this tile still while the rest of the panel ticks.
+     *
+     * Targets come from the weights set on My Symbols, which are already conviction
+     * scores in all but name; with none set the plan falls back to an equal split.
+     */
+    const sizing = useMemo(() => {
+        const targets = new Map<string, number>();
+        const sectors = new Map<string, string>();
+
+        stocks.forEach((s) => {
+            const symbol = (s.symbol || '').toUpperCase();
+            if (!symbol) return;
+            if (s.allocationWeight != null && s.allocationWeight > 0) {
+                targets.set(symbol, s.allocationWeight);
+            }
+            if (s.sector) sectors.set(symbol, s.sector);
+        });
+
+        return computeSizing(computeHoldings(transactions), targets, sectors);
+    }, [transactions, stocks]);
+
     const unrealized = useMemo(
         () => ({
             profit: liveTotals.totalPL,
@@ -423,13 +486,99 @@ export const LedgerReturns: React.FC = () => {
                 </Tile>
                 </button>
 
-                <Tile label="Symbols Traded" caption="Till Today">
-                    <span
-                        className="block text-[17px] font-semibold leading-none tabular-nums text-slate-900"
-                        style={NUMERIC}
+                {/* The shape of the book rather than its result, which is why it sits under
+                    XIRR: that says whether the money did well, this says whether it was
+                    spread the way the plan asks.
+
+                    Renders on an empty book too, dashed like the tiles above it. A ledger
+                    that has been fully exited has nothing to score but still has symbols
+                    traded, and that figure lives in here now. */}
+                <Tile label="Position Sizing">
+                    {sizing.empty ? (
+                        <span
+                            className="block text-[17px] font-semibold leading-none tabular-nums text-slate-300"
+                            style={NUMERIC}
+                        >
+                            —
+                        </span>
+                    ) : (
+                        <span className="flex items-baseline gap-1">
+                            <span
+                                className="text-[17px] font-semibold leading-none tabular-nums text-slate-900"
+                                style={NUMERIC}
+                            >
+                                {sizing.score}
+                            </span>
+                            <span
+                                className="text-[11px] font-semibold leading-none text-slate-300"
+                                style={NUMERIC}
+                            >
+                                /100
+                            </span>
+                        </span>
+                    )}
+
+                    {/* Held is the half of this line that can be wrong, so it is the half
+                        that carries colour -- red the moment it is not the count the
+                        capital asks for. */}
+                    <p
+                        className="mt-2 text-[9px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
+                        style={DISPLAY}
                     >
-                        {symbolsTraded}
-                    </span>
+                        {sizing.empty ? (
+                            'Nothing Held'
+                        ) : (
+                            <>
+                                {sizing.suggested} Wanted,{' '}
+                                <span
+                                    className={clsx(
+                                        'font-bold',
+                                        sizing.held === sizing.suggested
+                                            ? 'text-slate-600'
+                                            : 'text-rose-600'
+                                    )}
+                                >
+                                    {sizing.held}
+                                </span>{' '}
+                                Held
+                            </>
+                        )}
+                    </p>
+
+                    <div className="mt-2.5 space-y-1 border-t border-slate-200/70 pt-2">
+                        <SizingLine
+                            label="Stock"
+                            value={sizing.topStock?.weight ?? null}
+                            cap={SIZING_RULES.MAX_PER_STOCK}
+                            title={
+                                sizing.topStock
+                                    ? `${mask(sizing.topStock.symbol)} · ${sizing.topStock.weight.toFixed(1)}% of a ${SIZING_RULES.MAX_PER_STOCK}% cap`
+                                    : undefined
+                            }
+                        />
+                        {/* A sector reads "—" until the held symbols carry one on My
+                            Symbols; there is no sector to weigh without that. */}
+                        <SizingLine
+                            label="Sector"
+                            value={sizing.topSector?.weight ?? null}
+                            cap={SIZING_RULES.MAX_PER_SECTOR}
+                            title={
+                                sizing.topSector
+                                    ? `${sizing.topSector.name} · ${sizing.topSector.weight.toFixed(1)}% of a ${SIZING_RULES.MAX_PER_SECTOR}% cap`
+                                    : undefined
+                            }
+                        />
+                        {/* Folded in here rather than kept as a tile of its own, which cost
+                            the panel a card's height to carry one number. It is the count
+                            the two above are a shape of, and unlike Held it counts every
+                            symbol the ledger ever touched -- including the ones since sold
+                            out. */}
+                        <SizingLine
+                            label="Traded"
+                            value={symbolsTraded}
+                            title="Every symbol this ledger has touched, including ones since sold out"
+                        />
+                    </div>
                 </Tile>
             </div>
 
