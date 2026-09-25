@@ -116,6 +116,191 @@ export const summarizeLive = (holdings: LiveHolding[]): LiveTotals =>
         unpricedCount: acc.unpricedCount + (h.isPriced ? 0 : 1),
     }), { totalCost: 0, totalValue: 0, totalPL: 0, unpricedCount: 0 });
 
+export interface TradeCycle {
+    symbol: string;
+    /**
+     * 1-based. A symbol bought, fully exited, then bought again is two cycles --
+     * which is the whole point of the distinction: "when did I exit" has no
+     * single answer for a symbol that was re-entered.
+     */
+    round: number;
+    /** Day the cycle's first buy was made, YYYY-MM-DD. */
+    openedOn: string;
+    /** Day the position went flat. Null while the position is still held. */
+    closedOn: string | null;
+    /** Calendar days held -- to the exit, or to today while it is still open. */
+    days: number;
+    /**
+     * The day `days` is measured to: the exit, or today while the position is
+     * still open. Carried rather than re-derived, so a caller that wants to
+     * write the duration out in years and months measures it between exactly
+     * the same two dates this count was taken between.
+     */
+    heldUntil: string;
+    isOpen: boolean;
+    sharesBought: number;
+    sharesSold: number;
+    /** Still held. Zero on a closed cycle, by definition. */
+    sharesHeld: number;
+    /** What the cycle's buys cost. */
+    invested: number;
+    /** What its sells brought in. */
+    proceeds: number;
+    /** Average-cost realized P&L on the shares sold in this cycle. */
+    realized: number;
+    /** How many entries make up the cycle, either side. */
+    buys: number;
+    sells: number;
+}
+
+/** Local calendar day, the same key `PortfolioContext` files an entry under. */
+const localDayKey = (at: Date = new Date()): string =>
+    `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+
+/**
+ * When a transaction happened, anchored to the month it is filed under.
+ *
+ * Deliberately not `createdAt`. That is the day the *row was written*, and a
+ * book whose history was caught up in one sitting has every row stamped with
+ * that one afternoon -- which reported a 2025 trade as a 2026 one, because the
+ * year came from the typing rather than from the trade. `month` is the only
+ * field that describes the trade itself, so it is the only one this reads.
+ *
+ * The cost is the day: `month` is YYYY-MM, so this returns the first of the
+ * month and callers render these month-level. A fabricated day would be a
+ * smaller error than a fabricated year, but it would still be one.
+ */
+const tradeDay = (t: Transaction): string => `${t.month}-01`;
+
+/** Whole calendar days between two YYYY-MM-DD keys. UTC so DST can't shift it. */
+const daysBetween = (from: string, to: string): number => {
+    const a = Date.parse(`${from}T00:00:00Z`);
+    const b = Date.parse(`${to}T00:00:00Z`);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+    return Math.max(0, Math.round((b - a) / 86_400_000));
+};
+
+/**
+ * Every round-trip the ledger contains: when a position was opened, when it was
+ * fully exited, and how long it was held.
+ *
+ * A cycle runs from the buy that opens a position from flat to the sell that
+ * takes it back to flat. Selling part of a position does not end one -- only a
+ * full exit does, which is the question this answers and the one a holdings
+ * table cannot: a symbol that was sold out no longer appears there at all.
+ *
+ * Buys sort before sells within a month for the reason `computeHoldings` gives
+ * -- otherwise a same-month full exit closes a cycle that the buy funding it
+ * then re-opens, and one round trip is reported as two.
+ *
+ * P&L is average-cost, the same method `computeHoldings` carries the cost basis
+ * by, so a cycle's realized figure is derived the way every other realized
+ * figure in the app is.
+ */
+export const computeTradeCycles = (
+    transactions: Transaction[],
+    today: string = localDayKey()
+): TradeCycle[] => {
+    const valid = transactions.filter(t => t.shares > 0 && t.pricePerShare > 0);
+    const cycles: TradeCycle[] = [];
+
+    // Per symbol: the cycle being built, how many have already closed, and the
+    // running position the average cost is carried on.
+    const open = new Map<string, {
+        cycle: TradeCycle;
+        shares: number;
+        costBasis: number;
+    }>();
+    const rounds = new Map<string, number>();
+
+    orderTransactions(valid).forEach(t => {
+        const day = tradeDay(t);
+        const shares = Number(t.shares || 0);
+        const price = Number(t.pricePerShare || 0);
+        const amount = Number(t.totalAmount || shares * price);
+
+        let state = open.get(t.symbol);
+
+        if (t.type === 'buy') {
+            if (!state) {
+                const round = (rounds.get(t.symbol) ?? 0) + 1;
+                rounds.set(t.symbol, round);
+
+                state = {
+                    cycle: {
+                        symbol: t.symbol,
+                        round,
+                        openedOn: day,
+                        closedOn: null,
+                        days: 0,
+                        heldUntil: day,
+                        isOpen: true,
+                        sharesBought: 0,
+                        sharesSold: 0,
+                        sharesHeld: 0,
+                        invested: 0,
+                        proceeds: 0,
+                        realized: 0,
+                        buys: 0,
+                        sells: 0,
+                    },
+                    shares: 0,
+                    costBasis: 0,
+                };
+                open.set(t.symbol, state);
+            }
+
+            state.shares += shares;
+            state.costBasis += amount;
+            state.cycle.sharesBought += shares;
+            state.cycle.invested += amount;
+            state.cycle.buys += 1;
+            return;
+        }
+
+        // A sell with nothing open is an orphan -- a partial history, or a row
+        // entered against a position this ledger never recorded buying. It has
+        // no cycle to belong to, and inventing one would date an entry to a buy
+        // that isn't there.
+        if (!state) return;
+
+        const avgBeforeSell = state.shares > 0 ? state.costBasis / state.shares : 0;
+        const sold = Math.min(shares, state.shares);
+
+        state.cycle.sharesSold += sold;
+        state.cycle.proceeds += sold * price;
+        state.cycle.realized += sold * (price - avgBeforeSell);
+        state.cycle.sells += 1;
+
+        state.shares -= sold;
+        state.costBasis -= sold * avgBeforeSell;
+
+        // Flat: the position is fully exited and the cycle is closed. The float
+        // dust clamp is the same one `computeHoldings` uses -- share counts are
+        // floats and a full exit rarely lands on exactly zero.
+        if (state.shares <= EPSILON) {
+            state.cycle.closedOn = day;
+            state.cycle.isOpen = false;
+            state.cycle.sharesHeld = 0;
+            state.cycle.heldUntil = day;
+            state.cycle.days = daysBetween(state.cycle.openedOn, day);
+            cycles.push(state.cycle);
+            open.delete(t.symbol);
+        }
+    });
+
+    // Whatever is still held: an open cycle, measured to today rather than left
+    // without a duration.
+    open.forEach(state => {
+        state.cycle.sharesHeld = state.shares;
+        state.cycle.heldUntil = today;
+        state.cycle.days = daysBetween(state.cycle.openedOn, today);
+        cycles.push(state.cycle);
+    });
+
+    return cycles;
+};
+
 export interface DaySummary {
     /** What the whole book moved today, in rupees. */
     move: number;

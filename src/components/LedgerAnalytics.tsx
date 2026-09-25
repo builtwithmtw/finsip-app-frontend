@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import clsx from 'clsx';
+import { ChevronRight } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useCurrency, useMask, usePartialMask } from '../context/PrivacyContext';
@@ -17,6 +18,7 @@ import { Amount } from './Amount';
 import { MetricLabel, Panel, PanelHeader } from './Panel';
 import SipHistoryModal from './SipHistoryModal';
 import DepositsModal from './DepositsModal';
+import TradedSymbolsModal from './TradedSymbolsModal';
 
 /** Emerald above zero, rose below, neutral at exactly nothing. */
 const toneFor = (value: number) =>
@@ -96,22 +98,57 @@ const SizingLine: React.FC<{
     value: number | null;
     cap?: number;
     title?: string;
-}> = ({ label, value, cap, title }) => (
-    <div className="flex items-baseline justify-between gap-2" title={title}>
-        <span
-            className="text-[9px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400"
-            style={DISPLAY}
-        >
-            {label}
-        </span>
-        <span className="text-[10px] font-semibold leading-none tabular-nums" style={NUMERIC}>
-            <span className={cap != null && value != null && value > cap ? 'text-rose-600' : 'text-slate-600'}>
-                {value == null ? '—' : cap != null ? `${value.toFixed(1)}%` : value}
+    /** Makes the line a button. Only the lines that open something take one. */
+    onClick?: () => void;
+}> = ({ label, value, cap, title, onClick }) => {
+    const body = (
+        <>
+            <span
+                className={clsx(
+                    "text-[9px] font-semibold uppercase leading-none tracking-[0.14em] text-slate-400",
+                    onClick && "transition-colors group-hover/line:text-slate-900"
+                )}
+                style={DISPLAY}
+            >
+                {label}
             </span>
-            {cap != null && <span className="text-slate-300"> / {cap}%</span>}
-        </span>
-    </div>
-);
+            <span className="flex items-baseline gap-1 text-[10px] font-semibold leading-none tabular-nums" style={NUMERIC}>
+                <span className={cap != null && value != null && value > cap ? 'text-rose-600' : 'text-slate-600'}>
+                    {value == null ? '—' : cap != null ? `${value.toFixed(1)}%` : value}
+                </span>
+                {cap != null && <span className="text-slate-300"> / {cap}%</span>}
+                {/* The only affordance the line has room for -- it sits inside a
+                    tile of static figures, so without it nothing says this one
+                    is a way in. */}
+                {onClick && (
+                    <ChevronRight
+                        size={10}
+                        className="shrink-0 text-slate-300 transition-colors group-hover/line:text-slate-900"
+                    />
+                )}
+            </span>
+        </>
+    );
+
+    if (!onClick) {
+        return (
+            <div className="flex items-baseline justify-between gap-2" title={title}>
+                {body}
+            </div>
+        );
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            title={title}
+            className="group/line -mx-1 flex w-[calc(100%+0.5rem)] items-baseline justify-between gap-2 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-slate-100/70"
+        >
+            {body}
+        </button>
+    );
+};
 
 /**
  * The money half of the ledger's standing figures -- what the book has made, booked
@@ -239,6 +276,7 @@ export const LedgerReturns: React.FC = () => {
 
     const [sipHistoryOpen, setSipHistoryOpen] = useState(false);
     const [xirrOpen, setXirrOpen] = useState(false);
+    const [tradedOpen, setTradedOpen] = useState(false);
 
     const realized = useMemo(() => {
         let profit = 0;
@@ -631,10 +669,15 @@ export const LedgerReturns: React.FC = () => {
                             the two above are a shape of, and unlike Held it counts every
                             symbol the ledger ever touched -- including the ones since sold
                             out. */}
+                        {/* The one line here that opens onto something. The count
+                            raises a question the tile has no room to answer -- when
+                            each of those was entered, when it was exited, and how
+                            long it was held -- so it is the way in to that. */}
                         <SizingLine
                             label="Traded"
                             value={symbolsTraded}
-                            title="Every symbol this ledger has touched, including ones since sold out"
+                            title="Every symbol this ledger has touched, including ones since sold out — open for entry and exit dates"
+                            onClick={() => setTradedOpen(true)}
                         />
                     </div>
                 </Tile>
@@ -761,6 +804,11 @@ export const LedgerReturns: React.FC = () => {
                 onClose={() => setSipHistoryOpen(false)}
                 months={sipMonths}
                 average={averageSip}
+            />
+
+            <TradedSymbolsModal
+                isOpen={tradedOpen}
+                onClose={() => setTradedOpen(false)}
             />
 
             <DepositsModal
