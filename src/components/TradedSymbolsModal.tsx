@@ -91,15 +91,16 @@ const TradedSymbolsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
     }, [isOpen, onClose]);
 
     const cycles = useMemo(() => {
-        // Longest hold first. Sorted on the day count rather than on the written
-        // label, which is a rendering of it -- "1y" and "11m 30d" compare the
-        // wrong way round as text.
+        // Oldest entry first, so the table reads as the book was built: the first
+        // position taken at the top, the most recent at the bottom. A symbol's
+        // own re-entries then fall in the order they happened.
         const rows = computeTradeCycles(transactions);
         return rows.sort((a, b) => {
-            const byHeld = b.days - a.days;
-            // Equal holds fall back to the oldest entry, so the order is stable
-            // rather than however the ledger happened to be walked.
-            return byHeld !== 0 ? byHeld : a.openedOn.localeCompare(b.openedOn);
+            const byEntry = a.openedOn.localeCompare(b.openedOn);
+            // Entries are month-level, so same-month opens are common rather than
+            // a rare tie. Symbol keeps those grouped instead of leaving them in
+            // whatever order the ledger happened to be walked in.
+            return byEntry !== 0 ? byEntry : a.symbol.localeCompare(b.symbol);
         });
     }, [transactions]);
 
