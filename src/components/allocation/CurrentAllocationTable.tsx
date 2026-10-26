@@ -6,6 +6,7 @@ import { useMask } from '../../context/PrivacyContext';
 import { DISPLAY, NUMERIC } from '../../utils/typography';
 import { Panel } from '../Panel';
 import { SortHeader, sortRows, useTableSort } from './sorting';
+import { DayChange } from './DayChange';
 
 /**
  * The funding lists a held symbol can also appear on, as the tabs name them.
@@ -48,6 +49,8 @@ export interface CurrentAllocationRow {
     memberships: AllocationList[];
     /** `memberships.length`, kept as a field so the column can be sorted on it. */
     indexCount: number;
+    /** The day's move off the live feed, in percent. Null when the feed carried none. */
+    dayChange: number | null;
     /** Share of the portfolio's cost basis. */
     investedShare: number;
     /** The Custom tab's weight for this symbol, normalised. Null when none is set. */
@@ -74,7 +77,7 @@ const bodyCell = 'px-3.5 py-2 text-[13px] leading-5 tabular-nums';
 const footCellBase = 'px-3.5 py-2.5 text-[13px] font-semibold tabular-nums';
 const footCell = `${footCellBase} text-right`;
 
-type SortKey = 'symbol' | 'indexCount' | 'investedShare' | 'customShare' | 'kmiShare' | 'marketShare' | 'difference';
+type SortKey = 'symbol' | 'indexCount' | 'dayChange' | 'investedShare' | 'customShare' | 'kmiShare' | 'marketShare' | 'difference';
 
 const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
     rows,
@@ -99,7 +102,7 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
     return (
         <Panel flush>
             <div className="overflow-x-auto scrollbar-hide-auto">
-                <table className="w-full min-w-[960px] text-left border-collapse">
+                <table className="w-full min-w-[1040px] text-left border-collapse">
                     <thead className="border-b border-slate-100 bg-slate-50/60">
                         <tr>
                             <SortHeader label="Equity" sortKey="symbol" sort={sort} onToggle={toggle} naturalDirection="asc" align="left" />
@@ -107,6 +110,7 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                                 comes to the top -- the sort a badge column is actually
                                 read for. */}
                             <SortHeader label="Indices" sortKey="indexCount" sort={sort} onToggle={toggle} align="left" />
+                            <SortHeader label="1D" sortKey="dayChange" sort={sort} onToggle={toggle} />
                             <SortHeader label="Invested Allocation" sortKey="investedShare" sort={sort} onToggle={toggle} />
                             <SortHeader label="Custom Allocation" sortKey="customShare" sort={sort} onToggle={toggle} />
                             <SortHeader label="KMI Allocation" sortKey="kmiShare" sort={sort} onToggle={toggle} />
@@ -119,7 +123,7 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                         {rows.length === 0 ? (
                             <tr>
                                 <td
-                                    colSpan={7}
+                                    colSpan={8}
                                     style={DISPLAY}
                                     className="px-3.5 py-12 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400"
                                 >
@@ -193,6 +197,10 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                                         )}
                                     </td>
 
+                                    <td className={clsx(bodyCell, 'text-right')}>
+                                        <DayChange value={r.dayChange} />
+                                    </td>
+
                                     <td className={clsx(bodyCell, 'text-right text-slate-500')} style={NUMERIC}>
                                         {r.investedShare.toFixed(2)}%
                                     </td>
@@ -257,6 +265,7 @@ const CurrentAllocationTable: React.FC<CurrentAllocationTableProps> = ({
                                 <td className={clsx(footCellBase, 'text-left text-slate-500')} style={NUMERIC}>
                                     {inAnyList > 0 ? `${inAnyList}/${rows.length}` : '—'}
                                 </td>
+                                <td />
                                 <td className={clsx(footCell, 'text-slate-900')} style={NUMERIC}>
                                     {totalInvested.toFixed(0)}%
                                 </td>
