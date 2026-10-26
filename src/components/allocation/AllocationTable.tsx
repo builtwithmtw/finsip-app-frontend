@@ -10,6 +10,7 @@ import { ShariahMark } from '../ShariahMark';
 import { usePortfolio } from '../../context/PortfolioContext';
 import { useShariah } from '../../hooks/useShariah';
 import { computeHoldings } from '../../utils/holdings';
+import { DayChange } from './DayChange';
 
 interface AllocationTableProps {
     rows: AllocationRow[];
@@ -73,7 +74,7 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
     // never disagree about a symbol; holdings come from the ledger the rest of the app
     // is computed off.
     const { isShariah } = useShariah();
-    const { transactions } = usePortfolio();
+    const { transactions, liveChanges } = usePortfolio();
 
     const heldSymbols = useMemo(
         () => new Set(computeHoldings(transactions).map((h) => h.symbol.toUpperCase())),
@@ -83,11 +84,12 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
     return (
         <Panel flush>
             <div className="overflow-x-auto scrollbar-hide-auto">
-                <table className="w-full min-w-[560px] text-left border-collapse">
+                <table className="w-full min-w-[640px] text-left border-collapse">
                     <thead className="border-b border-slate-100 bg-slate-50/60">
                         <tr>
                             <th className={headCell} style={DISPLAY}>Equity</th>
                             <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Price</th>
+                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>1D</th>
                             <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Weight %</th>
                             <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Norm %</th>
                             <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Amount</th>
@@ -99,7 +101,7 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                         {rows.length === 0 ? (
                             <tr>
                                 <td
-                                    colSpan={6}
+                                    colSpan={7}
                                     style={DISPLAY}
                                     className="px-3.5 py-12 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400"
                                 >
@@ -145,6 +147,10 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
 
                                     <td className={clsx(bodyCell, 'text-right text-slate-500')} style={NUMERIC}>
                                         {r.price > 0 ? formatCurrency(r.price).replace(/^Rs\s*/, '') : '—'}
+                                    </td>
+
+                                    <td className={clsx(bodyCell, 'text-right')}>
+                                        <DayChange value={Number.isFinite(liveChanges[r.name.toUpperCase()]) ? liveChanges[r.name.toUpperCase()] : null} />
                                     </td>
 
                                     <td className={clsx(bodyCell, 'text-right')}>
@@ -210,6 +216,7 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                                 >
                                     Total
                                 </td>
+                                <td />
                                 <td />
                                 <td className={clsx(footCell, 'text-slate-900')} style={NUMERIC}>
                                     {summary.topTotalWeights.toFixed(0)}%
