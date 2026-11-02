@@ -395,7 +395,8 @@ export const PortfolioProvider: React.FC<{ children: ReactNode }> = ({ children 
                         totalAmount: t.total_amount,
                         type: t.type,
                         month: t.month,
-                        createdAt: t.created_at
+                        createdAt: t.created_at,
+                        avgPriceOverride: t.avg_price_override == null ? null : Number(t.avg_price_override)
                     })));
                 } else {
                     setTransactions([]);

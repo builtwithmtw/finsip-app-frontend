@@ -303,17 +303,12 @@ export interface SipDeposit {
   /**
    * What the entry is, which decides where it counts.
    *
-   *   deposit        money in from you            -> a contribution, and cash
-   *   dividend       money the holdings produced  -> cash only
-   *   reconciliation a correction against the broker -> cash only
-   *
-   * Only a deposit is a contribution. A dividend counted as one would inflate the
-   * capital the return is measured against and report the portfolio as having earned
-   * less than it did; a correction counted as one would credit you for having been
-   * wrong about a balance.
+   *   deposit     money in   -> a contribution, and cash
+   *   withdrawal  money out  -> a negative contribution, and cash
+   *   tax         money cut  -> cash only; not a contribution, not a deposit
    */
-  kind: 'deposit' | 'dividend' | 'reconciliation';
-  /** Signed. A reconciliation can go either way. */
+  kind: 'deposit' | 'withdrawal' | 'tax';
+  /** Always positive; the kind says which way it moved. */
   amount: number;
   note: string | null;
 }
@@ -333,12 +328,14 @@ export async function fetchSipDeposits(userId: string): Promise<SipDeposit[]> {
 
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((r) => ({
+  // Reconciliations are no longer a thing: cash is now derived from the trades, so the
+  // corrections that used to patch it over would only count twice.
+  return (data ?? []).filter((r) => r.kind !== 'reconciliation').map((r) => ({
     id: r.id as string,
     date: String(r.deposit_date).slice(0, 10),
-    // Anything unrecognised reads as a deposit: an older row written before a kind
-    // existed is a deposit, and that is the safe reading either way.
-    kind: r.kind === 'reconciliation' || r.kind === 'dividend' ? r.kind : 'deposit',
+    // Anything else reads as a deposit: an older row written before a kind existed,
+    // and the dividends once kept as their own kind, are money in all the same.
+    kind: r.kind === 'withdrawal' || r.kind === 'tax' ? r.kind : 'deposit',
     amount: Number(r.amount) || 0,
     note: (r.note as string | null) ?? null,
   }));

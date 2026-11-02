@@ -60,9 +60,8 @@ export function useSipDeposits(): UseSipDeposits {
       note?: string,
     ): Promise<boolean> => {
       if (!userId) return false;
-      // Zero moves nothing; a reconciliation may legitimately be negative.
-      if (!Number.isFinite(amount) || amount === 0) return false;
-      if (kind !== 'reconciliation' && amount < 0) return false;
+      // Zero moves nothing, and the kind carries the direction, so the amount is positive.
+      if (!Number.isFinite(amount) || amount <= 0) return false;
 
       setSaving(true);
       const { data: inserted, error: insertError } = await supabase
@@ -104,10 +103,9 @@ export function useSipDeposits(): UseSipDeposits {
       const existing = deposits.find((d) => d.id === id);
       if (!existing) return false;
 
-      // Same rules the form applies: nothing moves zero, and only a correction may be
-      // negative. Checked here too because this is the other door into the same table.
-      if (!Number.isFinite(amount) || amount === 0) return false;
-      if (existing.kind !== 'reconciliation' && amount < 0) return false;
+      // Same rule the form applies: a positive amount, the kind carrying the direction.
+      // Checked here too because this is the other door into the same table.
+      if (!Number.isFinite(amount) || amount <= 0) return false;
 
       // Optimistic, with the old list kept to restore on a rejected write.
       const previous = deposits;

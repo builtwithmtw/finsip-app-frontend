@@ -6,6 +6,7 @@ import { Plus, Trash2, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useCurrency } from '../context/PrivacyContext';
 import { useSipDeposits } from '../hooks/useSipDeposits';
+import type { SipDeposit } from '../lib/queries';
 import { DISPLAY, NUMERIC } from '../utils/typography';
 
 const dayLabel = (date: string): string => {
@@ -16,31 +17,20 @@ const dayLabel = (date: string): string => {
     }
 };
 
-type EntryKind = 'deposit' | 'dividend' | 'reconciliation';
+type EntryKind = SipDeposit['kind'];
 
-/** The three things that can reach the account, in the order they are entered. */
+/** Money moves one of two ways. */
 const KINDS: { id: EntryKind; label: string }[] = [
     { id: 'deposit', label: 'Deposit' },
-    { id: 'dividend', label: 'Dividend' },
-    { id: 'reconciliation', label: 'Adjust' },
+    { id: 'withdrawal', label: 'Withdraw' },
+    { id: 'tax', label: 'Tax' },
 ];
 
-/**
- * What each one means for the figures, said once here rather than in a paragraph on the
- * screen. Only a deposit is capital you supplied, and only a deposit is what the return
- * is measured against.
- */
-const KIND_HINT: Record<EntryKind, string> = {
-    deposit: 'Money you put in. Counts toward the return.',
-    dividend: 'Money the holdings paid you. Adds to cash, not to what you invested.',
-    reconciliation: 'A correction so the balance agrees with your broker. Cash only.',
-};
-
-/** Only a dividend or a correction is worth tagging; most rows are deposits. */
+/** Only the odd ones out are worth tagging; most rows are deposits. */
 const KIND_TAG: Record<EntryKind, string | null> = {
     deposit: null,
-    dividend: 'Dividend',
-    reconciliation: 'Adjusted',
+    withdrawal: 'Withdrawal',
+    tax: 'Tax',
 };
 
 /** Today in the reader's own timezone -- the UTC date is yesterday for a Karachi morning. */
@@ -50,15 +40,11 @@ const todayKey = (): string => {
 };
 
 /**
- * The deposit ledger: money into the brokerage account, and the corrections that keep
- * it agreeing with the statement.
+ * The deposit ledger: money into and out of the brokerage account.
  *
  * None of this can be read off the trades. The app records what was bought and sold,
  * never what was transferred in, so deposits are recorded here rather than deduced.
  * They are what the Total Deposits and Cash Available figures are built from.
- *
- * XIRR does not read them: it is measured on the capital actually put into the market,
- * which the trades do say. The two answer different questions and the panel shows both.
  */
 const DepositsModal: React.FC<{
     isOpen: boolean;
@@ -68,11 +54,9 @@ const DepositsModal: React.FC<{
     invested: number;
     /** What it is worth at today's prices. */
     worth: number;
-    /** The corrections, netted. Signed. */
-    reconciled: number;
-    /** Deposits less invested plus corrections, or null with no deposits to compute it from. */
+    /** Net deposits less invested, or null with no deposits to compute it from. */
     cashAvailable: number | null;
-}> = ({ isOpen, onClose, rate, invested, worth, reconciled, cashAvailable }) => {
+}> = ({ isOpen, onClose, rate, invested, worth, cashAvailable }) => {
     const formatCurrency = useCurrency();
     const { deposits, loading, saving, addDeposit, updateAmount, removeDeposit } = useSipDeposits();
 
@@ -88,18 +72,21 @@ const DepositsModal: React.FC<{
 
     if (!isOpen) return null;
 
-    // Only deposits: a reconciliation corrects the balance, it does not fund anything.
-    const total = deposits
-        .filter((d) => d.kind === 'deposit')
-        .reduce((sum, d) => sum + d.amount, 0);
+    // Everything in, less everything taken back out.
+    const total = deposits.reduce((sum, d) => {
+        if (d.kind === 'tax') return sum;
+        return sum + (d.kind === 'withdrawal' ? -d.amount : d.amount);
+    }, 0);
+
+    // Taxes leave cash alone, so they are kept out of the total and shown on their own.
+    const tax = deposits.filter((d) => d.kind === 'tax').reduce((sum, d) => sum + d.amount, 0);
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         const value = Number(amount);
-        if (!Number.isFinite(value) || value === 0) return;
-        // Money arriving is money arriving; only a correction can go the other way.
-        if (kind !== 'reconciliation' && value < 0) return;
+        // The kind carries the direction, so the amount is always positive.
+        if (!Number.isFinite(value) || value <= 0) return;
 
         // The date is kept between entries: a year of back-entry is one field changing
         // by a month at a time, and re-picking it from today every row would be tedious.
@@ -114,14 +101,16 @@ const DepositsModal: React.FC<{
 
         const next = Number(editDraft.trim());
         // An unchanged, empty or impossible value simply closes the field. The hook
-        // refuses the rest -- a negative deposit, a zero -- and says why.
+        // refuses the rest -- a negative amount, a zero.
         if (!Number.isFinite(next) || next === row.amount) return;
 
         await updateAmount(row.id, next);
     };
 
+    // Without `no-spinner`: that class sets `appearance: textfield`, which on a select
+    // leaves the native arrow drawn twice. Number inputs add it back below.
     const field = clsx(
-        'no-spinner rounded-lg border-0 bg-slate-100/70 px-2.5 py-1.5',
+        'rounded-lg border-0 bg-slate-100/70 px-2.5 py-1.5',
         'text-[12px] font-semibold tabular-nums text-slate-900 outline-none',
         'transition-all focus:bg-white focus:ring-2 focus:ring-sky-500/25'
     );
@@ -171,17 +160,11 @@ const DepositsModal: React.FC<{
                     screen is opened to do, and a form under a year of rows is a scroll away. */}
                 <form onSubmit={submit} className="shrink-0 space-y-2 border-b border-slate-100 px-5 py-3">
                     <div className="flex items-center gap-2">
-                        {/* A dropdown rather than a segmented control. Three buttons plus a
-                            date, an amount and a submit was more than the row could hold,
-                            and the kind is picked once and rarely changed -- it does not
-                            need to show its alternatives at all times. The tooltip carries
-                            what the chosen kind means for the figures. */}
                         <select
                             value={kind}
                             onChange={(e) => setKind(e.target.value as EntryKind)}
                             aria-label="Entry kind"
-                            title={KIND_HINT[kind]}
-                            className={clsx(field, 'w-28 cursor-pointer appearance-none pr-2')}
+                            className={clsx(field, 'w-28 cursor-pointer')}
                             style={DISPLAY}
                         >
                             {KINDS.map(({ id, label }) => (
@@ -206,9 +189,9 @@ const DepositsModal: React.FC<{
                             inputMode="decimal"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
-                            placeholder={kind === 'reconciliation' ? '± Amount' : 'Amount'}
+                            placeholder="Amount"
                             aria-label="Amount"
-                            className={clsx(field, 'w-28 text-right')}
+                            className={clsx(field, 'no-spinner w-28 text-right')}
                             style={NUMERIC}
                         />
 
@@ -226,7 +209,7 @@ const DepositsModal: React.FC<{
                         type="text"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        placeholder="Note (optional) — e.g. Sipping, Opening Balance"
+                        placeholder="Note (optional) — e.g. SIP of November"
                         aria-label="Note"
                         maxLength={120}
                         className={clsx(field, 'w-full font-medium normal-case tabular-nums')}
@@ -267,9 +250,9 @@ const DepositsModal: React.FC<{
                                                     style={DISPLAY}
                                                     className={clsx(
                                                         'rounded px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] ring-1',
-                                                        d.kind === 'dividend'
-                                                            ? 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/15'
-                                                            : 'bg-amber-500/10 text-amber-600 ring-amber-500/15'
+                                                        d.kind === 'tax'
+                                                            ? 'bg-amber-500/10 text-amber-600 ring-amber-500/15'
+                                                            : 'bg-rose-500/10 text-rose-600 ring-rose-500/15'
                                                     )}
                                                 >
                                                     {KIND_TAG[d.kind]}
@@ -307,7 +290,7 @@ const DepositsModal: React.FC<{
                                                     }
                                                 }}
                                                 aria-label={`Amount for the entry dated ${d.date}`}
-                                                className={clsx(field, 'w-28 text-right')}
+                                                className={clsx(field, 'no-spinner w-28 text-right')}
                                                 style={NUMERIC}
                                             />
                                         ) : (
@@ -321,11 +304,11 @@ const DepositsModal: React.FC<{
                                                 className={clsx(
                                                     'rounded px-1 py-0.5 text-[12px] font-semibold tabular-nums transition-colors',
                                                     'hover:bg-slate-100',
-                                                    d.kind === 'reconciliation' ? 'text-slate-400' : 'text-slate-900'
+                                                    d.kind === 'deposit' ? 'text-slate-900' : 'text-rose-600'
                                                 )}
                                                 style={NUMERIC}
                                             >
-                                                {d.amount < 0 ? '−' : '+'}
+                                                {d.kind === 'deposit' ? '+' : '−'}
                                                 {formatCurrency(Math.abs(d.amount)).replace(/^Rs\s*/, '')}
                                             </button>
                                         )}
@@ -354,12 +337,9 @@ const DepositsModal: React.FC<{
                     {[
                         ['Total deposits', total],
                         ['Total invested', invested],
+                        ['Unrealized P&L', worth - invested],
                         ['Worth', worth],
-                        // Shown only when there are corrections, and shown next to the
-                        // cash it corrects -- the footer is meant to add up in the
-                        // reader's head, and a term that changes the total silently
-                        // would defeat that.
-                        ...(reconciled === 0 ? [] : [['Reconciled', reconciled] as const]),
+                        ...(tax === 0 ? [] : [['Taxes', -tax] as const]),
                         ...(cashAvailable === null ? [] : [['Cash available', cashAvailable] as const]),
                     ].map(([label, value]) => (
                         <div key={label as string} className="flex items-center justify-between gap-4">

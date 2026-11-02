@@ -188,11 +188,10 @@ export interface RecordedDeposit {
     date: string;
     amount: number;
     /**
-     * Only a deposit is a contribution. A dividend is money the holdings produced and a
-     * reconciliation is a correction -- neither is capital you supplied, and counting
-     * either would measure the return against money you never put in.
+     * A deposit is a contribution and a withdrawal is one in reverse. A tax is neither:
+     * it only lowers the cash, and so the closing figure.
      */
-    kind?: 'deposit' | 'dividend' | 'reconciliation';
+    kind?: 'deposit' | 'withdrawal' | 'tax';
 }
 
 export const buildPortfolioFlows = (
@@ -214,8 +213,7 @@ export const buildPortfolioFlows = (
     cashAvailable: number | null = null,
     now: Date = new Date()
 ): PortfolioFlows => {
-    // Deposits only. An entry with no kind at all predates the column and is a deposit.
-    const contributions = deposits.filter((d) => d.kind === undefined || d.kind === 'deposit');
+    const contributions = deposits.filter((d) => d.kind !== 'tax');
 
     if (contributions.length > 0) {
         return depositFlows(contributions, holdingsValue + (cashAvailable ?? 0), now);
@@ -243,10 +241,13 @@ const depositFlows = (
     deposits.forEach((d) => {
         if (!Number.isFinite(d.amount) || d.amount <= 0) return;
         if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return;
-        byDay.set(d.date, (byDay.get(d.date) ?? 0) - d.amount);
+        // Money in leaves your pocket; a withdrawal comes back to it.
+        const signed = d.kind === 'withdrawal' ? d.amount : -d.amount;
+        byDay.set(d.date, (byDay.get(d.date) ?? 0) + signed);
     });
 
     const rows: CashFlowRow[] = Array.from(byDay.entries())
+        .filter(([, amount]) => amount !== 0)
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([date, amount]) => ({ date, amount, kind: 'contribution' as const }));
 

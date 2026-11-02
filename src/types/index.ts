@@ -30,6 +30,12 @@ export interface Transaction {
   totalAmount: number;
   type: "buy" | "sell";
   createdAt: string;
+  /**
+   * The broker's average cost for the position right after this transaction. When set,
+   * the cost basis is reset to it here, and later trades build on top -- the ledger only
+   * knows the month, so same-month order (and with it the average) can't be rebuilt.
+   */
+  avgPriceOverride?: number | null;
 }
 
 

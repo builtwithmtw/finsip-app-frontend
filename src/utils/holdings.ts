@@ -49,6 +49,11 @@ export const computeHoldings = (transactions: Transaction[]): ComputedHolding[] 
             current.totalCostBasis -= shares * avgPriceBeforeSell;
         }
 
+        // The broker's own average wins where one was recorded.
+        if (t.avgPriceOverride && t.avgPriceOverride > 0) {
+            current.totalCostBasis = current.totalShares * t.avgPriceOverride;
+        }
+
         // Nothing left: clamp away the float dust so no cost basis survives the exit.
         if (current.totalShares <= EPSILON) {
             current.totalShares = 0;

@@ -167,32 +167,22 @@ export const LedgerReturns: React.FC = () => {
     const { deposits } = useSipDeposits();
 
     /**
-     * Money handed to the broker, as recorded. Only 'deposit' rows count -- a
-     * reconciliation corrects a balance rather than funding one.
+     * Money that reached the account, net of what was taken back out. Taxes are not
+     * in it: they come out of cash alone.
      */
     const totalDeposits = useMemo(
-        () => deposits.filter((d) => d.kind === 'deposit').reduce((sum, d) => sum + d.amount, 0),
-        [deposits]
-    );
-
-    /**
-     * Everything that reached the account without you sending it: dividends the holdings
-     * paid, and the corrections that keep the balance agreeing with the broker.
-     *
-     * Both belong in cash and in nothing else. A dividend is money the portfolio earned,
-     * so counting it as a contribution would measure the return against capital you
-     * never supplied -- on this book that one entry was the difference between reading
-     * -1.83% and +3.82% a year. A correction counted the same way would credit you for
-     * having been wrong about a balance.
-     */
-    const totalReconciled = useMemo(
         () =>
-            deposits
-                .filter((d) => d.kind === 'reconciliation' || d.kind === 'dividend')
-                .reduce((sum, d) => sum + d.amount, 0),
+            deposits.reduce((sum, d) => {
+                if (d.kind === 'tax') return sum;
+                return sum + (d.kind === 'withdrawal' ? -d.amount : d.amount);
+            }, 0),
         [deposits]
     );
 
+    const totalTax = useMemo(
+        () => deposits.filter((d) => d.kind === 'tax').reduce((sum, d) => sum + d.amount, 0),
+        [deposits]
+    );
 
     // Same derivation the rest of the app uses for "now" (PortfolioContext seeds its
     // selected month the same way), so the two can never disagree about the month.
@@ -221,8 +211,8 @@ export const LedgerReturns: React.FC = () => {
      * -- it takes each month's heaviest buying day as a stand-in, which is a good guess
      * and only ever a guess.
      *
-     * Corrections are excluded. A reconciliation is not a contribution and would drag
-     * the average toward zero if counted as one.
+     * Deposits only: a withdrawal is not an instalment and would skew the average if
+     * counted as one.
      */
     const sipMonths = useMemo(() => {
         const recorded = deposits.filter((d) => d.kind === 'deposit');
@@ -295,26 +285,17 @@ export const LedgerReturns: React.FC = () => {
         [transactions, livePrices]
     );
     /**
-     * What is not in the market: deposits less the cost of what is currently held.
+     * What is not in the market: the account total less what is invested in it.
      *
-     * Deliberately the plain subtraction of the two figures beside it, so the footer ties
-     * out by eye -- a reader can check it without being told what else went into it.
-     *
-     * It therefore reads cost basis, not cash: money made on a sale is not counted until
-     * it is spent again, because the invested figure it is subtracted from only ever
-     * knows what shares cost. The reconciliations are then added on top, which is exactly
-     * what they are for -- each one is the gap between this arithmetic and what the
-     * broker actually says, written down so the two agree.
+     * The same identity the broker shows -- total = invested + available -- so the
+     * footer ties out by eye against the statement.
      *
      * Null until deposits exist, since without them this is just the negative of the
      * cost basis and would read as an overdraft rather than an unknown.
      */
     const cashAvailable = useMemo(
-        () =>
-            deposits.length === 0
-                ? null
-                : totalDeposits - liveTotals.totalCost + totalReconciled,
-        [deposits.length, totalDeposits, totalReconciled, liveTotals.totalCost]
+        () => (deposits.length === 0 ? null : totalDeposits - liveTotals.totalCost - totalTax),
+        [deposits.length, totalDeposits, liveTotals.totalCost, totalTax]
     );
 
     /**
@@ -817,7 +798,6 @@ export const LedgerReturns: React.FC = () => {
                 rate={xirr}
                 invested={liveTotals.totalCost}
                 worth={liveTotals.totalValue}
-                reconciled={totalReconciled}
                 cashAvailable={cashAvailable}
             />
         </Panel>
