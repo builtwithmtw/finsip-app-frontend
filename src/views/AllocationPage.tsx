@@ -370,7 +370,7 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean; basis: RebalanceBa
     rebalancing,
     basis,
 }) => {
-    const { transactions, transactionsLoading, livePrices, stocks } = usePortfolio();
+    const { transactions, transactionsLoading, livePrices, liveChanges, stocks } = usePortfolio();
     const { companies } = useIndexCompanies('ALLSHR');
     // Warm in the boot cache already -- the KMI 30 tab reads the same query, so putting
     // its weights in this table costs no request.
@@ -497,6 +497,7 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean; basis: RebalanceBa
                     logo: logos.get(key) ?? '',
                     memberships,
                     indexCount: memberships.length,
+                    dayChange: Number.isFinite(liveChanges[key]) ? liveChanges[key] : null,
                     investedShare,
                     customShare: customShares.get(key) ?? null,
                     kmiShare: kmiShares.get(key) ?? null,
@@ -508,7 +509,7 @@ const CurrentAllocationView: React.FC<{ rebalancing: boolean; basis: RebalanceBa
             // Heaviest position first: the rows that move the portfolio most are the
             // ones worth reading, and the drift on a 0.4% holding is noise.
             .sort((a, b) => b.marketShare - a.marketShare);
-    }, [holdings, logos, customShares, kmiShares, lists]);
+    }, [holdings, logos, customShares, kmiShares, lists, liveChanges]);
 
     if (transactionsLoading) return <TableSkeleton />;
 
