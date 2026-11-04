@@ -78,7 +78,7 @@ const DepositsModal: React.FC<{
         return sum + (d.kind === 'withdrawal' ? -d.amount : d.amount);
     }, 0);
 
-    // Taxes leave cash alone, so they are kept out of the total and shown on their own.
+    // Taxes come out of cash, not the deposits, so they are kept out of the total.
     const tax = deposits.filter((d) => d.kind === 'tax').reduce((sum, d) => sum + d.amount, 0);
 
     const submit = async (e: React.FormEvent) => {
@@ -331,15 +331,14 @@ const DepositsModal: React.FC<{
                 </div>
 
                 {/* The account's standing figures, in the order the money moves through
-                    them: what came in, how much of it is in the market, what that is
-                    worth now, and what is still waiting to be spent. */}
+                    them: what came in, how much of it is in the market, how that is
+                    doing, and what is still waiting to be spent. */}
                 <div className="shrink-0 space-y-1.5 border-t border-slate-100 bg-slate-50/70 px-5 py-3">
                     {[
                         ['Total deposits', total],
-                        ['Total invested', invested],
+                        // Taxes are folded into what the book cost, as the broker counts it.
+                        ['Total invested', invested + tax],
                         ['Unrealized P&L', worth - invested],
-                        ['Worth', worth],
-                        ...(tax === 0 ? [] : [['Taxes', -tax] as const]),
                         ...(cashAvailable === null ? [] : [['Cash available', cashAvailable] as const]),
                     ].map(([label, value]) => (
                         <div key={label as string} className="flex items-center justify-between gap-4">
