@@ -797,7 +797,6 @@ export const LedgerReturns: React.FC = () => {
                 onClose={() => setXirrOpen(false)}
                 rate={xirr}
                 invested={liveTotals.totalCost}
-                worth={liveTotals.totalValue}
                 cashAvailable={cashAvailable}
             />
         </Panel>

@@ -52,11 +52,9 @@ const DepositsModal: React.FC<{
     rate: number | null;
     /** Cost of what is currently held. */
     invested: number;
-    /** What it is worth at today's prices. */
-    worth: number;
     /** Net deposits less invested, or null with no deposits to compute it from. */
     cashAvailable: number | null;
-}> = ({ isOpen, onClose, rate, invested, worth, cashAvailable }) => {
+}> = ({ isOpen, onClose, rate, invested, cashAvailable }) => {
     const formatCurrency = useCurrency();
     const { deposits, loading, saving, addDeposit, updateAmount, removeDeposit } = useSipDeposits();
 
@@ -338,7 +336,6 @@ const DepositsModal: React.FC<{
                         ['Total deposits', total],
                         // Taxes are folded into what the book cost, as the broker counts it.
                         ['Total invested', invested + tax],
-                        ['Unrealized P&L', worth - invested],
                         ...(cashAvailable === null ? [] : [['Cash available', cashAvailable] as const]),
                     ].map(([label, value]) => (
                         <div key={label as string} className="flex items-center justify-between gap-4">
