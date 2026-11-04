@@ -11,6 +11,7 @@ import { usePortfolio } from '../../context/PortfolioContext';
 import { useShariah } from '../../hooks/useShariah';
 import { computeHoldings } from '../../utils/holdings';
 import { DayChange } from './DayChange';
+import { SortHeader, sortRows, useTableSort } from './sorting';
 
 interface AllocationTableProps {
     rows: AllocationRow[];
@@ -48,12 +49,13 @@ const Badge: React.FC<{ title: string; children: React.ReactNode }> = ({ title, 
 
 // Sized so a full 15-row allocation clears the fold on a laptop without its own scroller.
 // Anything tighter than this reads as cramped rather than dense.
-const headCell = 'px-3.5 py-2.5 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-slate-400';
 // `leading-5` pins the line box at 20px so a row is the same height whether its
 // weight cell holds plain text (KMI 30) or the editable input (My Symbols) --
 // the input is sized to match it exactly.
 const bodyCell = 'px-3.5 py-2 text-[13px] leading-5 tabular-nums';
 const footCell = 'px-3.5 py-2.5 text-right text-[13px] font-semibold tabular-nums';
+
+type SortKey = 'name' | 'price' | 'dayChange' | 'weight' | 'normalizedWeight' | 'finalAmount' | 'shares';
 
 const AllocationTable: React.FC<AllocationTableProps> = ({
     rows,
@@ -81,19 +83,40 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
         [transactions]
     );
 
+    // Unsorted until a header is clicked: an index tab arrives heaviest-first and the
+    // Custom tab in the order set on Overview, and both orders mean something.
+    const { sort, toggle } = useTableSort<SortKey>(null);
+
+    const dayChangeOf = (r: AllocationRow): number | null => {
+        const change = liveChanges[r.name.toUpperCase()];
+        return Number.isFinite(change) ? change : null;
+    };
+
+    const sorted = sortRows(rows, sort, (r, key) => {
+        switch (key) {
+            case 'name': return r.name;
+            case 'price': return r.price > 0 ? r.price : null;
+            case 'dayChange': return dayChangeOf(r);
+            case 'weight': return r.weight;
+            case 'normalizedWeight': return r.normalizedWeight;
+            case 'finalAmount': return r.finalAmount;
+            case 'shares': return r.shares;
+        }
+    });
+
     return (
         <Panel flush>
             <div className="overflow-x-auto scrollbar-hide-auto">
                 <table className="w-full min-w-[640px] text-left border-collapse">
                     <thead className="border-b border-slate-100 bg-slate-50/60">
                         <tr>
-                            <th className={headCell} style={DISPLAY}>Equity</th>
-                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Price</th>
-                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>1D</th>
-                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Weight %</th>
-                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Norm %</th>
-                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Amount</th>
-                            <th className={clsx(headCell, 'text-right')} style={DISPLAY}>Shares</th>
+                            <SortHeader label="Equity" sortKey="name" sort={sort} onToggle={toggle} naturalDirection="asc" align="left" />
+                            <SortHeader label="Price" sortKey="price" sort={sort} onToggle={toggle} />
+                            <SortHeader label="1D" sortKey="dayChange" sort={sort} onToggle={toggle} />
+                            <SortHeader label="Weight %" sortKey="weight" sort={sort} onToggle={toggle} />
+                            <SortHeader label="Norm %" sortKey="normalizedWeight" sort={sort} onToggle={toggle} />
+                            <SortHeader label="Amount" sortKey="finalAmount" sort={sort} onToggle={toggle} />
+                            <SortHeader label="Shares" sortKey="shares" sort={sort} onToggle={toggle} />
                         </tr>
                     </thead>
 
@@ -109,7 +132,7 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                                 </td>
                             </tr>
                         ) : (
-                            rows.map((r) => (
+                            sorted.map((r) => (
                                 <tr key={r.name} className="group transition-colors hover:bg-slate-50/70">
                                     <td className={clsx(bodyCell, 'relative')}>
                                         {/* The accent rail only paints on hover, so the resting table stays
@@ -150,7 +173,7 @@ const AllocationTable: React.FC<AllocationTableProps> = ({
                                     </td>
 
                                     <td className={clsx(bodyCell, 'text-right')}>
-                                        <DayChange value={Number.isFinite(liveChanges[r.name.toUpperCase()]) ? liveChanges[r.name.toUpperCase()] : null} />
+                                        <DayChange value={dayChangeOf(r)} />
                                     </td>
 
                                     <td className={clsx(bodyCell, 'text-right')}>

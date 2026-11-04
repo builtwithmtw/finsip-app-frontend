@@ -20,12 +20,21 @@ export interface SortState<K extends string> {
  * the largest first, a symbol column wants A first, and inheriting `asc` from a name
  * click would open the numbers at their least interesting end.
  */
-export function useTableSort<K extends string>(initial: SortState<K>) {
-    const [sort, setSort] = useState<SortState<K>>(initial);
+export function useTableSort<K extends string>(initial: SortState<K>): {
+    sort: SortState<K>;
+    toggle: (key: K, naturalDirection: SortDirection) => void;
+};
+/** Null starts the table in the order it was given, until a header is clicked. */
+export function useTableSort<K extends string>(initial: SortState<K> | null): {
+    sort: SortState<K> | null;
+    toggle: (key: K, naturalDirection: SortDirection) => void;
+};
+export function useTableSort<K extends string>(initial: SortState<K> | null) {
+    const [sort, setSort] = useState<SortState<K> | null>(initial);
 
     const toggle = useCallback((key: K, naturalDirection: SortDirection) => {
         setSort((prev) =>
-            prev.key === key
+            prev?.key === key
                 ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
                 : { key, direction: naturalDirection }
         );
@@ -37,9 +46,11 @@ export function useTableSort<K extends string>(initial: SortState<K>) {
 /** Applies a sort to a copy, so the caller's memoized array is never mutated. */
 export function sortRows<T, K extends string>(
     rows: T[],
-    sort: SortState<K>,
+    sort: SortState<K> | null,
     valueOf: (row: T, key: K) => string | number | null | undefined
 ): T[] {
+    if (!sort) return rows;
+
     const sign = sort.direction === 'asc' ? 1 : -1;
 
     return [...rows].sort((a, b) => {
@@ -63,7 +74,7 @@ export function sortRows<T, K extends string>(
 interface SortHeaderProps<K extends string> {
     label: string;
     sortKey: K;
-    sort: SortState<K>;
+    sort: SortState<K> | null;
     onToggle: (key: K, naturalDirection: SortDirection) => void;
     /** Where this column opens when first clicked. Numbers want 'desc'; names want 'asc'. */
     naturalDirection?: SortDirection;
@@ -80,13 +91,13 @@ export function SortHeader<K extends string>({
     align = 'right',
     className,
 }: SortHeaderProps<K>) {
-    const active = sort.key === sortKey;
-    const Caret = active && sort.direction === 'asc' ? ChevronUp : ChevronDown;
+    const active = sort?.key === sortKey;
+    const Caret = active && sort?.direction === 'asc' ? ChevronUp : ChevronDown;
 
     return (
         <th
             className={clsx('px-3.5 py-2.5', className)}
-            aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+            aria-sort={active ? (sort?.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
         >
             <button
                 type="button"
